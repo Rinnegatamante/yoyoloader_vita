@@ -8,11 +8,10 @@
 #define MEMORY_NEWLIB_MB 240
 #define MEMORY_VITAGL_THRESHOLD_MB 12
 
-#define DATA_PATH "ux0:data/blask"
-#define SO_PATH DATA_PATH "/libyoyo.so"
-#define APK_PATH DATA_PATH "/game.apk"
-#define GXP_PATH DATA_PATH "/gxp"
-#define GLSL_PATH DATA_PATH "/glsl"
+#define DATA_PATH "ux0:data/gms"
+#define GXP_PATH DATA_PATH "/shared/gxp"
+#define GLSL_PATH DATA_PATH "/shared/glsl"
+#define LAUNCH_FILE_PATH DATA_PATH "/launch.txt"
 
 #define SCREEN_W 960
 #define SCREEN_H 544

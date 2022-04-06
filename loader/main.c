@@ -44,20 +44,11 @@
 
 #define STB_IMAGE_IMPLEMENTATION
 #define STB_ONLY_PNG
-//#include "stb_image.h"
+#include "stb_image.h"
 
 static int __stack_chk_guard_fake = 0x42424242;
-
-uint32_t audio_player_play(char *path, uint8_t loop);
-int audio_player_is_playing(int m);
-void audio_player_stop(int m);
-void audio_player_init();
-void audio_player_stop_all_sounds();
-
-typedef struct {
-  unsigned char *elements;
-  int size;
-} jni_bytearray;
+ALCdevice *ALDevice;
+ALvoid *ALContext;
 
 static char fake_vm[0x1000];
 static char fake_env[0x1000];
@@ -66,7 +57,7 @@ int _newlib_heap_size_user = MEMORY_NEWLIB_MB * 1024 * 1024;
 
 unsigned int _pthread_stack_default_user = 1 * 1024 * 1024;
 
-so_module goo_mod;
+so_module gmsloader_mod;
 
 void *__wrap_memcpy(void *dest, const void *src, size_t n) {
   return sceClibMemcpy(dest, src, n);
@@ -286,24 +277,30 @@ int DebugPrintf(int *target, const char *fmt, ...) {
   return 0;
 }
 
-char *ProcessCommandLine(char *args) {
-	char **gameName = (char **)so_symbol(&goo_mod, "g_pGameName");
-	*gameName = (char *)malloc(0x2000);
-	strcpy(*gameName, "game.droid");
-	return NULL;
+void __stack_chk_fail_fake() {
+  int (*Java_com_yoyogames_runner_RunnerJNILib_Process) (void *env, int a2, int w, int h, float accel_x, float accel_y, float accel_z, int exit, int orientation, float refresh_rate) = (void *)so_symbol(&gmsloader_mod, "Java_com_yoyogames_runner_RunnerJNILib_Process");
+
+  printf("Entering main loop after stack smash\n");
+  for (;;) {
+    Java_com_yoyogames_runner_RunnerJNILib_Process(fake_env, 0, SCREEN_W, SCREEN_H, 0.0f, 0.0f, 0.0f, 0, 0, 60.0f);
+    vglSwapBuffers(GL_FALSE);
+  }
 }
 
 void patch_game(void) {
-  hook_addr(so_symbol(&goo_mod, "_Z30PackageManagerHasSystemFeaturePKc"), (uintptr_t)&ret0);
-  hook_addr(so_symbol(&goo_mod, "_Z17alBufferDebugNamejPKc"), (uintptr_t)&ret0);
-  hook_addr(so_symbol(&goo_mod, "_ZN13MemoryManager10DumpMemoryEP7__sFILE"), (uintptr_t)&ret0);
+  hook_addr(so_symbol(&gmsloader_mod, "_Z30PackageManagerHasSystemFeaturePKc"), (uintptr_t)&ret0);
+  hook_addr(so_symbol(&gmsloader_mod, "_Z17alBufferDebugNamejPKc"), (uintptr_t)&ret0);
+  hook_addr(so_symbol(&gmsloader_mod, "_ZN13MemoryManager10DumpMemoryEP7__sFILE"), (uintptr_t)&ret0);
   
-  //hook_addr(so_symbol(&goo_mod, "_Z18ProcessCommandLinePc"), (uintptr_t)&ret0);
-
   // Debug
-  hook_addr(so_symbol(&goo_mod, "_ZN11TRelConsole6OutputEPKcz"), (uintptr_t)&DebugPrintf);
-  kuKernelCpuUnrestrictedMemcpy(goo_mod.text_base + 0x5DA6F4, goo_mod.text_base + 0x5DA70C, 4);
-  kuKernelCpuUnrestrictedMemcpy(goo_mod.text_base + 0x5DA6B8, goo_mod.text_base + 0x5DA70C, 4);
+  hook_addr(so_symbol(&gmsloader_mod, "_ZN11TRelConsole6OutputEPKcz"), (uintptr_t)&DebugPrintf);
+}
+
+void patch_game_post_init(void) {
+  // Debug
+  //kuKernelCpuUnrestrictedMemcpy(*(int *)so_symbol(&gmsloader_mod, "_dbg_csol") + 0x0C, so_symbol(&gmsloader_mod, "_ZTV11TRelConsole") + 0x14, 4);
+  //kuKernelCpuUnrestrictedMemcpy(*(int *)so_symbol(&gmsloader_mod, "_rel_csol") + 0x0C, so_symbol(&gmsloader_mod, "_ZTV11TRelConsole") + 0x14, 4);
+  //so_flush_caches(&gmsloader_mod);
 }
 
 extern void *_Znaj;
@@ -329,6 +326,22 @@ extern void *__aeabi_ldivmod;
 extern void *__aeabi_uidiv;
 extern void *__aeabi_uidivmod;
 extern void *__aeabi_uldivmod;
+extern void *__aeabi_f2d;
+extern void *__aeabi_l2d;
+extern void *__aeabi_l2f;
+extern void *__aeabi_d2uiz;
+extern void *__aeabi_d2lz;
+extern void *__aeabi_d2ulz;
+extern void *__aeabi_ui2d;
+extern void *__aeabi_ul2d;
+extern void *__aeabi_ddiv;
+extern void *__aeabi_dadd;
+extern void *__aeabi_dcmplt;
+extern void *__aeabi_dmul;
+extern void *__aeabi_dsub;
+extern void *__aeabi_dcmpge;
+extern void *__aeabi_dcmpgt;
+extern void *__aeabi_i2d;
 extern void *__cxa_atexit;
 extern void *__cxa_finalize;
 extern void *__cxa_pure_virtual;
@@ -338,6 +351,7 @@ extern void *__stack_chk_fail;
 int open(const char *pathname, int flags);
 
 static uint8_t forceGL1 = 0;
+static uint8_t forceSplashSkip = 0;
 
 static char *__ctype_ = (char *)&_ctype_;
 
@@ -371,7 +385,7 @@ int fstat_hook(int fd, void *statbuf) {
 
 void *dlopen_hook(const char *filename, int flags) {
   printf("Opening %s\n", filename);
-  if (forceGL1 && strstr(filename, "v2"))
+  if (forceGL1 == 1 && strstr(filename, "v2"))
     return 0;
   return 0xDEADBEEF;
 }
@@ -398,7 +412,7 @@ void glShaderSourceHook(GLuint shader, GLsizei count, const GLchar **string, con
   FILE *file = fopen(gxp_path, "rb");
   if (!file) {
     printf("Could not find %s\n", gxp_path);
-
+	
     char glsl_path[128];
     snprintf(glsl_path, sizeof(glsl_path), "%s/%s.glsl", GLSL_PATH, sha_name);
 
@@ -408,13 +422,38 @@ void glShaderSourceHook(GLuint shader, GLsizei count, const GLchar **string, con
       fclose(file);
     }
 	
-    int t;
-    glGetShaderiv(shader, GL_SHADER_TYPE, &t);
-    if (t == GL_VERTEX_SHADER)
-      snprintf(gxp_path, sizeof(gxp_path), "%s/%s.gxp", GXP_PATH, "eb3eaf87949a211f2cec6acdae6f5d94ba13301e");
-    else
+	char *cg_shader;
+	int type;
+	glGetShaderiv(shader, GL_SHADER_TYPE, &type);
+	if (type == GL_FRAGMENT_SHADER) {
+      cg_shader = translate_frag_shader(*string, size);
+    } else {
+      cg_shader = translate_vert_shader(*string, size);
+	}
+	
+    glShaderSource(shader, 1, &cg_shader, NULL);
+	glCompileShader(shader);
+	int compiled;
+	glGetShaderiv(shader, GL_COMPILE_STATUS, &compiled);
+	  
+	// Debug
+    snprintf(glsl_path, sizeof(glsl_path), "%s/%s.cg", GLSL_PATH, sha_name);
+	printf("Saving translated output on %s\n", glsl_path);
+    file = fopen(glsl_path, "w");
+    if (file) {
+      fwrite(cg_shader, 1, strlen(cg_shader), file);
+      fclose(file);
+      free(cg_shader);
+    }
+
+    if (!compiled) {
+      printf("Translated shader has errors... Falling back to default shader!\n");
       snprintf(gxp_path, sizeof(gxp_path), "%s/%s.gxp", GXP_PATH, "bb4a9846ba51f476c322f32ddabf6461bc63cc5e");
-    file = fopen(gxp_path, "rb");
+      file = fopen(gxp_path, "rb");
+	  } else {
+		printf("Translated shader successfully compiled!\n");
+        return;		
+    }
   }
 
   if (file) {
@@ -447,7 +486,12 @@ const char *gl_ret0[] = {
   "glNormalPointer",
   "glLightf",
   "glGetFramebufferAttachmentParameterivOES",
-  "glCompileShader"
+  "glCompileShader",
+  "glGenRenderbuffer",
+  "glDeleteRenderbuffers",
+  "glFramebufferRenderbuffer",
+  "glRenderbufferStorage",
+  "glHint"
 };
 static size_t gl_numret = sizeof(gl_ret0) / sizeof(*gl_ret0);
 
@@ -478,23 +522,56 @@ FILE *fopen_hook(char *file, char *mode) {
 	return fopen(file, mode);
 }
 
+void *sceClibMemclr(void *dst, SceSize len) {
+  return sceClibMemset(dst, 0, len);
+}
+
+void *sceClibMemset2(void *dst, SceSize len, int ch) {
+  return sceClibMemset(dst, ch, len);
+}
+
+ALCcontext *alcCreateContextHook(ALCdevice *dev, const ALCint *unused);
+ALCdevice *alcOpenDeviceHook(void *unused);
+
 static so_default_dynlib default_dynlib[] = {
   { "_Znaj", (uintptr_t)&_Znaj },
   { "_Znwj", (uintptr_t)&_Znwj },
   { "_ZdaPv", (uintptr_t)&_ZdaPv },
   { "_ZdlPv", (uintptr_t)&_ZdlPv },
-  { "__aeabi_memclr", (uintptr_t)&__aeabi_memclr },
-  { "__aeabi_memclr4", (uintptr_t)&__aeabi_memclr4 },
-  { "__aeabi_memclr8", (uintptr_t)&__aeabi_memclr8 },
-  { "__aeabi_memcpy4", (uintptr_t)&__aeabi_memcpy4 },
-  { "__aeabi_memcpy8", (uintptr_t)&__aeabi_memcpy8 },
-  { "__aeabi_memmove4", (uintptr_t)&__aeabi_memmove4 },
-  { "__aeabi_memmove8", (uintptr_t)&__aeabi_memmove8 },
-  { "__aeabi_memcpy", (uintptr_t)&__aeabi_memcpy },
-  { "__aeabi_memmove", (uintptr_t)&__aeabi_memmove },
-  { "__aeabi_memset", (uintptr_t)&__aeabi_memset },
-  { "__aeabi_memset4", (uintptr_t)&__aeabi_memset4 },
-  { "__aeabi_memset8", (uintptr_t)&__aeabi_memset8 },
+  { "__aeabi_f2d", (uintptr_t)&__aeabi_f2d },
+  { "__aeabi_l2d", (uintptr_t)&__aeabi_l2d },
+  { "__aeabi_l2f", (uintptr_t)&__aeabi_l2f },
+  { "__aeabi_d2uiz", (uintptr_t)&__aeabi_d2uiz },
+  { "__aeabi_d2ulz", (uintptr_t)&__aeabi_d2ulz },
+  { "__aeabi_d2lz", (uintptr_t)&__aeabi_d2lz },
+  { "__aeabi_ui2d", (uintptr_t)&__aeabi_ui2d },
+  { "__aeabi_ul2d", (uintptr_t)&__aeabi_ul2d },
+  { "__aeabi_i2d", (uintptr_t)&__aeabi_i2d },
+  { "__aeabi_idivmod", (uintptr_t)&__aeabi_idivmod },
+  { "__aeabi_ldivmod", (uintptr_t)&__aeabi_ldivmod },
+  { "__aeabi_uidivmod", (uintptr_t)&__aeabi_uidivmod },
+  { "__aeabi_uldivmod", (uintptr_t)&__aeabi_uldivmod },
+  { "__aeabi_ddiv", (uintptr_t)&__aeabi_ddiv },
+  { "__aeabi_idiv", (uintptr_t)&__aeabi_idiv },
+  { "__aeabi_uidiv", (uintptr_t)&__aeabi_uidiv },
+  { "__aeabi_dadd", (uintptr_t)&__aeabi_dadd },
+  { "__aeabi_dcmplt", (uintptr_t)&__aeabi_dcmplt },
+  { "__aeabi_dcmpge", (uintptr_t)&__aeabi_dcmpge },
+  { "__aeabi_dcmpgt", (uintptr_t)&__aeabi_dcmpgt },
+  { "__aeabi_dmul", (uintptr_t)&__aeabi_dmul },
+  { "__aeabi_dsub", (uintptr_t)&__aeabi_dsub },
+  { "__aeabi_memclr", (uintptr_t)&sceClibMemclr },
+  { "__aeabi_memclr4", (uintptr_t)&sceClibMemclr },
+  { "__aeabi_memclr8", (uintptr_t)&sceClibMemclr },
+  { "__aeabi_memcpy4", (uintptr_t)&sceClibMemcpy },
+  { "__aeabi_memcpy8", (uintptr_t)&sceClibMemcpy },
+  { "__aeabi_memmove4", (uintptr_t)&sceClibMemmove },
+  { "__aeabi_memmove8", (uintptr_t)&sceClibMemmove },
+  { "__aeabi_memcpy", (uintptr_t)&sceClibMemcpy },
+  { "__aeabi_memmove", (uintptr_t)&sceClibMemmove },
+  { "__aeabi_memset", (uintptr_t)&sceClibMemset2 },
+  { "__aeabi_memset4", (uintptr_t)&sceClibMemset2 },
+  { "__aeabi_memset8", (uintptr_t)&sceClibMemset2 },
   { "__aeabi_atexit", (uintptr_t)&__aeabi_atexit },
   { "__android_log_print", (uintptr_t)&__android_log_print },
   { "__android_log_vprint", (uintptr_t)&__android_log_vprint },
@@ -506,13 +583,52 @@ static so_default_dynlib default_dynlib[] = {
   // { "__google_potentially_blocking_region_begin", (uintptr_t)&__google_potentially_blocking_region_begin },
   // { "__google_potentially_blocking_region_end", (uintptr_t)&__google_potentially_blocking_region_end },
   { "__sF", (uintptr_t)&__sF_fake },
-  { "__stack_chk_fail", (uintptr_t)&__stack_chk_fail },
+  { "__stack_chk_fail", (uintptr_t)&__stack_chk_fail_fake },
   { "__stack_chk_guard", (uintptr_t)&__stack_chk_guard_fake },
   { "_ctype_", (uintptr_t)&__ctype_ },
   { "abort", (uintptr_t)&abort },
   // { "accept", (uintptr_t)&accept },
   { "acos", (uintptr_t)&acos },
   { "acosf", (uintptr_t)&acosf },
+  { "alBufferData", (uintptr_t)&alBufferData },
+  { "alDeleteBuffers", (uintptr_t)&alDeleteBuffers },
+  { "alDeleteSources", (uintptr_t)&alDeleteSources },
+  { "alDistanceModel", (uintptr_t)&alDistanceModel },
+  { "alGenBuffers", (uintptr_t)&alGenBuffers },
+  { "alGenSources", (uintptr_t)&alGenSources },
+  { "alcGetCurrentContext", (uintptr_t)&alcGetCurrentContext },
+  { "alGetError", (uintptr_t)&alGetError },
+  { "alGetSourcei", (uintptr_t)&alGetSourcei },
+  { "alGetSourcef", (uintptr_t)&alGetSourcef },
+  { "alIsBuffer", (uintptr_t)&alIsBuffer },
+  { "alListener3f", (uintptr_t)&alListener3f },
+  { "alListenerf", (uintptr_t)&alListenerf },
+  { "alListenerfv", (uintptr_t)&alListenerfv },
+  { "alSource3f", (uintptr_t)&alSource3f },
+  { "alSourcePause", (uintptr_t)&alSourcePause },
+  { "alSourcePlay", (uintptr_t)&alSourcePlay },
+  { "alSourceQueueBuffers", (uintptr_t)&alSourceQueueBuffers },
+  { "alSourceStop", (uintptr_t)&alSourceStop },
+  { "alSourceUnqueueBuffers", (uintptr_t)&alSourceUnqueueBuffers },
+  { "alSourcef", (uintptr_t)&alSourcef },
+  { "alSourcei", (uintptr_t)&alSourcei },
+  { "alcCaptureSamples", (uintptr_t)&alcCaptureSamples },
+  { "alcCaptureStart", (uintptr_t)&alcCaptureStart },
+  { "alcCaptureStop", (uintptr_t)&alcCaptureStop },
+  { "alcCaptureOpenDevice", (uintptr_t)&alcCaptureOpenDevice },
+  { "alcCloseDevice", (uintptr_t)&alcCloseDevice },
+  { "alcCreateContext", (uintptr_t)&alcCreateContextHook },
+  { "alcGetContextsDevice", (uintptr_t)&alcGetContextsDevice },
+  { "alcGetError", (uintptr_t)&alcGetError },
+  { "alcGetIntegerv", (uintptr_t)&alcGetIntegerv },
+  { "alcGetString", (uintptr_t)&alcGetString },
+  { "alcMakeContextCurrent", (uintptr_t)&alcMakeContextCurrent },
+  { "alcDestroyContext", (uintptr_t)&alcDestroyContext },
+  { "alcOpenDevice", (uintptr_t)&alcOpenDeviceHook },
+  { "alcProcessContext", (uintptr_t)&alcProcessContext },
+  { "alcPauseCurrentDevice", (uintptr_t)&ret0 },
+  { "alcResumeCurrentDevice", (uintptr_t)&ret0 },
+  { "alcSuspendContext", (uintptr_t)&alcSuspendContext },
   { "asin", (uintptr_t)&asin },
   { "asinf", (uintptr_t)&asinf },
   { "atan", (uintptr_t)&atan },
@@ -606,6 +722,7 @@ static so_default_dynlib default_dynlib[] = {
   { "ldexp", (uintptr_t)&ldexp },
   { "ldiv", (uintptr_t)&ldiv },
   // { "listen", (uintptr_t)&listen },
+  { "llrint", (uintptr_t)&llrint },
   { "localtime_r", (uintptr_t)&localtime_r },
   { "log", (uintptr_t)&log },
   { "log10", (uintptr_t)&log10 },
@@ -626,6 +743,8 @@ static so_default_dynlib default_dynlib[] = {
   { "mmap", (uintptr_t)&mmap},
   { "munmap", (uintptr_t)&munmap},
   { "modf", (uintptr_t)&modf },
+  { "modff", (uintptr_t)&modff },
+  { "nanosleep", (uintptr_t)&ret0 },
   // { "poll", (uintptr_t)&poll },
   { "open", (uintptr_t)&open },
   { "pow", (uintptr_t)&pow },
@@ -765,7 +884,7 @@ static NameToMethodID name_to_method_ids[] = {
 };
 
 int GetMethodID(void *env, void *class, const char *name, const char *sig) {
-  printf("%s\n", name);
+  printf("GetMethodID: %s\n", name);
 
   for (int i = 0; i < sizeof(name_to_method_ids) / sizeof(NameToMethodID); i++) {
     if (strcmp(name, name_to_method_ids[i].name) == 0) {
@@ -918,6 +1037,18 @@ void SetIntArrayRegion(void *env, int *array, int start, int len, void *buf) {
 int GetIntField(void *env, void *obj, int fieldID) { return 0; }
 
 int gms_main(unsigned int argc, void *argv) {
+  char game_name[0x200], so_path[0x200];
+  FILE *f = fopen(LAUNCH_FILE_PATH, "r");
+  if (f) {
+    size_t size = fread(game_name, 1, 0x200, f);
+    fclose(f);
+    sceIoRemove(LAUNCH_FILE_PATH);
+	game_name[size] = 0;
+  } else {
+    strcpy(game_name, "Maldita"); // Debug
+  }
+  sprintf(so_path, "%s/%s/libyoyo.so", DATA_PATH, game_name);
+  
   SceAppUtilInitParam init_param;
   SceAppUtilBootParam boot_param;
   memset(&init_param, 0, sizeof(SceAppUtilInitParam));
@@ -937,17 +1068,18 @@ int gms_main(unsigned int argc, void *argv) {
   if (!file_exists("ur0:/data/libshacccg.suprx") && !file_exists("ur0:/data/external/libshacccg.suprx"))
     fatal_error("Error libshacccg.suprx is not installed.");
 
-  if (so_load(&goo_mod, SO_PATH, LOAD_ADDRESS) < 0)
-    fatal_error("Error could not load %s.", SO_PATH);
+  if (so_load(&gmsloader_mod, so_path, LOAD_ADDRESS) < 0)
+    fatal_error("Error could not load %s.", so_path);
 
-  so_relocate(&goo_mod);
-  so_resolve(&goo_mod, default_dynlib, sizeof(default_dynlib), 0);
+  so_relocate(&gmsloader_mod);
+  so_resolve(&gmsloader_mod, default_dynlib, sizeof(default_dynlib), 0);
 
   patch_openal();
   patch_game();
-  so_flush_caches(&goo_mod);
+  so_flush_caches(&gmsloader_mod);
 
-  so_initialize(&goo_mod);
+  so_initialize(&gmsloader_mod);
+  patch_game_post_init();
   
   vglSetupGarbageCollector(127, 0x20000);
   vglInitExtended(0, SCREEN_W, SCREEN_H, MEMORY_VITAGL_THRESHOLD_MB * 1024 * 1024, SCE_GXM_MULTISAMPLE_4X);
@@ -990,27 +1122,36 @@ int gms_main(unsigned int argc, void *argv) {
   *(uintptr_t *)(fake_env + 0x34C) = (uintptr_t)SetIntArrayRegion;
   *(uintptr_t *)(fake_env + 0x36C) = (uintptr_t)GetJavaVM;
   
-  int (*Java_com_yoyogames_runner_RunnerJNILib_RenderSplash) (void *env, int a2, char *apk_path, char *fname, int w, int h, signed int tex_w, signed int tex_h, signed int png_w, signed int png_h) = (void *)so_symbol(&goo_mod, "Java_com_yoyogames_runner_RunnerJNILib_RenderSplash");
-  int (*Java_com_yoyogames_runner_RunnerJNILib_Startup) (void *env, int a2, char *apk_path, char *save_dir, char *pkg_dir, int sleep_margin) = (void *)so_symbol(&goo_mod, "Java_com_yoyogames_runner_RunnerJNILib_Startup");
-  int (*Java_com_yoyogames_runner_RunnerJNILib_Process) (void *env, int a2, int w, int h, float accel_x, float accel_y, float accel_z, int exit, int orientation, float refresh_rate) = (void *)so_symbol(&goo_mod, "Java_com_yoyogames_runner_RunnerJNILib_Process");
+  int (*Java_com_yoyogames_runner_RunnerJNILib_RenderSplash) (void *env, int a2, char *apk_path, char *fname, int w, int h, signed int tex_w, signed int tex_h, signed int png_w, signed int png_h) = (void *)so_symbol(&gmsloader_mod, "Java_com_yoyogames_runner_RunnerJNILib_RenderSplash");
+  int (*Java_com_yoyogames_runner_RunnerJNILib_Startup) (void *env, int a2, char *apk_path, char *save_dir, char *pkg_dir, int sleep_margin) = (void *)so_symbol(&gmsloader_mod, "Java_com_yoyogames_runner_RunnerJNILib_Startup");
+  int (*Java_com_yoyogames_runner_RunnerJNILib_Process) (void *env, int a2, int w, int h, float accel_x, float accel_y, float accel_z, int exit, int orientation, float refresh_rate) = (void *)so_symbol(&gmsloader_mod, "Java_com_yoyogames_runner_RunnerJNILib_Process");
+  
+  char apk_path[256], data_path[256], pkg_name[256];
+  sprintf(apk_path, "%s/%s/game.apk", DATA_PATH, game_name);
+  sprintf(data_path, "%s/%s/assets/", DATA_PATH, game_name);
+  strcpy(pkg_name, "com.rinnegatamante.loader");
   
   int w, h;
-  uint8_t *bg_data = NULL;//stbi_load("ux0:data/blask/assets/splash.png", &w, &h, NULL, 4);
+  sprintf(so_path, "%ssplash.png", data_path); // Re-using so_path
+  uint8_t *bg_data = forceSplashSkip ? NULL : stbi_load(so_path, &w, &h, NULL, 4);
   if (bg_data) {
 	GLuint bg_image;
 	glGenTextures(1, &bg_image);
 	glBindTexture(GL_TEXTURE_2D, bg_image);
 	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, bg_data);
 	free(bg_data);
-    Java_com_yoyogames_runner_RunnerJNILib_RenderSplash(fake_env, 0, APK_PATH, "splash.png", SCREEN_W, SCREEN_H, SCREEN_W, SCREEN_H, SCREEN_W, SCREEN_H);
+    if (forceGL1)
+      forceGL1 = 2;
+    Java_com_yoyogames_runner_RunnerJNILib_RenderSplash(fake_env, 0, apk_path, "splash.png", SCREEN_W, SCREEN_H, SCREEN_W, SCREEN_H, SCREEN_W, SCREEN_H);
+    if (forceGL1) {
+      forceGL1 = 1;
+      *(int *)so_symbol(&gmsloader_mod, "g_GL_funcs_imported") = 0;
+	  glUseProgram(0);
+    }
     vglSwapBuffers(GL_FALSE);
 	glDeleteTextures(1, &bg_image);
   }
   
-  char apk_path[256], data_path[256], pkg_name[256];
-  strcpy(apk_path, APK_PATH);
-  strcpy(data_path, "ux0:data/blask/assets/");
-  strcpy(pkg_name, "com.rinnegatamante.loader");
   Java_com_yoyogames_runner_RunnerJNILib_Startup(fake_env, 0, apk_path, data_path, pkg_name, 0);
   printf("Startup ended\n");
   
@@ -1024,11 +1165,29 @@ int gms_main(unsigned int argc, void *argv) {
 
 int main(int argc, char **argv)
 {
-	// We need a bigger stack to run Yoyo Runner, so we create a new thread with a proper stack size
-	SceUID main_thread = sceKernelCreateThread("YoyoLoader", gms_main, 0x40, 0x800000, 0, 0, NULL);
-	if (main_thread >= 0){
-		sceKernelStartThread(main_thread, 0, NULL);
-		sceKernelWaitThreadEnd(main_thread, NULL, NULL);
-	}
-	return 0;
+  // Debug
+  //sceSysmoduleLoadModule(9); // Razor Capture
+
+  ALCint attrlist[6];
+  attrlist[0] = ALC_FREQUENCY;
+  attrlist[1] = 44100;
+  attrlist[2] = ALC_SYNC;
+  attrlist[3] = AL_FALSE;
+  attrlist[4] = 0;
+
+  ALDevice  = alcOpenDevice(NULL);
+  if (ALDevice == NULL)
+    printf("Error while opening AL device\n");
+  ALContext = alcCreateContext(ALDevice, attrlist);
+  if (ALContext == NULL)
+    printf("Error while creating AL context\n");
+  if (!alcMakeContextCurrent(ALContext))
+    printf("Error while making AL context current\n");
+
+  // We need a bigger stack to run Yoyo Runner, so we create a new thread with a proper stack size
+  SceUID main_thread = sceKernelCreateThread("YoyoLoader", gms_main, 0x40, 0x800000, 0, 0, NULL);
+  if (main_thread >= 0){
+    sceKernelStartThread(main_thread, 0, NULL);
+    sceKernelWaitThreadEnd(main_thread, NULL, NULL);
+  }
 }

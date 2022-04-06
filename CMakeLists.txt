@@ -8,25 +8,61 @@ if(NOT DEFINED CMAKE_TOOLCHAIN_FILE)
   endif()
 endif()
 
-project(GOO C CXX)
+project(GMSLoader C CXX)
 include("${VITASDK}/share/vita.cmake" REQUIRED)
-set(VITA_APP_NAME "World of Goo")
-set(VITA_TITLEID  "WRLDOFGOO")
+set(VITA_APP_NAME "GMSLoader")
+set(VITA_TITLEID  "GMSLOADER")
 set(VITA_VERSION  "01.00")
 set(VITA_MKSFOEX_FLAGS "-d ATTRIBUTE2=12")
 
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -g -Wl,-q,--wrap,memcpy,--wrap,memmove,--wrap,memset -D_GNU_SOURCE -Wall -O3 -mfloat-abi=softfp")
 set(CMAKE_CXX_FLAGS "${CMAKE_C_FLAGS} -std=c++11")
 
-add_executable(GOO
+add_executable(GMSLoader
+  selector/main.cpp
+)
+
+add_dependencies(GMSLoader loader.bin)
+
+target_link_libraries(GMSLoader
+  imgui
+  m
+  z
+  stdc++
+  vitaGL
+  vitashark
+  mathneon
+  kubridge_stub
+  SceAppMgr_stub
+  SceAppUtil_stub
+  SceAudio_stub
+  SceAudioIn_stub
+  SceCtrl_stub
+  SceCommonDialog_stub
+  SceDisplay_stub
+  SceKernelDmacMgr_stub
+  SceRazorHud_stub
+  SceRazorCapture_stub
+  SceFios2_stub
+  SceGxm_stub
+  SceLibcBridge_stub
+  SceShaccCg_stub
+  SceSysmodule_stub
+  ScePower_stub
+  SceTouch_stub
+  SceVshBridge_stub
+)
+
+add_executable(loader
   loader/main.c
   loader/dialog.c
   loader/so_util.c
   loader/sha1.c
   loader/openal_patch.c
+  loader/glsl2cg.c
 )
 
-target_link_libraries(GOO
+target_link_libraries(loader
   -Wl,--whole-archive pthread -Wl,--no-whole-archive
   openal
   m
@@ -60,8 +96,10 @@ target_link_libraries(GOO
   SceVshBridge_stub
 )
 
-vita_create_self(eboot.bin GOO UNSAFE)
-vita_create_vpk(GOO.vpk ${VITA_TITLEID} eboot.bin
+vita_create_self(loader.bin loader UNSAFE)
+
+vita_create_self(eboot.bin GMSLoader UNSAFE)
+vita_create_vpk(GMSLoader.vpk ${VITA_TITLEID} eboot.bin
   VERSION ${VITA_VERSION}
   NAME ${VITA_APP_NAME}
   FILE ${CMAKE_SOURCE_DIR}/livearea/icon0.png sce_sys/icon0.png
