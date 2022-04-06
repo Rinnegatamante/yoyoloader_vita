@@ -1,4 +1,4 @@
-/* main.c -- Blask .so loader
+/* main.c -- GMS Loader based on .so loader
  *
  * Copyright (C) 2021 Andy Nguyen
  * Copyright (C) 2022 Rinnegatamante
@@ -277,14 +277,49 @@ int DebugPrintf(int *target, const char *fmt, ...) {
 	return 0;
 }
 
-void __stack_chk_fail_fake() {
-	int (*Java_com_yoyogames_runner_RunnerJNILib_Process) (void *env, int a2, int w, int h, float accel_x, float accel_y, float accel_z, int exit, int orientation, float refresh_rate) = (void *)so_symbol(&gmsloader_mod, "Java_com_yoyogames_runner_RunnerJNILib_Process");
+enum {
+	TOUCH_DOWN,
+	TOUCH_UP,
+	TOUCH_MOVE
+};
 
-	printf("Entering main loop after stack smash\n");
+void main_loop() {
+	int (*Java_com_yoyogames_runner_RunnerJNILib_Process) (void *env, int a2, int w, int h, float accel_x, float accel_y, float accel_z, int exit, int orientation, float refresh_rate) = (void *)so_symbol(&gmsloader_mod, "Java_com_yoyogames_runner_RunnerJNILib_Process");
+	int (*Java_com_yoyogames_runner_RunnerJNILib_TouchEvent) (void *env, int a2, int type, int id, float x, float y) = (void *)so_symbol(&gmsloader_mod, "Java_com_yoyogames_runner_RunnerJNILib_TouchEvent");
+	int lastX[SCE_TOUCH_MAX_REPORT] = {-1, -1, -1, -1, -1, -1, -1, -1};
+	int lastY[SCE_TOUCH_MAX_REPORT] = {-1, -1, -1, -1, -1, -1, -1, -1};
+
 	for (;;) {
+		SceTouchData touch;
+		sceTouchPeek(SCE_TOUCH_PORT_FRONT, &touch, 1);
+		for (int i = 0; i < SCE_TOUCH_MAX_REPORT; i++) {
+			if (i < touch.reportNum) {
+				int x = (int)((float)touch.report[i].x * (float)SCREEN_W / 1920.0f);
+				int y = (int)((float)touch.report[i].y * (float)SCREEN_H / 1088.0f);
+
+				if (lastX[i] == -1 || lastY[i] == -1)
+					Java_com_yoyogames_runner_RunnerJNILib_TouchEvent(fake_env, 0, TOUCH_DOWN, i, x, y);
+				else if (lastX[i] != x || lastY[i] != y)
+					Java_com_yoyogames_runner_RunnerJNILib_TouchEvent(fake_env, 0, TOUCH_MOVE, i, x, y);
+				lastX[i] = x;
+				lastY[i] = y;
+			} else {
+				if (lastX[i] != -1 || lastY[i] != -1) {
+					Java_com_yoyogames_runner_RunnerJNILib_TouchEvent(fake_env, 0, TOUCH_UP, i, lastX[i], lastY[i]);
+					lastX[i] = -1;
+					lastY[i] = -1;
+				}
+			}
+		}
+		
 		Java_com_yoyogames_runner_RunnerJNILib_Process(fake_env, 0, SCREEN_W, SCREEN_H, 0.0f, 0.0f, 0.0f, 0, 0, 60.0f);
 		vglSwapBuffers(GL_FALSE);
 	}
+}
+
+void __stack_chk_fail_fake() {
+	printf("Entering main loop after stack smash\n");
+	main_loop();
 }
 
 void patch_game(void) {
@@ -643,6 +678,7 @@ static so_default_dynlib default_dynlib[] = {
 	{ "atan2f", (uintptr_t)&atan2f },
 	{ "atanf", (uintptr_t)&atanf },
 	{ "atoi", (uintptr_t)&atoi },
+	{ "atol", (uintptr_t)&atol },
 	{ "atoll", (uintptr_t)&atoll },
 	// { "bind", (uintptr_t)&bind },
 	{ "bsearch", (uintptr_t)&bsearch },
@@ -789,7 +825,7 @@ static so_default_dynlib default_dynlib[] = {
 	// { "sendto", (uintptr_t)&sendto },
 	{ "setenv", (uintptr_t)&ret0 },
 	{ "setjmp", (uintptr_t)&setjmp },
-	// { "setlocale", (uintptr_t)&setlocale },
+	{ "setlocale", (uintptr_t)&ret0 },
 	// { "setsockopt", (uintptr_t)&setsockopt },
 	{ "setvbuf", (uintptr_t)&setvbuf },
 	{ "sin", (uintptr_t)&sin },
@@ -1050,9 +1086,9 @@ int gms_main(unsigned int argc, void *argv) {
 		size_t size = fread(game_name, 1, 0x200, f);
 		fclose(f);
 		sceIoRemove(LAUNCH_FILE_PATH);
-	game_name[size] = 0;
+		game_name[size] = 0;
 	} else {
-		strcpy(game_name, "Maldita"); // Debug
+		strcpy(game_name, "Apoc"); // Debug
 	}
 	sprintf(so_path, "%s/%s/libyoyo.so", DATA_PATH, game_name);
 	
@@ -1131,7 +1167,6 @@ int gms_main(unsigned int argc, void *argv) {
 	
 	int (*Java_com_yoyogames_runner_RunnerJNILib_RenderSplash) (void *env, int a2, char *apk_path, char *fname, int w, int h, signed int tex_w, signed int tex_h, signed int png_w, signed int png_h) = (void *)so_symbol(&gmsloader_mod, "Java_com_yoyogames_runner_RunnerJNILib_RenderSplash");
 	int (*Java_com_yoyogames_runner_RunnerJNILib_Startup) (void *env, int a2, char *apk_path, char *save_dir, char *pkg_dir, int sleep_margin) = (void *)so_symbol(&gmsloader_mod, "Java_com_yoyogames_runner_RunnerJNILib_Startup");
-	int (*Java_com_yoyogames_runner_RunnerJNILib_Process) (void *env, int a2, int w, int h, float accel_x, float accel_y, float accel_z, int exit, int orientation, float refresh_rate) = (void *)so_symbol(&gmsloader_mod, "Java_com_yoyogames_runner_RunnerJNILib_Process");
 	
 	char apk_path[256], data_path[256], pkg_name[256];
 	sprintf(apk_path, "%s/%s/game.apk", DATA_PATH, game_name);
@@ -1161,11 +1196,7 @@ int gms_main(unsigned int argc, void *argv) {
 	
 	Java_com_yoyogames_runner_RunnerJNILib_Startup(fake_env, 0, apk_path, data_path, pkg_name, 0);
 	printf("Startup ended\n");
-	
-	for (;;) {
-		Java_com_yoyogames_runner_RunnerJNILib_Process(fake_env, 0, SCREEN_W, SCREEN_H, 0.0f, 0.0f, 0.0f, 0, 0, 60.0f);
-	vglSwapBuffers(GL_FALSE);
-	}
+	main_loop();
 
 	return 0;
 }
