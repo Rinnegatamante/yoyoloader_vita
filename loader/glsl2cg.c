@@ -559,6 +559,10 @@ char *translate_vert_shader(char *string, int size) {
 	printf("glsl2cg: Patching matrices operations...\n");
 	p = new_src2;
 	p2 = strstr(p, "gm_Matrices") + 11; // Skipping first occurrance since it's its declaration
+	if (p2 == 11) { // No gm_Matrices, probably some internal shader (?)
+		printf("glsl2cg: Translation process completed!\n");	
+		return new_src2;
+	}
 	new_src = (char *)malloc(0x8000);
 	char *p5 = new_src;
 	for (;;) {
