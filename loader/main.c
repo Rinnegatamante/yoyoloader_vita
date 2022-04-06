@@ -448,7 +448,7 @@ void glShaderSourceHook(GLuint shader, GLsizei count, const GLchar **string, con
 
 		if (!compiled) {
 			printf("Translated shader has errors... Falling back to default shader!\n");
-			snprintf(gxp_path, sizeof(gxp_path), "%s/%s.gxp", GXP_PATH, "bb4a9846ba51f476c322f32ddabf6461bc63cc5e");
+			snprintf(gxp_path, sizeof(gxp_path), "%s/%s.gxp", GXP_PATH, type == GL_FRAGMENT_SHADER ? "bb4a9846ba51f476c322f32ddabf6461bc63cc5e" : "eb3eaf87949a211f2cec6acdae6f5d94ba13301e");
 			file = fopen(gxp_path, "rb");
 		} else {
 			printf("Translated shader successfully compiled!\n");
