@@ -458,6 +458,7 @@ void glShaderSourceHook(GLuint shader, GLsizei count, const GLchar **string, con
 			file = fopen(gxp_path, "wb");
 			fwrite(bin, 1, bin_len, file);
 			fclose(file);
+			free(bin);
 			return;		
 		}
 	}
