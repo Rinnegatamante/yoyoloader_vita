@@ -21,7 +21,7 @@
 #define IS_BTN_BOUNDS  (btn  >= 0 && btn  < 16)
 #define IS_CONTROLLER_BOUNDS (id >= 0 && id < 4)
 
-extern so_module gmsloader_mod;
+extern so_module yoyoloader_mod;
 extern uint8_t forceWinMode;
 
 typedef enum GamepadButtonState {
@@ -228,8 +228,8 @@ void gamepad_set_colour(retval_t *ret, void *self, void *other, int argc, retval
 }
 
 void GamePadRestart() {
-	int (*CreateDsMap)(int a1, char *type, int a3, int a4, char *desc, char *type2, double id, int a8) = (void *)so_symbol(&gmsloader_mod, "_Z11CreateDsMapiz");
-	void (*CreateAsynEventWithDSMap)(int dsMap, int a2) = (void *)so_symbol(&gmsloader_mod, "_Z24CreateAsynEventWithDSMapii");
+	int (*CreateDsMap)(int a1, char *type, int a3, int a4, char *desc, char *type2, double id, int a8) = (void *)so_symbol(&yoyoloader_mod, "_Z11CreateDsMapiz");
+	void (*CreateAsynEventWithDSMap)(int dsMap, int a2) = (void *)so_symbol(&yoyoloader_mod, "_Z24CreateAsynEventWithDSMapii");
 
 	for (int i = 0; i < 4; i++) {
 		if (yoyo_gamepads[i].is_available) {
@@ -288,9 +288,9 @@ void GamePadUpdate() {
 }
 
 void patch_gamepad() {
-	void (*Function_Add)(const char *name, intptr_t func, int argc, char ret) = (void *)so_symbol(&gmsloader_mod, "_Z12Function_AddPKcPFvR6RValueP9CInstanceS4_iPS1_Eib");
+	void (*Function_Add)(const char *name, intptr_t func, int argc, char ret) = (void *)so_symbol(&yoyoloader_mod, "_Z12Function_AddPKcPFvR6RValueP9CInstanceS4_iPS1_Eib");
 	if (Function_Add == NULL)
-		Function_Add = (void *)so_symbol(&gmsloader_mod, "_Z12Function_AddPcPFvR6RValueP9CInstanceS3_iPS0_Eib");
+		Function_Add = (void *)so_symbol(&yoyoloader_mod, "_Z12Function_AddPcPFvR6RValueP9CInstanceS3_iPS0_Eib");
 	Function_Add("gamepad_is_supported", gamepad_is_supported, 0, 1);
 	Function_Add("gamepad_get_device_count", gamepad_get_device_count, 0, 1);
 	Function_Add("gamepad_is_connected", gamepad_is_connected, 1, 1);
@@ -309,5 +309,5 @@ void patch_gamepad() {
 	Function_Add("gamepad_set_vibration", gamepad_set_vibration, 3, 1);
 	Function_Add("gamepad_set_color", gamepad_set_colour, 2, 1);
 	Function_Add("gamepad_set_colour", gamepad_set_colour, 2, 1);
-	hook_addr(so_symbol(&gmsloader_mod, "_Z14GamePadRestartv"), GamePadRestart);
+	hook_addr(so_symbol(&yoyoloader_mod, "_Z14GamePadRestartv"), GamePadRestart);
 }

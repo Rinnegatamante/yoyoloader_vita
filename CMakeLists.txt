@@ -8,23 +8,28 @@ if(NOT DEFINED CMAKE_TOOLCHAIN_FILE)
   endif()
 endif()
 
-project(GMSLoader C CXX)
+project(YoYoLoader C CXX)
 include("${VITASDK}/share/vita.cmake" REQUIRED)
-set(VITA_APP_NAME "GMSLoader")
-set(VITA_TITLEID  "GMSLOADER")
+set(VITA_APP_NAME "YoYo Loader")
+set(VITA_TITLEID  "YYOLOADER")
 set(VITA_VERSION  "01.00")
 set(VITA_MKSFOEX_FLAGS "-d ATTRIBUTE2=12")
 
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -g -Wl,-q,--wrap,memcpy,--wrap,memmove,--wrap,memset -D_GNU_SOURCE -Wall -O3 -mfloat-abi=softfp")
-set(CMAKE_CXX_FLAGS "${CMAKE_C_FLAGS} -std=c++11")
+execute_process(COMMAND git describe --abbrev=6 --dirty --always
+	OUTPUT_VARIABLE GIT_HASH
+	OUTPUT_STRIP_TRAILING_WHITESPACE
+)
 
-add_executable(GMSLoader
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -g -Wl,-q,--wrap,memcpy,--wrap,memmove,--wrap,memset -D_GNU_SOURCE -Wall -O3 -mfloat-abi=softfp")
+set(CMAKE_CXX_FLAGS "${CMAKE_C_FLAGS} -DGIT_VERSION=\"${GIT_HASH}\" -std=c++11")
+
+add_executable(YoYoLoader
   selector/main.cpp
 )
 
-add_dependencies(GMSLoader loader.bin)
+add_dependencies(YoYoLoader loader.bin)
 
-target_link_libraries(GMSLoader
+target_link_libraries(YoYoLoader
   imgui
   m
   z
@@ -102,8 +107,8 @@ target_link_libraries(loader
 
 vita_create_self(loader.bin loader UNSAFE)
 
-vita_create_self(eboot.bin GMSLoader UNSAFE)
-vita_create_vpk(GMSLoader.vpk ${VITA_TITLEID} eboot.bin
+vita_create_self(eboot.bin YoYoLoader UNSAFE)
+vita_create_vpk(YoYoLoader.vpk ${VITA_TITLEID} eboot.bin
   VERSION ${VITA_VERSION}
   NAME ${VITA_APP_NAME}
   FILE ${CMAKE_SOURCE_DIR}/livearea/icon0.png sce_sys/icon0.png

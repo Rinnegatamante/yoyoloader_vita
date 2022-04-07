@@ -469,7 +469,7 @@ int so_resolve(so_module *mod, so_default_dynlib *default_dynlib, int size_defau
           }
 
           if (!resolved) {
-            printf("Missing: %s\n", mod->dynstr + sym->st_name);
+            debugPrintf("Missing: %s\n", mod->dynstr + sym->st_name);
           }
         }
 

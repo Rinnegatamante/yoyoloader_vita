@@ -48,10 +48,35 @@
 #define STB_ONLY_PNG
 #include "stb_image.h"
 
-uint8_t forceGL1 = 0;
-uint8_t forceSplashSkip = 0;
-uint8_t forceMainThread = 0;
-uint8_t forceWinMode = 1;
+int forceGL1 = 0;
+int forceSplashSkip = 0;
+int forceMainThread = 0;
+int forceWinMode = 1;
+int forceBilinear = 1;
+int debugShaders = 0;
+int debugMode = 0;
+
+void loadConfig(const char *game) {
+	char configFile[512];
+	char buffer[30];
+	int value;
+	
+	sprintf(configFile, "%s/%s/yyl.cfg", DATA_PATH, game);
+	FILE *config = fopen(configFile, "r");
+
+	if (config) {
+		while (EOF != fscanf(config, "%[^=]=%d\n", buffer, &value)) {
+			if (strcmp("forceGLES1", buffer) == 0) forceGL1 = value;
+			else if (strcmp("forceBilinear", buffer) == 0) forceBilinear = value;
+			else if (strcmp("winMode", buffer) == 0) forceWinMode = value;
+			else if (strcmp("singleThreaded", buffer) == 0) forceMainThread = value;
+			else if (strcmp("debugShaders", buffer) == 0) debugShaders = value;
+			else if (strcmp("debugMode", buffer) == 0) debugMode = value;
+			else if (strcmp("noSplash", buffer) == 0) forceSplashSkip = value;
+		}
+		fclose(config);
+	}
+}
 
 extern void *GetPlatformInstance;
 
@@ -66,7 +91,7 @@ int _newlib_heap_size_user = MEMORY_NEWLIB_MB * 1024 * 1024;
 
 unsigned int _pthread_stack_default_user = 1 * 1024 * 1024;
 
-so_module gmsloader_mod;
+so_module yoyoloader_mod;
 
 void *__wrap_memcpy(void *dest, const void *src, size_t n) {
 	return sceClibMemcpy(dest, src, n);
@@ -80,23 +105,34 @@ void *__wrap_memset(void *s, int c, size_t n) {
 	return sceClibMemset(s, c, n);
 }
 
+int file_exists(const char *path) {
+	SceIoStat stat;
+	return sceIoGetstat(path, &stat) >= 0;
+}
+
+#if 0
+#define debugPrintf printf
+#else
 int debugPrintf(char *text, ...) {
-#ifdef DEBUG
-	//va_list list;
-	//static char string[0x8000];
+	if (!debugMode)
+		return 0;
 
-	//va_start(list, text);
-	//vsprintf(string, text, list);
-	//va_end(list);
+	va_list list;
+	static char string[0x8000];
 
-	//SceUID fd = sceIoOpen("ux0:data/goo_log.txt", SCE_O_WRONLY | SCE_O_CREAT | SCE_O_APPEND, 0777);
-	//if (fd >= 0) {
-	//	sceIoWrite(fd, string, strlen(string));
-	//	sceIoClose(fd);
-	//}
-#endif
+	va_start(list, text);
+	vsprintf(string, text, list);
+	va_end(list);
+
+	SceUID fd = sceIoOpen("ux0:data/gms/shared/log.txt", SCE_O_WRONLY | SCE_O_CREAT | SCE_O_APPEND, 0777);
+	if (fd >= 0) {
+		sceIoWrite(fd, string, strlen(string));
+		sceIoClose(fd);
+	}
+
 	return 0;
 }
+#endif
 
 // From https://github.com/kraj/uClibc/blob/master/libc/misc/dirent/scandir.c
 int scandir(const char *dir, struct dirent ***namelist,
@@ -181,7 +217,9 @@ int scandir(const char *dir, struct dirent ***namelist,
 }
 
 int __android_log_print(int prio, const char *tag, const char *fmt, ...) {
-#ifdef DEBUG
+	if (!debugMode)
+		return 0;
+
 	va_list list;
 	static char string[0x8000];
 
@@ -189,20 +227,22 @@ int __android_log_print(int prio, const char *tag, const char *fmt, ...) {
 	vsprintf(string, fmt, list);
 	va_end(list);
 
-	printf("[LOG] %s: %s\n", tag, string);
-#endif
+	debugPrintf("[LOG] %s: %s\n", tag, string);
+	
 	return 0;
 }
 
 int __android_log_vprint(int prio, const char *tag, const char *fmt, va_list list) {
-#ifdef DEBUG
+	if (!debugMode)
+		return 0;
+	
 	static char string[0x8000];
 
 	vsprintf(string, fmt, list);
 	va_end(list);
 
-	printf("[LOGV] %s: %s\n", tag, string);
-#endif
+	debugPrintf("[LOGV] %s: %s\n", tag, string);
+
 	return 0;
 }
 
@@ -384,6 +424,9 @@ int GetEnv(void *vm, void **env, int r2) {
 }
 
 int DebugPrintf(int *target, const char *fmt, ...) {
+	if (!debugMode)
+		return 0;
+	
 	va_list list;
 	static char string[0x8000];
 
@@ -391,7 +434,7 @@ int DebugPrintf(int *target, const char *fmt, ...) {
 	vsprintf(string, fmt, list);
 	va_end(list);
 
-	printf("[DBG] %s\n", string);
+	debugPrintf("[DBG] %s\n", string);
 	return 0;
 }
 
@@ -404,13 +447,13 @@ enum {
 
 
 void main_loop() {
-	int (*Java_com_yoyogames_runner_RunnerJNILib_Process) (void *env, int a2, int w, int h, float accel_x, float accel_y, float accel_z, int exit, int orientation, float refresh_rate) = (void *)so_symbol(&gmsloader_mod, "Java_com_yoyogames_runner_RunnerJNILib_Process");
-	int (*Java_com_yoyogames_runner_RunnerJNILib_TouchEvent) (void *env, int a2, int type, int id, float x, float y) = (void *)so_symbol(&gmsloader_mod, "Java_com_yoyogames_runner_RunnerJNILib_TouchEvent");
+	int (*Java_com_yoyogames_runner_RunnerJNILib_Process) (void *env, int a2, int w, int h, float accel_x, float accel_y, float accel_z, int exit, int orientation, float refresh_rate) = (void *)so_symbol(&yoyoloader_mod, "Java_com_yoyogames_runner_RunnerJNILib_Process");
+	int (*Java_com_yoyogames_runner_RunnerJNILib_TouchEvent) (void *env, int a2, int type, int id, float x, float y) = (void *)so_symbol(&yoyoloader_mod, "Java_com_yoyogames_runner_RunnerJNILib_TouchEvent");
 	int lastX[SCE_TOUCH_MAX_REPORT] = {-1, -1, -1, -1, -1, -1, -1, -1};
 	int lastY[SCE_TOUCH_MAX_REPORT] = {-1, -1, -1, -1, -1, -1, -1, -1};
-	int (*Java_com_yoyogames_runner_RunnerJNILib_canFlip) (void) = (void *)so_symbol(&gmsloader_mod, "Java_com_yoyogames_runner_RunnerJNILib_canFlip");
+	int (*Java_com_yoyogames_runner_RunnerJNILib_canFlip) (void) = (void *)so_symbol(&yoyoloader_mod, "Java_com_yoyogames_runner_RunnerJNILib_canFlip");
 	
-	int *g_IOFrameCount = (int *)so_symbol(&gmsloader_mod, "g_IOFrameCount");
+	int *g_IOFrameCount = (int *)so_symbol(&yoyoloader_mod, "g_IOFrameCount");
 	
 	for (;;) {
 		SceTouchData touch;
@@ -446,7 +489,8 @@ void main_loop() {
 }
 
 void __stack_chk_fail_fake() {
-	printf("Entering main loop after stack smash\n");
+	// Some versions of libyoyo.so apparently stack smash on Startup, with this workaround we prevent the app from crashing
+	debugPrintf("Entering main loop after stack smash\n");
 	main_loop();
 }
 
@@ -456,20 +500,26 @@ double GetPlatform()
 }
 
 void patch_game(void) {
-	hook_addr(so_symbol(&gmsloader_mod, "_Z30PackageManagerHasSystemFeaturePKc"), (uintptr_t)&ret0);
-	hook_addr(so_symbol(&gmsloader_mod, "_Z17alBufferDebugNamejPKc"), (uintptr_t)&ret0);
-	hook_addr(so_symbol(&gmsloader_mod, "_ZN13MemoryManager10DumpMemoryEP7__sFILE"), (uintptr_t)&ret0);
-	hook_addr(so_symbol(&gmsloader_mod, "_Z23YoYo_GetPlatform_DoWorkv"), (uintptr_t)&GetPlatform);
-	hook_addr(so_symbol(&gmsloader_mod, "_Z20GET_YoYo_GetPlatformP9CInstanceiP6RValue"), (uintptr_t)&GetPlatformInstance);
+	hook_addr(so_symbol(&yoyoloader_mod, "_Z30PackageManagerHasSystemFeaturePKc"), (uintptr_t)&ret0);
+	hook_addr(so_symbol(&yoyoloader_mod, "_Z17alBufferDebugNamejPKc"), (uintptr_t)&ret0);
+	hook_addr(so_symbol(&yoyoloader_mod, "_ZN13MemoryManager10DumpMemoryEP7__sFILE"), (uintptr_t)&ret0);
+	hook_addr(so_symbol(&yoyoloader_mod, "_Z23YoYo_GetPlatform_DoWorkv"), (uintptr_t)&GetPlatform);
+	hook_addr(so_symbol(&yoyoloader_mod, "_Z20GET_YoYo_GetPlatformP9CInstanceiP6RValue"), (uintptr_t)&GetPlatformInstance);
 	
 	// Debug
-	hook_addr(so_symbol(&gmsloader_mod, "_ZN11TRelConsole6OutputEPKcz"), (uintptr_t)&DebugPrintf);
+	if (debugMode)
+		hook_addr(so_symbol(&yoyoloader_mod, "_ZN11TRelConsole6OutputEPKcz"), (uintptr_t)&DebugPrintf);
 }
 
 void patch_game_post_init(void) {
 	// Debug
-	//kuKernelCpuUnrestrictedMemcpy(*(int *)so_symbol(&gmsloader_mod, "_dbg_csol") + 0x0C, so_symbol(&gmsloader_mod, "_ZTV11TRelConsole") + 0x14, 4);
-	//kuKernelCpuUnrestrictedMemcpy(*(int *)so_symbol(&gmsloader_mod, "_rel_csol") + 0x0C, so_symbol(&gmsloader_mod, "_ZTV11TRelConsole") + 0x14, 4);
+	if (debugMode) {
+		int *dbg_csol = (int *)so_symbol(&yoyoloader_mod, "_dbg_csol");
+		if (dbg_csol) {
+			kuKernelCpuUnrestrictedMemcpy(*(int *)so_symbol(&yoyoloader_mod, "_dbg_csol") + 0x0C, so_symbol(&yoyoloader_mod, "_ZTV11TRelConsole") + 0x14, 4);
+			kuKernelCpuUnrestrictedMemcpy(*(int *)so_symbol(&yoyoloader_mod, "_rel_csol") + 0x0C, so_symbol(&yoyoloader_mod, "_ZTV11TRelConsole") + 0x14, 4);
+		}
+	}
 }
 
 extern void *_Znaj;
@@ -544,32 +594,26 @@ int munmap(void *addr, size_t length) {
 }
 
 void *AAssetManager_open(void *mgr, const char *filename, int mode) {
-  printf("AAssetManager_open\n");
   return NULL;
 }
 
 void *AAsset_close() {
-  printf("AAsset_close\n");
   return NULL;
 }
 
 void *AAssetManager_fromJava() {
-  printf("AAssetManager_fromJava\n");
   return NULL;
 }
 
 void *AAsset_read() {
-  printf("AAsset_read\n");
   return NULL;
 }
 
 void *AAsset_seek() {
-  printf("AAsset_seek\n");
   return NULL;
 }
 
 void *AAsset_getLength() {
-  printf("AAsset_getLength\n");
   return NULL;
 }
 
@@ -582,7 +626,7 @@ int fstat_hook(int fd, void *statbuf) {
 }
 
 void *dlopen_hook(const char *filename, int flags) {
-	printf("Opening %s\n", filename);
+	debugPrintf("Opening %s\n", filename);
 	if (forceGL1 == 1 && strstr(filename, "v2"))
 		return 0;
 	return 0xDEADBEEF;
@@ -604,21 +648,12 @@ void glShaderSourceHook(GLuint shader, GLsizei count, const GLchar **string, con
 	char sha_name[64];
 	snprintf(sha_name, sizeof(sha_name), "%08x%08x%08x%08x%08x", sha1[0], sha1[1], sha1[2], sha1[3], sha1[4]);
 
-	char gxp_path[128];
+	char gxp_path[128], glsl_path[128];;
 	snprintf(gxp_path, sizeof(gxp_path), "%s/%s.gxp", GXP_PATH, sha_name);
 
 	FILE *file = fopen(gxp_path, "rb");
 	if (!file) {
-		printf("Could not find %s\n", gxp_path);
-	
-		char glsl_path[128];
-		snprintf(glsl_path, sizeof(glsl_path), "%s/%s.glsl", GLSL_PATH, sha_name);
-
-		file = fopen(glsl_path, "w");
-		if (file) {
-			fwrite(*string, 1, size, file);
-			fclose(file);
-		}
+		debugPrintf("Could not find %s\n", gxp_path);
 	
 		char *cg_shader;
 		int type;
@@ -635,21 +670,29 @@ void glShaderSourceHook(GLuint shader, GLsizei count, const GLchar **string, con
 		glGetShaderiv(shader, GL_COMPILE_STATUS, &compiled);
 		
 		// Debug
-		snprintf(glsl_path, sizeof(glsl_path), "%s/%s.cg", GLSL_PATH, sha_name);
-		printf("Saving translated output on %s\n", glsl_path);
-		file = fopen(glsl_path, "w");
-		if (file) {
-			fwrite(cg_shader, 1, strlen(cg_shader), file);
-			fclose(file);
-			free(cg_shader);
+		if (debugShaders) {
+			snprintf(glsl_path, sizeof(glsl_path), "%s/%s.cg", GLSL_PATH, sha_name);
+			debugPrintf("Saving translated output on %s\n", glsl_path);
+			file = fopen(glsl_path, "w");
+			if (file) {
+				fwrite(cg_shader, 1, strlen(cg_shader), file);
+				fclose(file);
+			}
 		}
+		free(cg_shader);
 
 		if (!compiled) {
-			printf("Translated shader has errors... Falling back to default shader!\n");
+			debugPrintf("Translated shader has errors... Falling back to default shader!\n");
+			snprintf(glsl_path, sizeof(glsl_path), "%s/%s.glsl", GLSL_PATH, sha_name);
+			file = fopen(glsl_path, "w");
+			if (file) {
+				fwrite(*string, 1, size, file);
+				fclose(file);
+			}
 			snprintf(gxp_path, sizeof(gxp_path), "%s/%s.gxp", GXP_PATH, type == GL_FRAGMENT_SHADER ? "bb4a9846ba51f476c322f32ddabf6461bc63cc5e" : "eb3eaf87949a211f2cec6acdae6f5d94ba13301e");
 			file = fopen(gxp_path, "rb");
 		} else {
-			printf("Translated shader successfully compiled!\n");
+			debugPrintf("Translated shader successfully compiled!\n");
 			void *bin = malloc(0x8000);
 			int bin_len;
 			vglGetShaderBinary(shader, 0x8000, &bin_len, bin);
@@ -679,6 +722,20 @@ void glShaderSourceHook(GLuint shader, GLsizei count, const GLchar **string, con
 	}
 }
 
+void glTexParameteriHook(GLenum target, GLenum pname, GLint param) {
+	if (forceBilinear && (pname == GL_TEXTURE_MIN_FILTER || pname == GL_TEXTURE_MAG_FILTER)) {
+		param = GL_LINEAR;
+	}
+	glTexParameteri(target, pname, param);
+}
+
+void glTexParameterfHook(GLenum target, GLenum pname, GLfloat param) {
+	if (forceBilinear && (pname == GL_TEXTURE_MIN_FILTER || pname == GL_TEXTURE_MAG_FILTER)) {
+		param = GL_LINEAR;
+	}
+	glTexParameteri(target, pname, param);
+}
+
 void *retJNI(int dummy) {
 	return fake_env;
 }
@@ -702,6 +759,8 @@ static size_t gl_numret = sizeof(gl_ret0) / sizeof(*gl_ret0);
 
 static so_default_dynlib gl_hook[] = {
 	{"glShaderSource", (uintptr_t)&glShaderSourceHook},
+	{"glTexParameteri", (uintptr_t)&glTexParameteriHook},
+	{"glTexParameterf", (uintptr_t)&glTexParameterfHook},
 };
 static size_t gl_numhook = sizeof(gl_hook) / sizeof(*gl_hook);
 
@@ -1148,11 +1207,6 @@ int check_kubridge(void) {
 	return _vshKernelSearchModuleByName("kubridge", search_unk);
 }
 
-int file_exists(const char *path) {
-	SceIoStat stat;
-	return sceIoGetstat(path, &stat) >= 0;
-}
-
 enum MethodIDs {
 	UNKNOWN = 0,
 	INIT,
@@ -1170,7 +1224,7 @@ static NameToMethodID name_to_method_ids[] = {
 };
 
 int GetMethodID(void *env, void *class, const char *name, const char *sig) {
-	printf("GetMethodID: %s\n", name);
+	debugPrintf("GetMethodID: %s\n", name);
 
 	for (int i = 0; i < sizeof(name_to_method_ids) / sizeof(NameToMethodID); i++) {
 		if (strcmp(name, name_to_method_ids[i].name) == 0) {
@@ -1182,7 +1236,7 @@ int GetMethodID(void *env, void *class, const char *name, const char *sig) {
 }
 
 int GetStaticMethodID(void *env, void *class, const char *name, const char *sig) {
-	printf("Static: %s\n", name);
+	debugPrintf("GetStaticMethodID: %s\n", name);
 	
 	for (int i = 0; i < sizeof(name_to_method_ids) / sizeof(NameToMethodID); i++) {
 		if (strcmp(name, name_to_method_ids[i].name) == 0)
@@ -1342,6 +1396,7 @@ void SetObjectArrayElement(void *env, void *array, int size, void *val) {
 int GetIntField(void *env, void *obj, int fieldID) { return 0; }
 
 int gms_main(unsigned int argc, void *argv) {
+	// Checking requested game launch
 	char game_name[0x200], so_path[0x200];
 	FILE *f = fopen(LAUNCH_FILE_PATH, "r");
 	if (f) {
@@ -1354,36 +1409,33 @@ int gms_main(unsigned int argc, void *argv) {
 	}
 	sprintf(so_path, "%s/%s/libyoyo.so", DATA_PATH, game_name);
 	
-	SceAppUtilInitParam init_param;
-	SceAppUtilBootParam boot_param;
-	memset(&init_param, 0, sizeof(SceAppUtilInitParam));
-	memset(&boot_param, 0, sizeof(SceAppUtilBootParam));
-	sceAppUtilInit(&init_param, &boot_param);
-	
+	// Enabling analogs and touch sampling
 	sceTouchSetSamplingState(SCE_TOUCH_PORT_FRONT, SCE_TOUCH_SAMPLING_STATE_START);
 	sceCtrlSetSamplingModeExt(SCE_CTRL_MODE_ANALOG_WIDE);
 
+	// Maximizing clocks
 	scePowerSetArmClockFrequency(444);
 	scePowerSetBusClockFrequency(222);
 	scePowerSetGpuClockFrequency(222);
 	scePowerSetGpuXbarClockFrequency(166);
 	
+	// Populating required strings and creating required folders
 	char apk_path[256], data_path[256], pkg_name[256];
 	sprintf(apk_path, "%s/%s/game.apk", DATA_PATH, game_name);
 	sprintf(data_path, "%s/%s/assets/", DATA_PATH, game_name);
 	strcpy(pkg_name, "com.rinnegatamante.loader");
-	
 	sceIoMkdir(data_path, 0777);
 	sceIoMkdir("ux0:data/gms/shared", 0777);
 	sceIoMkdir("ux0:data/gms/shared/gxp", 0777);
 	sceIoMkdir("ux0:data/gms/shared/glsl", 0777);
 
+	// Checking for dependencies
 	if (check_kubridge() < 0)
 		fatal_error("Error kubridge.skprx is not installed.");
-
 	if (!file_exists("ur0:/data/libshacccg.suprx") && !file_exists("ur0:/data/external/libshacccg.suprx"))
 		fatal_error("Error libshacccg.suprx is not installed.");
-
+	
+	// Loading ARMv7 executable from the apk
 	unz_file_info file_info;
 	unzFile apk_file = unzOpen(apk_path);
 	unzLocateFile(apk_file, "lib/armeabi-v7a/libyoyo.so", NULL);
@@ -1393,11 +1445,14 @@ int gms_main(unsigned int argc, void *argv) {
 	uint8_t *so_buffer = (uint8_t *)malloc(so_size);
 	unzReadCurrentFile(apk_file, so_buffer, so_size);
 	unzCloseCurrentFile(apk_file);
-		
-	if (so_mem_load(&gmsloader_mod, so_buffer, so_size, LOAD_ADDRESS) < 0)
+	if (so_mem_load(&yoyoloader_mod, so_buffer, so_size, LOAD_ADDRESS) < 0)
 		fatal_error("Error could not load %s.", so_path);
 	free(so_buffer);
 	
+	// Loading config file
+	loadConfig(game_name);
+
+	// Loading splash screen from the apk
 	uint8_t *splash_buf = NULL;
 	uint32_t splash_size;
 	if (!forceSplashSkip && unzLocateFile(apk_file, "assets/splash.png", NULL) == UNZ_OK) {
@@ -1410,28 +1465,27 @@ int gms_main(unsigned int argc, void *argv) {
 	}
 	unzClose(apk_file);
 
-	so_relocate(&gmsloader_mod);
-	so_resolve(&gmsloader_mod, default_dynlib, sizeof(default_dynlib), 0);
-
+	// Patching the executable
+	so_relocate(&yoyoloader_mod);
+	so_resolve(&yoyoloader_mod, default_dynlib, sizeof(default_dynlib), 0);
 	patch_openal();
 	patch_game();
-	so_flush_caches(&gmsloader_mod);
-
-	so_initialize(&gmsloader_mod);
-	
+	so_flush_caches(&yoyoloader_mod);
+	so_initialize(&yoyoloader_mod);
 	patch_game_post_init();
 	patch_gamepad();
-	so_flush_caches(&gmsloader_mod);
+	so_flush_caches(&yoyoloader_mod);
 	
+	// Initializing vitaGL
 	vglSetupGarbageCollector(127, 0x20000);
 	vglInitExtended(0, SCREEN_W, SCREEN_H, MEMORY_VITAGL_THRESHOLD_MB * 1024 * 1024, SCE_GXM_MULTISAMPLE_4X);
 
+	// Initializing Java VM and JNI Interface
 	memset(fake_vm, 'A', sizeof(fake_vm));
 	*(uintptr_t *)(fake_vm + 0x00) = (uintptr_t)fake_vm; // just point to itself...
 	*(uintptr_t *)(fake_vm + 0x10) = (uintptr_t)GetEnv;
 	*(uintptr_t *)(fake_vm + 0x14) = (uintptr_t)ret0;
 	*(uintptr_t *)(fake_vm + 0x18) = (uintptr_t)GetEnv;
-
 	memset(fake_env, 'A', sizeof(fake_env));
 	*(uintptr_t *)(fake_env + 0x00) = (uintptr_t)fake_env; // just point to itself...
 	*(uintptr_t *)(fake_env + 0x18) = (uintptr_t)FindClass;
@@ -1469,10 +1523,10 @@ int gms_main(unsigned int argc, void *argv) {
 	*(uintptr_t *)(fake_env + 0x358) = (uintptr_t)SetDoubleArrayRegion;
 	*(uintptr_t *)(fake_env + 0x36C) = (uintptr_t)GetJavaVM;
 	
-	int (*Java_com_yoyogames_runner_RunnerJNILib_RenderSplash) (void *env, int a2, char *apk_path, char *fname, int w, int h, signed int tex_w, signed int tex_h, signed int png_w, signed int png_h) = (void *)so_symbol(&gmsloader_mod, "Java_com_yoyogames_runner_RunnerJNILib_RenderSplash");
-	int (*Java_com_yoyogames_runner_RunnerJNILib_Startup) (void *env, int a2, char *apk_path, char *save_dir, char *pkg_dir, int sleep_margin) = (void *)so_symbol(&gmsloader_mod, "Java_com_yoyogames_runner_RunnerJNILib_Startup");
+	int (*Java_com_yoyogames_runner_RunnerJNILib_RenderSplash) (void *env, int a2, char *apk_path, char *fname, int w, int h, signed int tex_w, signed int tex_h, signed int png_w, signed int png_h) = (void *)so_symbol(&yoyoloader_mod, "Java_com_yoyogames_runner_RunnerJNILib_RenderSplash");
+	int (*Java_com_yoyogames_runner_RunnerJNILib_Startup) (void *env, int a2, char *apk_path, char *save_dir, char *pkg_dir, int sleep_margin) = (void *)so_symbol(&yoyoloader_mod, "Java_com_yoyogames_runner_RunnerJNILib_Startup");
 	
-	
+	// Displaying splash screen
 	if (splash_buf) {
 		int w, h;
 		uint8_t *bg_data = stbi_load_from_memory(splash_buf, splash_size, &w, &h, NULL, 4);
@@ -1486,15 +1540,18 @@ int gms_main(unsigned int argc, void *argv) {
 		Java_com_yoyogames_runner_RunnerJNILib_RenderSplash(fake_env, 0, apk_path, "splash.png", SCREEN_W, SCREEN_H, SCREEN_W, SCREEN_H, SCREEN_W, SCREEN_H);
 		if (forceGL1) {
 			forceGL1 = 1;
-			*(int *)so_symbol(&gmsloader_mod, "g_GL_funcs_imported") = 0;
+			*(int *)so_symbol(&yoyoloader_mod, "g_GL_funcs_imported") = 0;
 			glUseProgram(0);
 		}
 		vglSwapBuffers(GL_FALSE);
 		glDeleteTextures(1, &bg_image);
 	}
 	
+	// Starting the Runner
 	Java_com_yoyogames_runner_RunnerJNILib_Startup(fake_env, 0, apk_path, data_path, pkg_name, 0);
-	printf("Startup ended\n");
+	
+	// Entering main loop
+	debugPrintf("Startup ended\n");
 	main_loop();
 
 	return 0;
@@ -1514,12 +1571,12 @@ int main(int argc, char **argv)
 
 	ALDevice	= alcOpenDevice(NULL);
 	if (ALDevice == NULL)
-		printf("Error while opening AL device\n");
+		debugPrintf("Error while opening AL device\n");
 	ALContext = alcCreateContext(ALDevice, attrlist);
 	if (ALContext == NULL)
-		printf("Error while creating AL context\n");
+		debugPrintf("Error while creating AL context\n");
 	if (!alcMakeContextCurrent(ALContext))
-		printf("Error while making AL context current\n");
+		debugPrintf("Error while making AL context current\n");
 	
 	if (forceMainThread) {
 		gms_main(0, NULL);

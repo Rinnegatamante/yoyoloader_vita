@@ -8,6 +8,12 @@
 
 #include <vitasdk.h>
 
+#if 0
+#define debugPrintf printf
+#else
+int debugPrintf(char *text, ...);
+#endif
+
 enum {
 	VARYING_TEXCOORD,
 	VARYING_TEXCOORD3,
@@ -16,10 +22,10 @@ enum {
 };
 
 char *translate_frag_shader(char *string, int size) {
-	printf("glsl2cg: Attempting to automatically translate the fragment shader...\n");
+	debugPrintf("glsl2cg: Attempting to automatically translate the fragment shader...\n");
 	
 	// Static analysis
-	printf("glsl2cg: Static analysis pass started...\n");
+	debugPrintf("glsl2cg: Static analysis pass started...\n");
 	char *p = string;
 	char *new_src = (char *)malloc(0x8000);
 	char *p2 = new_src;
@@ -203,7 +209,7 @@ char *translate_frag_shader(char *string, int size) {
 	}
 	
 	// Detecting main function
-	printf("glsl2cg: Locating main function...\n");
+	debugPrintf("glsl2cg: Locating main function...\n");
 	p = new_src;
 	char *main_f = strstr(p, "void main()");
 	char varyings[32][32];
@@ -217,7 +223,7 @@ char *translate_frag_shader(char *string, int size) {
 	p3 += p2 - p;
 	
 	// Analyzing varyings
-	printf("glsl2cg: Analyzing varyings...\n");
+	debugPrintf("glsl2cg: Analyzing varyings...\n");
 	for (;;) {
 		p2 = strstr(p, "varying");
 		if (p2) {
@@ -251,7 +257,7 @@ char *translate_frag_shader(char *string, int size) {
 	}
 	
 	// Rewriting main function
-	printf("glsl2cg: Rewriting main function...\n");
+	debugPrintf("glsl2cg: Rewriting main function...\n");
 	last_end++;
 	memcpy(p3, last_end, main_f - last_end + 10);
 	p3 += main_f - last_end + 10;
@@ -275,7 +281,7 @@ char *translate_frag_shader(char *string, int size) {
 			sprintf(var, ",float4 %s : COLOR", varyings[i]);
 			break;
 		default:
-			printf("Invalid varying detected for %s\n", varyings[i]);
+			debugPrintf("Invalid varying detected for %s\n", varyings[i]);
 			break;
 		}
 		memcpy(p3, var, strlen(var));
@@ -285,16 +291,16 @@ char *translate_frag_shader(char *string, int size) {
 	p3 += strlen(new_src) - ((main_f + 10) - new_src);
 	p3[0] = 0;
 	
-	printf("glsl2cg: Translation process completed!\n");
+	debugPrintf("glsl2cg: Translation process completed!\n");
 	free(new_src);
 	return new_src2;
 }
 
 char *translate_vert_shader(char *string, int size) {
-	printf("glsl2cg: Attempting to automatically translate the vertex shader...\n");
+	debugPrintf("glsl2cg: Attempting to automatically translate the vertex shader...\n");
 	
 	// Static analysis
-	printf("glsl2cg: Static analysis pass started...\n");
+	debugPrintf("glsl2cg: Static analysis pass started...\n");
 	char *p = string;
 	char *new_src = (char *)malloc(0x8000);
 	char *p2 = new_src;
@@ -478,7 +484,7 @@ char *translate_vert_shader(char *string, int size) {
 	}
 	
 	// Detecting main function
-	printf("glsl2cg: Locating main function...\n");
+	debugPrintf("glsl2cg: Locating main function...\n");
 	p = new_src;
 	char *main_f = strstr(p, "void main()");
 	char varyings[32][32];
@@ -494,7 +500,7 @@ char *translate_vert_shader(char *string, int size) {
 	p3 += p2 - p;
 	
 	// Analyzing varyings
-	printf("glsl2cg: Analyzing attributes...\n");
+	debugPrintf("glsl2cg: Analyzing attributes...\n");
 	for (;;) {
 		p2 = strstr(p, "attribute");
 		if (p2) {
@@ -515,7 +521,7 @@ char *translate_vert_shader(char *string, int size) {
 	p3 += p2 - last_end;
 	
 	// Analyzing attributes
-	printf("glsl2cg: Analyzing varyings...\n");
+	debugPrintf("glsl2cg: Analyzing varyings...\n");
 	for (;;) {
 		p2 = strstr(p, "varying");
 		if (p2) {
@@ -549,7 +555,7 @@ char *translate_vert_shader(char *string, int size) {
 	}
 	
 	// Rewriting main function
-	printf("glsl2cg: Rewriting main function...\n");
+	debugPrintf("glsl2cg: Rewriting main function...\n");
 	last_end++;
 	memcpy(p3, last_end, main_f - last_end + 10);
 	p3 += main_f - last_end + 10;
@@ -579,7 +585,7 @@ char *translate_vert_shader(char *string, int size) {
 			sprintf(var, ",float4 out %s : COLOR", varyings[i]);
 			break;
 		default:
-			printf("Invalid varying detected for %s\n", varyings[i]);
+			debugPrintf("Invalid varying detected for %s\n", varyings[i]);
 			break;
 		}
 		memcpy(p3, var, strlen(var));
@@ -594,10 +600,10 @@ char *translate_vert_shader(char *string, int size) {
 	p = new_src2;
 	p2 = strstr(p, "gm_Matrices") + 11; // Skipping first occurrance since it's its declaration
 	if (p2 == 11) { // No gm_Matrices, probably some internal shader (?)
-		printf("glsl2cg: Translation process completed!\n");	
+		debugPrintf("glsl2cg: Translation process completed!\n");	
 		return new_src2;
 	}
-	printf("glsl2cg: Patching matrices operations...\n");
+	debugPrintf("glsl2cg: Patching matrices operations...\n");
 	new_src = (char *)malloc(0x8000);
 	char *p5 = new_src;
 	for (;;) {
@@ -637,7 +643,7 @@ char *translate_vert_shader(char *string, int size) {
 	memcpy(p5, p, strlen(new_src2) - (p - new_src2));
 	p5 += strlen(new_src2) - (p - new_src2);
 	p5[0] = 0;
-	printf("glsl2cg: Translation process completed!\n");
+	debugPrintf("glsl2cg: Translation process completed!\n");
 	free(new_src2);
 	return new_src;
 }
