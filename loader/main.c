@@ -17,6 +17,7 @@
 #include <AL/alext.h>
 #include <AL/efx.h>
 
+#include <dirent.h>
 #include <malloc.h>
 #include <stdio.h>
 #include <stdarg.h>
@@ -46,6 +47,13 @@
 #define STB_IMAGE_IMPLEMENTATION
 #define STB_ONLY_PNG
 #include "stb_image.h"
+
+uint8_t forceGL1 = 0;
+uint8_t forceSplashSkip = 0;
+uint8_t forceMainThread = 0;
+uint8_t forceWinMode = 1;
+
+extern void *GetPlatformInstance;
 
 static int __stack_chk_guard_fake = 0x42424242;
 ALCdevice *ALDevice;
@@ -88,6 +96,88 @@ int debugPrintf(char *text, ...) {
 	//}
 #endif
 	return 0;
+}
+
+// From https://github.com/kraj/uClibc/blob/master/libc/misc/dirent/scandir.c
+int scandir(const char *dir, struct dirent ***namelist,
+	int (*selector) (const struct dirent *),
+	int (*compar) (const struct dirent **, const struct dirent **))
+{
+    DIR *dp = opendir (dir);
+    struct dirent *current;
+    struct dirent **names = NULL;
+    size_t names_size = 0, pos;
+    int save;
+
+    if (dp == NULL)
+	return -1;
+
+    save = errno;
+    //__set_errno (0);
+
+    pos = 0;
+    while ((current = readdir (dp)) != NULL) {
+	int use_it = selector == NULL;
+
+	if (! use_it)
+	{
+	    use_it = (*selector) (current);
+	    /* The selector function might have changed errno.
+	     * It was zero before and it need to be again to make
+	     * the latter tests work.  */
+	    //if (! use_it)
+		//__set_errno (0);
+	}
+	if (use_it)
+	{
+	    struct dirent *vnew;
+	    size_t dsize;
+
+	    /* Ignore errors from selector or readdir */
+	    //__set_errno (0);
+
+	    if (pos == names_size)
+	    {
+		struct dirent **new;
+		if (names_size == 0)
+		    names_size = 10;
+		else
+		    names_size *= 2;
+		new = (struct dirent **) realloc (names,
+					names_size * sizeof (struct dirent *));
+		if (new == NULL)
+		    break;
+		names = new;
+	    }
+
+	    dsize = &current->d_name[256+1] - (char*)current;
+	    vnew = (struct dirent *) malloc (dsize);
+	    if (vnew == NULL)
+		break;
+
+	    names[pos++] = (struct dirent *) memcpy (vnew, current, dsize);
+	}
+    }
+
+    if (errno != 0)
+    {
+	save = errno;
+	closedir (dp);
+	while (pos > 0)
+	    free (names[--pos]);
+	free (names);
+	//__set_errno (save);
+	return -1;
+    }
+
+    closedir (dp);
+    //__set_errno (save);
+
+    /* Sort the list if we have a comparison function to sort with.  */
+    if (compar != NULL)
+	qsort (names, pos, sizeof (struct dirent *), (__compar_fn_t) compar);
+    *namelist = names;
+    return pos;
 }
 
 int __android_log_print(int prio, const char *tag, const char *fmt, ...) {
@@ -360,11 +450,17 @@ void __stack_chk_fail_fake() {
 	main_loop();
 }
 
+double GetPlatform()
+{
+    return forceWinMode ? 0.0f : 4.0f;
+}
+
 void patch_game(void) {
 	hook_addr(so_symbol(&gmsloader_mod, "_Z30PackageManagerHasSystemFeaturePKc"), (uintptr_t)&ret0);
 	hook_addr(so_symbol(&gmsloader_mod, "_Z17alBufferDebugNamejPKc"), (uintptr_t)&ret0);
 	hook_addr(so_symbol(&gmsloader_mod, "_ZN13MemoryManager10DumpMemoryEP7__sFILE"), (uintptr_t)&ret0);
-	
+	hook_addr(so_symbol(&gmsloader_mod, "_Z23YoYo_GetPlatform_DoWorkv"), (uintptr_t)&GetPlatform);
+	hook_addr(so_symbol(&gmsloader_mod, "_Z20GET_YoYo_GetPlatformP9CInstanceiP6RValue"), (uintptr_t)&GetPlatformInstance);
 	
 	// Debug
 	hook_addr(so_symbol(&gmsloader_mod, "_ZN11TRelConsole6OutputEPKcz"), (uintptr_t)&DebugPrintf);
@@ -424,10 +520,6 @@ extern void *__gnu_unwind_frame;
 extern void *__stack_chk_fail;
 
 int open(const char *pathname, int flags);
-
-static uint8_t forceGL1 = 0;
-static uint8_t forceSplashSkip = 0;
-static uint8_t forceMainThread = 0;
 
 static char *__ctype_ = (char *)&_ctype_;
 
@@ -969,6 +1061,7 @@ static so_default_dynlib default_dynlib[] = {
 	// { "recv", (uintptr_t)&recv },
 	{ "remove", (uintptr_t)&sceIoRemove },
 	{ "rint", (uintptr_t)&rint },
+	{ "scandir", (uintptr_t)&scandir },
 	// { "send", (uintptr_t)&send },
 	// { "sendto", (uintptr_t)&sendto },
 	{ "setenv", (uintptr_t)&ret0 },

@@ -22,6 +22,7 @@
 #define IS_CONTROLLER_BOUNDS (id >= 0 && id < 4)
 
 extern so_module gmsloader_mod;
+extern uint8_t forceWinMode;
 
 typedef enum GamepadButtonState {
 	GAMEPAD_BUTTON_STATE_UP = -1,
@@ -76,6 +77,11 @@ typedef struct retval_t {
 } retval_t;
 
 Gamepad yoyo_gamepads[4];
+
+int GetPlatformInstance(void *self, int n, retval_t *args) {
+    args[0].kind = VALUE_REAL;
+    args[0].rvalue.val = forceWinMode ? 0.0f : 4.0f;
+}
 
 void gamepad_is_supported(retval_t *ret, void *self, void *other, int argc, retval_t *args) {
 	ret->kind = VALUE_BOOL;
