@@ -58,6 +58,157 @@ void so_flush_caches(so_module *mod) {
   kuKernelFlushCaches((void *)mod->text_base, mod->text_size);
 }
 
+int so_mem_load(so_module *mod, void *buffer, size_t so_size, uintptr_t load_addr) {
+  int res = 0;
+  uintptr_t data_addr = 0;
+  SceUID so_blockid;
+  void *so_data;
+
+  memset(mod, 0, sizeof(so_module));
+
+  so_blockid = sceKernelAllocMemBlock("file", SCE_KERNEL_MEMBLOCK_TYPE_USER_RW, (so_size + 0xfff) & ~0xfff, NULL);
+  if (so_blockid < 0)
+    return so_blockid;
+
+  sceKernelGetMemBlockBase(so_blockid, &so_data);
+
+  sceClibMemcpy(so_data, buffer, so_size);
+
+  if (memcmp(so_data, ELFMAG, SELFMAG) != 0) {
+    res = -1;
+    goto err_free_so;
+  }
+
+  mod->ehdr = (Elf32_Ehdr *)so_data;
+  mod->phdr = (Elf32_Phdr *)((uintptr_t)so_data + mod->ehdr->e_phoff);
+  mod->shdr = (Elf32_Shdr *)((uintptr_t)so_data + mod->ehdr->e_shoff);
+
+  mod->shstr = (char *)((uintptr_t)so_data + mod->shdr[mod->ehdr->e_shstrndx].sh_offset);
+
+  for (int i = 0; i < mod->ehdr->e_phnum; i++) {
+    if (mod->phdr[i].p_type == PT_LOAD) {
+      void *prog_data;
+      size_t prog_size;
+
+      if ((mod->phdr[i].p_flags & PF_X) == PF_X) {
+        prog_size = ALIGN_MEM(mod->phdr[i].p_memsz, mod->phdr[i].p_align);
+
+        SceKernelAllocMemBlockKernelOpt opt;
+        memset(&opt, 0, sizeof(SceKernelAllocMemBlockKernelOpt));
+        opt.size = sizeof(SceKernelAllocMemBlockKernelOpt);
+        opt.attr = 0x1;
+        opt.field_C = (SceUInt32)load_addr;
+        res = mod->text_blockid = kuKernelAllocMemBlock("rx_block", SCE_KERNEL_MEMBLOCK_TYPE_USER_RX, prog_size, &opt);
+        if (res < 0)
+          goto err_free_so;
+
+        sceKernelGetMemBlockBase(mod->text_blockid, &prog_data);
+
+        mod->phdr[i].p_vaddr += (Elf32_Addr)prog_data;
+
+        mod->text_base = mod->phdr[i].p_vaddr;
+        mod->text_size = mod->phdr[i].p_memsz;
+
+        data_addr = (uintptr_t)prog_data + prog_size;
+      } else {
+        if (data_addr == 0)
+          goto err_free_so;
+
+        prog_size = ALIGN_MEM(mod->phdr[i].p_memsz + mod->phdr[i].p_vaddr - (data_addr - mod->text_base), mod->phdr[i].p_align);
+
+        SceKernelAllocMemBlockKernelOpt opt;
+        memset(&opt, 0, sizeof(SceKernelAllocMemBlockKernelOpt));
+        opt.size = sizeof(SceKernelAllocMemBlockKernelOpt);
+        opt.attr = 0x1;
+        opt.field_C = (SceUInt32)data_addr;
+        res = mod->data_blockid = kuKernelAllocMemBlock("rw_block", SCE_KERNEL_MEMBLOCK_TYPE_USER_RW, prog_size, &opt);
+        if (res < 0)
+          goto err_free_text;
+
+        sceKernelGetMemBlockBase(mod->data_blockid, &prog_data);
+
+        mod->phdr[i].p_vaddr += (Elf32_Addr)mod->text_base;
+
+        mod->data_base = mod->phdr[i].p_vaddr;
+        mod->data_size = mod->phdr[i].p_memsz;
+      }
+
+      char *zero = malloc(prog_size);
+      memset(zero, 0, prog_size);
+      kuKernelCpuUnrestrictedMemcpy(prog_data, zero, prog_size);
+      free(zero);
+
+      kuKernelCpuUnrestrictedMemcpy((void *)mod->phdr[i].p_vaddr, (void *)((uintptr_t)so_data + mod->phdr[i].p_offset), mod->phdr[i].p_filesz);
+    }
+  }
+
+  for (int i = 0; i < mod->ehdr->e_shnum; i++) {
+    char *sh_name = mod->shstr + mod->shdr[i].sh_name;
+    uintptr_t sh_addr = mod->text_base + mod->shdr[i].sh_addr;
+    size_t sh_size = mod->shdr[i].sh_size;
+    if (strcmp(sh_name, ".dynamic") == 0) {
+      mod->dynamic = (Elf32_Dyn *)sh_addr;
+      mod->num_dynamic = sh_size / sizeof(Elf32_Dyn);
+    } else if (strcmp(sh_name, ".dynstr") == 0) {
+      mod->dynstr = (char *)sh_addr;
+    } else if (strcmp(sh_name, ".dynsym") == 0) {
+      mod->dynsym = (Elf32_Sym *)sh_addr;
+      mod->num_dynsym = sh_size / sizeof(Elf32_Sym);
+    } else if (strcmp(sh_name, ".rel.dyn") == 0) {
+      mod->reldyn = (Elf32_Rel *)sh_addr;
+      mod->num_reldyn = sh_size / sizeof(Elf32_Rel);
+    } else if (strcmp(sh_name, ".rel.plt") == 0) {
+      mod->relplt = (Elf32_Rel *)sh_addr;
+      mod->num_relplt = sh_size / sizeof(Elf32_Rel);
+    } else if (strcmp(sh_name, ".init_array") == 0) {
+      mod->init_array = (void *)sh_addr;
+      mod->num_init_array = sh_size / sizeof(void *);
+    } else if (strcmp(sh_name, ".hash") == 0) {
+      mod->hash = (void *)sh_addr;
+    }
+  }
+
+  if (mod->dynamic == NULL ||
+      mod->dynstr == NULL ||
+      mod->dynsym == NULL ||
+      mod->reldyn == NULL ||
+      mod->relplt == NULL) {
+    res = -2;
+    goto err_free_data;
+  }
+
+  for (int i = 0; i < mod->num_dynamic; i++) {
+    switch (mod->dynamic[i].d_tag) {
+      case DT_SONAME:
+        mod->soname = mod->dynstr + mod->dynamic[i].d_un.d_ptr;
+        break;
+      default:
+        break;
+    }
+  }
+
+  sceKernelFreeMemBlock(so_blockid);
+
+  if (!head && !tail) {
+    head = mod;
+    tail = mod;
+  } else {
+    tail->next = mod;
+    tail = mod;
+  }
+
+  return 0;
+
+err_free_data:
+  sceKernelFreeMemBlock(mod->data_blockid);
+err_free_text:
+  sceKernelFreeMemBlock(mod->text_blockid);
+err_free_so:
+  sceKernelFreeMemBlock(so_blockid);
+
+  return res;
+}
+
 int so_load(so_module *mod, const char *filename, uintptr_t load_addr) {
   int res = 0;
   uintptr_t data_addr = 0;

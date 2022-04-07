@@ -41,6 +41,7 @@
 #include "dialog.h"
 #include "so_util.h"
 #include "sha1.h"
+#include "unzip.h"
 
 #define STB_IMAGE_IMPLEMENTATION
 #define STB_ONLY_PNG
@@ -966,6 +967,7 @@ static so_default_dynlib default_dynlib[] = {
 	{ "read", (uintptr_t)&read },
 	{ "realloc", (uintptr_t)&realloc },
 	// { "recv", (uintptr_t)&recv },
+	{ "remove", (uintptr_t)&sceIoRemove },
 	{ "rint", (uintptr_t)&rint },
 	// { "send", (uintptr_t)&send },
 	// { "sendto", (uintptr_t)&sendto },
@@ -1255,7 +1257,7 @@ int gms_main(unsigned int argc, void *argv) {
 		sceIoRemove(LAUNCH_FILE_PATH);
 		game_name[size] = 0;
 	} else {
-		strcpy(game_name, "Maldita"); // Debug
+		strcpy(game_name, "AM2R"); // Debug
 	}
 	sprintf(so_path, "%s/%s/libyoyo.so", DATA_PATH, game_name);
 	
@@ -1272,6 +1274,16 @@ int gms_main(unsigned int argc, void *argv) {
 	scePowerSetBusClockFrequency(222);
 	scePowerSetGpuClockFrequency(222);
 	scePowerSetGpuXbarClockFrequency(166);
+	
+	char apk_path[256], data_path[256], pkg_name[256];
+	sprintf(apk_path, "%s/%s/game.apk", DATA_PATH, game_name);
+	sprintf(data_path, "%s/%s/assets/", DATA_PATH, game_name);
+	strcpy(pkg_name, "com.rinnegatamante.loader");
+	
+	sceIoMkdir(data_path, 0777);
+	sceIoMkdir("ux0:data/gms/shared", 0777);
+	sceIoMkdir("ux0:data/gms/shared/gxp", 0777);
+	sceIoMkdir("ux0:data/gms/shared/glsl", 0777);
 
 	if (check_kubridge() < 0)
 		fatal_error("Error kubridge.skprx is not installed.");
@@ -1279,8 +1291,31 @@ int gms_main(unsigned int argc, void *argv) {
 	if (!file_exists("ur0:/data/libshacccg.suprx") && !file_exists("ur0:/data/external/libshacccg.suprx"))
 		fatal_error("Error libshacccg.suprx is not installed.");
 
-	if (so_load(&gmsloader_mod, so_path, LOAD_ADDRESS) < 0)
+	unz_file_info file_info;
+	unzFile apk_file = unzOpen(apk_path);
+	unzLocateFile(apk_file, "lib/armeabi-v7a/libyoyo.so", NULL);
+	unzGetCurrentFileInfo(apk_file, &file_info, NULL, 0, NULL, 0, NULL, 0);
+	unzOpenCurrentFile(apk_file);
+	uint64_t so_size = file_info.uncompressed_size;
+	uint8_t *so_buffer = (uint8_t *)malloc(so_size);
+	unzReadCurrentFile(apk_file, so_buffer, so_size);
+	unzCloseCurrentFile(apk_file);
+		
+	if (so_mem_load(&gmsloader_mod, so_buffer, so_size, LOAD_ADDRESS) < 0)
 		fatal_error("Error could not load %s.", so_path);
+	free(so_buffer);
+	
+	uint8_t *splash_buf = NULL;
+	uint32_t splash_size;
+	if (!forceSplashSkip && unzLocateFile(apk_file, "assets/splash.png", NULL) == UNZ_OK) {
+		unzGetCurrentFileInfo(apk_file, &file_info, NULL, 0, NULL, 0, NULL, 0);
+		unzOpenCurrentFile(apk_file);
+		splash_size = file_info.uncompressed_size;
+		splash_buf = (uint8_t *)malloc(splash_size);
+		unzReadCurrentFile(apk_file, splash_buf, splash_size);
+		unzCloseCurrentFile(apk_file);
+	}
+	unzClose(apk_file);
 
 	so_relocate(&gmsloader_mod);
 	so_resolve(&gmsloader_mod, default_dynlib, sizeof(default_dynlib), 0);
@@ -1300,7 +1335,7 @@ int gms_main(unsigned int argc, void *argv) {
 
 	memset(fake_vm, 'A', sizeof(fake_vm));
 	*(uintptr_t *)(fake_vm + 0x00) = (uintptr_t)fake_vm; // just point to itself...
-	*(uintptr_t *)(fake_vm + 0x10) = (uintptr_t)ret0;
+	*(uintptr_t *)(fake_vm + 0x10) = (uintptr_t)GetEnv;
 	*(uintptr_t *)(fake_vm + 0x14) = (uintptr_t)ret0;
 	*(uintptr_t *)(fake_vm + 0x18) = (uintptr_t)GetEnv;
 
@@ -1344,15 +1379,10 @@ int gms_main(unsigned int argc, void *argv) {
 	int (*Java_com_yoyogames_runner_RunnerJNILib_RenderSplash) (void *env, int a2, char *apk_path, char *fname, int w, int h, signed int tex_w, signed int tex_h, signed int png_w, signed int png_h) = (void *)so_symbol(&gmsloader_mod, "Java_com_yoyogames_runner_RunnerJNILib_RenderSplash");
 	int (*Java_com_yoyogames_runner_RunnerJNILib_Startup) (void *env, int a2, char *apk_path, char *save_dir, char *pkg_dir, int sleep_margin) = (void *)so_symbol(&gmsloader_mod, "Java_com_yoyogames_runner_RunnerJNILib_Startup");
 	
-	char apk_path[256], data_path[256], pkg_name[256];
-	sprintf(apk_path, "%s/%s/game.apk", DATA_PATH, game_name);
-	sprintf(data_path, "%s/%s/assets/", DATA_PATH, game_name);
-	strcpy(pkg_name, "com.rinnegatamante.loader");
 	
-	int w, h;
-	sprintf(so_path, "%ssplash.png", data_path); // Re-using so_path
-	uint8_t *bg_data = forceSplashSkip ? NULL : stbi_load(so_path, &w, &h, NULL, 4);
-	if (bg_data) {
+	if (splash_buf) {
+		int w, h;
+		uint8_t *bg_data = stbi_load_from_memory(splash_buf, splash_size, &w, &h, NULL, 4);
 		GLuint bg_image;
 		glGenTextures(1, &bg_image);
 		glBindTexture(GL_TEXTURE_2D, bg_image);

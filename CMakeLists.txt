@@ -61,6 +61,9 @@ add_executable(loader
   loader/openal_patch.c
   loader/glsl2cg.c
   loader/gamepad.c
+  loader/ioapi.c
+  loader/unzip.c
+  loader/zip.c
 )
 
 target_link_libraries(loader
