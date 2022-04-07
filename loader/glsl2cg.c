@@ -10,6 +10,7 @@
 
 enum {
 	VARYING_TEXCOORD,
+	VARYING_TEXCOORD3,
 	VARYING_COLOR,
 	VARYING_FOG
 };
@@ -35,6 +36,7 @@ char *translate_frag_shader(char *string, int size) {
 	char *mat2 = strstr(p, "mat2");
 	char *mat3 = strstr(p, "mat3");
 	char *mat4 = strstr(p, "mat4");
+	char *modu = strstr(p, "mod(");
 	for (;;) {
 		// Updating any symbol that requires such
 		lowp = (lowp != NULL && lowp < p) ? strstr(p, "lowp") : lowp;
@@ -50,6 +52,7 @@ char *translate_frag_shader(char *string, int size) {
 		mat2 = (mat2 != NULL && mat2 < p) ? strstr(p, "mat2") : mat2;
 		mat3 = (mat3 != NULL && mat3 < p) ? strstr(p, "mat3") : mat3;
 		mat4 = (mat4 != NULL && mat4 < p) ? strstr(p, "mat4") : mat4;
+		modu = (modu != NULL && modu < p) ? strstr(p, "mod(") : modu;
 		
 		// Detecting closest symbol
 		char *lower_symbol = ((lowp < mediump && lowp != NULL) || mediump == NULL) ? lowp : mediump;
@@ -64,6 +67,7 @@ char *translate_frag_shader(char *string, int size) {
 		lower_symbol = ((mat2 < lower_symbol && mat2 != NULL) || lower_symbol == NULL) ? mat2 : lower_symbol;
 		lower_symbol = ((mat3 < lower_symbol && mat3 != NULL) || lower_symbol == NULL) ? mat3 : lower_symbol;
 		lower_symbol = ((mat4 < lower_symbol && mat4 != NULL) || lower_symbol == NULL) ? mat4 : lower_symbol;
+		lower_symbol = ((modu < lower_symbol && modu != NULL) || lower_symbol == NULL) ? modu : lower_symbol;
 		
 		// Handling symbol
 		if (!lower_symbol) {
@@ -72,7 +76,15 @@ char *translate_frag_shader(char *string, int size) {
 			p2[0] = 0;
 			break;
 		} else {
-			if (lower_symbol == lowp) {
+			if (lower_symbol == modu) {
+				memcpy(p2, p, lower_symbol - p);
+				p2 += lower_symbol - p;
+				p2[0] = 'f';
+				p2++;
+				memcpy(p2, lower_symbol, 4);
+				p2 += 4;
+				p = lower_symbol + 4;
+			} else if (lower_symbol == lowp) {
 				memcpy(p2, p, lower_symbol - p);
 				p2 += lower_symbol - p;
 				p = lower_symbol + 4;
@@ -215,6 +227,8 @@ char *translate_frag_shader(char *string, int size) {
 			for (;;) {
 				if (!strncmp(s, "float2", 6)) {
 					varyings_type[num_varyings] = VARYING_TEXCOORD;
+				} else if (!strncmp(s, "float3", 6)) {
+					varyings_type[num_varyings] = VARYING_TEXCOORD3;
 				} else if (!strncmp(s, "float4", 6)) {
 					varyings_type[num_varyings] = VARYING_COLOR;
 				} else if (!strncmp(s, "float", 5)) {
@@ -244,6 +258,7 @@ char *translate_frag_shader(char *string, int size) {
 	const char *fragcolor = "float4 out gl_FragColor : COLOR";
 	memcpy(p3, fragcolor, strlen(fragcolor));
 	p3 += strlen(fragcolor);
+	int texcoord_id = 0;
 	for (int i = 0; i < num_varyings; i++) {
 		char var[64] = {0};
 		switch (varyings_type[i]) {
@@ -251,7 +266,10 @@ char *translate_frag_shader(char *string, int size) {
 			sprintf(var, ",float %s : FOG", varyings[i]);
 			break;
 		case VARYING_TEXCOORD:
-			sprintf(var, ",float2 %s : TEXCOORD0", varyings[i]);
+			sprintf(var, ",float2 %s : TEXCOORD%d", varyings[i], texcoord_id++);
+			break;
+		case VARYING_TEXCOORD3:
+			sprintf(var, ",float3 %s : TEXCOORD%d", varyings[i], texcoord_id++);
 			break;
 		case VARYING_COLOR:
 			sprintf(var, ",float4 %s : COLOR", varyings[i]);
@@ -293,6 +311,7 @@ char *translate_vert_shader(char *string, int size) {
 	char *mat2 = strstr(p, "mat2");
 	char *mat3 = strstr(p, "mat3");
 	char *mat4 = strstr(p, "mat4");
+	char *modu = strstr(p, "mod(");
 	for (;;) {
 		// Updating any symbol that requires such
 		lowp = (lowp != NULL && lowp < p) ? strstr(p, "lowp") : lowp;
@@ -308,6 +327,7 @@ char *translate_vert_shader(char *string, int size) {
 		mat2 = (mat2 != NULL && mat2 < p) ? strstr(p, "mat2") : mat2;
 		mat3 = (mat3 != NULL && mat3 < p) ? strstr(p, "mat3") : mat3;
 		mat4 = (mat4 != NULL && mat4 < p) ? strstr(p, "mat4") : mat4;
+		modu = (modu != NULL && modu < p) ? strstr(p, "mod(") : modu;
 		
 		// Detecting closest symbol
 		char *lower_symbol = ((lowp < mediump && lowp != NULL) || mediump == NULL) ? lowp : mediump;
@@ -322,6 +342,7 @@ char *translate_vert_shader(char *string, int size) {
 		lower_symbol = ((mat2 < lower_symbol && mat2 != NULL) || lower_symbol == NULL) ? mat2 : lower_symbol;
 		lower_symbol = ((mat3 < lower_symbol && mat3 != NULL) || lower_symbol == NULL) ? mat3 : lower_symbol;
 		lower_symbol = ((mat4 < lower_symbol && mat4 != NULL) || lower_symbol == NULL) ? mat4 : lower_symbol;
+		lower_symbol = ((modu < lower_symbol && modu != NULL) || lower_symbol == NULL) ? modu : lower_symbol;
 		
 		// Handling symbol
 		if (!lower_symbol) {
@@ -330,7 +351,15 @@ char *translate_vert_shader(char *string, int size) {
 			p2[0] = 0;
 			break;
 		} else {
-			if (lower_symbol == lowp) {
+			if (lower_symbol == modu) {
+				memcpy(p2, p, lower_symbol - p);
+				p2 += lower_symbol - p;
+				p2[0] = 'f';
+				p2++;
+				memcpy(p2, lower_symbol, 4);
+				p2 += 4;
+				p = lower_symbol + 4;
+			} else if (lower_symbol == lowp) {
 				memcpy(p2, p, lower_symbol - p);
 				p2 += lower_symbol - p;
 				p = lower_symbol + 4;
@@ -496,6 +525,8 @@ char *translate_vert_shader(char *string, int size) {
 			for (;;) {
 				if (!strncmp(s, "float2", 6)) {
 					varyings_type[num_varyings] = VARYING_TEXCOORD;
+				} else if (!strncmp(s, "float3", 6)) {
+					varyings_type[num_varyings] = VARYING_TEXCOORD3;
 				} else if (!strncmp(s, "float4", 6)) {
 					varyings_type[num_varyings] = VARYING_COLOR;
 				} else if (!strncmp(s, "float", 5)) {
@@ -531,6 +562,7 @@ char *translate_vert_shader(char *string, int size) {
 		memcpy(p3, attributes[i], strlen(attributes[i]));
 		p3 += strlen(attributes[i]);
 	}
+	int texcoord_id = 0;
 	for (int i = 0; i < num_varyings; i++) {
 		char var[64] = {0};
 		switch (varyings_type[i]) {
@@ -538,7 +570,10 @@ char *translate_vert_shader(char *string, int size) {
 			sprintf(var, ",float out %s : FOG", varyings[i]);
 			break;
 		case VARYING_TEXCOORD:
-			sprintf(var, ",float2 out %s : TEXCOORD0", varyings[i]);
+			sprintf(var, ",float2 out %s : TEXCOORD%d", varyings[i], texcoord_id++);
+			break;
+		case VARYING_TEXCOORD3:
+			sprintf(var, ",float3 out %s : TEXCOORD%d", varyings[i], texcoord_id++);
 			break;
 		case VARYING_COLOR:
 			sprintf(var, ",float4 out %s : COLOR", varyings[i]);
