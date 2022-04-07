@@ -591,13 +591,13 @@ char *translate_vert_shader(char *string, int size) {
 	free(new_src);
 	
 	// Handling matrices multiplications
-	printf("glsl2cg: Patching matrices operations...\n");
 	p = new_src2;
 	p2 = strstr(p, "gm_Matrices") + 11; // Skipping first occurrance since it's its declaration
 	if (p2 == 11) { // No gm_Matrices, probably some internal shader (?)
 		printf("glsl2cg: Translation process completed!\n");	
 		return new_src2;
 	}
+	printf("glsl2cg: Patching matrices operations...\n");
 	new_src = (char *)malloc(0x8000);
 	char *p5 = new_src;
 	for (;;) {
@@ -616,6 +616,8 @@ char *translate_vert_shader(char *string, int size) {
 				p5 += 4;
 				char *p6 = strstr(p4, ";");
 				char *p7 = strstr(p4, ")");
+				char *p8 = strstr(p4, "(");
+				if (p8 != NULL && p8 < p7) p7 = p6;
 		        p6 = (p6 < p7 || p7 == NULL) ? p6 : p7;
 				memcpy(p5, p4, p6 - p4);
 				p5 += p6 - p4;
