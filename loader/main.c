@@ -133,126 +133,153 @@ int clock_gettime(int clk_ik, struct timespec *t) {
 	return 0;
 }
 
-int pthread_once_fake(volatile int *once_control, void (*init_routine) (void)) {
-	if (!once_control || !init_routine)
-		return -1;
-	if (__sync_lock_test_and_set(once_control, 1) == 0)
-		(*init_routine)();
-	return 0;
+int pthread_mutex_init_fake(pthread_mutex_t **uid,
+                            const pthread_mutexattr_t *mutexattr) {
+  pthread_mutex_t *m = calloc(1, sizeof(pthread_mutex_t));
+  if (!m)
+    return -1;
+
+  const int recursive = (mutexattr && *(const int *)mutexattr == 1);
+  *m = recursive ? PTHREAD_RECURSIVE_MUTEX_INITIALIZER
+                 : PTHREAD_MUTEX_INITIALIZER;
+
+  int ret = pthread_mutex_init(m, mutexattr);
+  if (ret < 0) {
+    free(m);
+    return -1;
+  }
+
+  *uid = m;
+
+  return 0;
 }
 
-int pthread_create_fake(pthread_t *thread, const void *unused, void *entry, void *arg) {
-	return pthread_create(thread, NULL, entry, arg);
+int pthread_mutex_destroy_fake(pthread_mutex_t **uid) {
+  if (uid && *uid && (uintptr_t)*uid > 0x8000) {
+    pthread_mutex_destroy(*uid);
+    free(*uid);
+    *uid = NULL;
+  }
+  return 0;
 }
 
-int pthread_mutexattr_init_fake(int *attr) {
-	*attr = 0;
-	return 0;
+int pthread_mutex_lock_fake(pthread_mutex_t **uid) {
+  int ret = 0;
+  if (!*uid) {
+    ret = pthread_mutex_init_fake(uid, NULL);
+  } else if ((uintptr_t)*uid == 0x4000) {
+    pthread_mutexattr_t attr;
+    pthread_mutexattr_init(&attr);
+    pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_RECURSIVE);
+    ret = pthread_mutex_init_fake(uid, &attr);
+    pthread_mutexattr_destroy(&attr);
+  } else if ((uintptr_t)*uid == 0x8000) {
+    pthread_mutexattr_t attr;
+    pthread_mutexattr_init(&attr);
+    pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_ERRORCHECK);
+    ret = pthread_mutex_init_fake(uid, &attr);
+    pthread_mutexattr_destroy(&attr);
+  }
+  if (ret < 0)
+    return ret;
+  return pthread_mutex_lock(*uid);
 }
 
-int pthread_mutexattr_destroy_fake(int *attr) {
-	return 0;
-}
-
-int pthread_mutexattr_settype_fake(int *attr, int type) {
-	*attr = type;
-	return 0;
-}
-
-
-int pthread_mutex_init_fake(SceKernelLwMutexWork **work) {
-	*work = (SceKernelLwMutexWork *)memalign(8, sizeof(SceKernelLwMutexWork));
-	if (sceKernelCreateLwMutex(*work, "mutex", 0x2000 | SCE_KERNEL_MUTEX_ATTR_RECURSIVE, 0, NULL) < 0)
-		return -1;
-	return 0;
-}
-
-int pthread_mutex_destroy_fake(SceKernelLwMutexWork **work) {
-	if (sceKernelDeleteLwMutex(*work) < 0)
-		return -1;
-	free(*work);
-	return 0;
-}
-
-int pthread_mutex_lock_fake(SceKernelLwMutexWork **work) {
-	if (!*work)
-		pthread_mutex_init_fake(work);
-	if (sceKernelLockLwMutex(*work, 1, NULL) < 0)
-		return -1;
-	return 0;
-}
-
-int pthread_mutex_unlock_fake(SceKernelLwMutexWork **work) {
-	if (sceKernelUnlockLwMutex(*work, 1) < 0)
-		return -1;
-	return 0;
-}
-
-int pthread_mutex_trylock_fake(SceKernelLwMutexWork **work) {
-	if (sceKernelTryLockLwMutex(*work, 1) < 0)
-		return -1;
-	return 0;
+int pthread_mutex_unlock_fake(pthread_mutex_t **uid) {
+  int ret = 0;
+  if (!*uid) {
+    ret = pthread_mutex_init_fake(uid, NULL);
+  } else if ((uintptr_t)*uid == 0x4000) {
+    pthread_mutexattr_t attr;
+    pthread_mutexattr_init(&attr);
+    pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_RECURSIVE);
+    ret = pthread_mutex_init_fake(uid, &attr);
+    pthread_mutexattr_destroy(&attr);
+  } else if ((uintptr_t)*uid == 0x8000) {
+    pthread_mutexattr_t attr;
+    pthread_mutexattr_init(&attr);
+    pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_ERRORCHECK);
+    ret = pthread_mutex_init_fake(uid, &attr);
+    pthread_mutexattr_destroy(&attr);
+  }
+  if (ret < 0)
+    return ret;
+  return pthread_mutex_unlock(*uid);
 }
 
 int pthread_cond_init_fake(pthread_cond_t **cnd, const int *condattr) {
-	pthread_cond_t *c = calloc(1, sizeof(pthread_cond_t));
-	if (!c)
-		return -1;
+  pthread_cond_t *c = calloc(1, sizeof(pthread_cond_t));
+  if (!c)
+    return -1;
 
-	*c = PTHREAD_COND_INITIALIZER;
+  *c = PTHREAD_COND_INITIALIZER;
 
-	int ret = pthread_cond_init(c, NULL);
-	if (ret < 0) {
-		free(c);
-		return -1;
-	}
+  int ret = pthread_cond_init(c, NULL);
+  if (ret < 0) {
+    free(c);
+    return -1;
+  }
 
-	*cnd = c;
+  *cnd = c;
 
-	return 0;
+  return 0;
 }
 
 int pthread_cond_broadcast_fake(pthread_cond_t **cnd) {
-	if (!*cnd) {
-		if (pthread_cond_init_fake(cnd, NULL) < 0)
-			return -1;
-	}
-	return pthread_cond_broadcast(*cnd);
+  if (!*cnd) {
+    if (pthread_cond_init_fake(cnd, NULL) < 0)
+      return -1;
+  }
+  return pthread_cond_broadcast(*cnd);
 }
 
 int pthread_cond_signal_fake(pthread_cond_t **cnd) {
-	if (!*cnd) {
-		if (pthread_cond_init_fake(cnd, NULL) < 0)
-			return -1;
-	}
-	return pthread_cond_signal(*cnd);
+  if (!*cnd) {
+    if (pthread_cond_init_fake(cnd, NULL) < 0)
+      return -1;
+  }
+  return pthread_cond_signal(*cnd);
 }
 
 int pthread_cond_destroy_fake(pthread_cond_t **cnd) {
-	if (cnd && *cnd) {
-		pthread_cond_destroy(*cnd);
-		free(*cnd);
-		*cnd = NULL;
-	}
-	return 0;
+  if (cnd && *cnd) {
+    pthread_cond_destroy(*cnd);
+    free(*cnd);
+    *cnd = NULL;
+  }
+  return 0;
 }
 
 int pthread_cond_wait_fake(pthread_cond_t **cnd, pthread_mutex_t **mtx) {
-	if (!*cnd) {
-		if (pthread_cond_init_fake(cnd, NULL) < 0)
-			return -1;
-	}
-	return pthread_cond_wait(*cnd, *mtx);
+  if (!*cnd) {
+    if (pthread_cond_init_fake(cnd, NULL) < 0)
+      return -1;
+  }
+  return pthread_cond_wait(*cnd, *mtx);
 }
 
 int pthread_cond_timedwait_fake(pthread_cond_t **cnd, pthread_mutex_t **mtx,
-																const struct timespec *t) {
-	if (!*cnd) {
-		if (pthread_cond_init_fake(cnd, NULL) < 0)
-			return -1;
-	}
-	return pthread_cond_timedwait(*cnd, *mtx, t);
+                                const struct timespec *t) {
+  if (!*cnd) {
+    if (pthread_cond_init_fake(cnd, NULL) < 0)
+      return -1;
+  }
+  return pthread_cond_timedwait(*cnd, *mtx, t);
 }
+
+int pthread_create_fake(pthread_t *thread, const void *unused, void *entry,
+                        void *arg) {
+  return pthread_create(thread, NULL, entry, arg);
+}
+
+int pthread_once_fake(volatile int *once_control, void (*init_routine)(void)) {
+  if (!once_control || !init_routine)
+    return -1;
+  if (__sync_lock_test_and_set(once_control, 1) == 0)
+    (*init_routine)();
+  return 0;
+}
+
 
 int GetCurrentThreadId(void) {
 	return sceKernelGetThreadId();
@@ -283,12 +310,17 @@ enum {
 	TOUCH_MOVE
 };
 
+
+
 void main_loop() {
 	int (*Java_com_yoyogames_runner_RunnerJNILib_Process) (void *env, int a2, int w, int h, float accel_x, float accel_y, float accel_z, int exit, int orientation, float refresh_rate) = (void *)so_symbol(&gmsloader_mod, "Java_com_yoyogames_runner_RunnerJNILib_Process");
 	int (*Java_com_yoyogames_runner_RunnerJNILib_TouchEvent) (void *env, int a2, int type, int id, float x, float y) = (void *)so_symbol(&gmsloader_mod, "Java_com_yoyogames_runner_RunnerJNILib_TouchEvent");
 	int lastX[SCE_TOUCH_MAX_REPORT] = {-1, -1, -1, -1, -1, -1, -1, -1};
 	int lastY[SCE_TOUCH_MAX_REPORT] = {-1, -1, -1, -1, -1, -1, -1, -1};
-
+	int (*Java_com_yoyogames_runner_RunnerJNILib_canFlip) (void) = (void *)so_symbol(&gmsloader_mod, "Java_com_yoyogames_runner_RunnerJNILib_canFlip");
+	
+	int *g_IOFrameCount = (int *)so_symbol(&gmsloader_mod, "g_IOFrameCount");
+	
 	for (;;) {
 		SceTouchData touch;
 		sceTouchPeek(SCE_TOUCH_PORT_FRONT, &touch, 1);
@@ -312,8 +344,13 @@ void main_loop() {
 			}
 		}
 		
+		if (*g_IOFrameCount >= 1) {
+			GamePadUpdate();
+		}
+		
 		Java_com_yoyogames_runner_RunnerJNILib_Process(fake_env, 0, SCREEN_W, SCREEN_H, 0.0f, 0.0f, 0.0f, 0, 0, 60.0f);
-		vglSwapBuffers(GL_FALSE);
+		if (Java_com_yoyogames_runner_RunnerJNILib_canFlip())
+			vglSwapBuffers(GL_FALSE);
 	}
 }
 
@@ -327,6 +364,7 @@ void patch_game(void) {
 	hook_addr(so_symbol(&gmsloader_mod, "_Z17alBufferDebugNamejPKc"), (uintptr_t)&ret0);
 	hook_addr(so_symbol(&gmsloader_mod, "_ZN13MemoryManager10DumpMemoryEP7__sFILE"), (uintptr_t)&ret0);
 	
+	
 	// Debug
 	hook_addr(so_symbol(&gmsloader_mod, "_ZN11TRelConsole6OutputEPKcz"), (uintptr_t)&DebugPrintf);
 }
@@ -335,7 +373,6 @@ void patch_game_post_init(void) {
 	// Debug
 	//kuKernelCpuUnrestrictedMemcpy(*(int *)so_symbol(&gmsloader_mod, "_dbg_csol") + 0x0C, so_symbol(&gmsloader_mod, "_ZTV11TRelConsole") + 0x14, 4);
 	//kuKernelCpuUnrestrictedMemcpy(*(int *)so_symbol(&gmsloader_mod, "_rel_csol") + 0x0C, so_symbol(&gmsloader_mod, "_ZTV11TRelConsole") + 0x14, 4);
-	//so_flush_caches(&gmsloader_mod);
 }
 
 extern void *_Znaj;
@@ -380,6 +417,8 @@ extern void *__aeabi_i2d;
 extern void *__cxa_atexit;
 extern void *__cxa_finalize;
 extern void *__cxa_pure_virtual;
+extern void *__cxa_allocate_exception;
+extern void *__cxa_throw;
 extern void *__gnu_unwind_frame;
 extern void *__stack_chk_fail;
 
@@ -387,6 +426,7 @@ int open(const char *pathname, int flags);
 
 static uint8_t forceGL1 = 0;
 static uint8_t forceSplashSkip = 0;
+static uint8_t forceMainThread = 0;
 
 static char *__ctype_ = (char *)&_ctype_;
 
@@ -408,6 +448,36 @@ void *mmap(void *addr, size_t length, int prot, int flags, int fd,
 int munmap(void *addr, size_t length) {
 	free(addr);
 	return 0;
+}
+
+void *AAssetManager_open(void *mgr, const char *filename, int mode) {
+  printf("AAssetManager_open\n");
+  return NULL;
+}
+
+void *AAsset_close() {
+  printf("AAsset_close\n");
+  return NULL;
+}
+
+void *AAssetManager_fromJava() {
+  printf("AAssetManager_fromJava\n");
+  return NULL;
+}
+
+void *AAsset_read() {
+  printf("AAsset_read\n");
+  return NULL;
+}
+
+void *AAsset_seek() {
+  printf("AAsset_seek\n");
+  return NULL;
+}
+
+void *AAsset_getLength() {
+  printf("AAsset_getLength\n");
+  return NULL;
 }
 
 int fstat_hook(int fd, void *statbuf) {
@@ -548,7 +618,6 @@ void *dlsym_hook( void *handle, const char *symbol) {
 			return ret0;
 		}
 	}
-	
 	for (size_t i = 0; i < gl_numhook; ++i) {
 		if (!strcmp(symbol, gl_hook[i].symbol)) {
 			return (void *)gl_hook[i].func;
@@ -572,10 +641,83 @@ void *sceClibMemset2(void *dst, SceSize len, int ch) {
 	return sceClibMemset(dst, ch, len);
 }
 
+int nanosleep(const struct timespec *req, struct timespec *rem) {
+  const uint32_t usec = req->tv_sec * 1000 * 1000 + req->tv_nsec / 1000;
+  return sceKernelDelayThreadCB(usec);
+}
+
 ALCcontext *alcCreateContextHook(ALCdevice *dev, const ALCint *unused);
 ALCdevice *alcOpenDeviceHook(void *unused);
 
+#define IS_LEAP(n) ((!(((n) + 1900) % 400) || (!(((n) + 1900) % 4) && (((n) + 1900) % 100))) != 0)
+#define days_in_gregorian_cycle ((365 * 400) + 100 - 4 + 1)
+static const int length_of_year[2] = { 365, 366 };
+static const int julian_days_by_month[2][12] = {
+    {0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334},
+    {0, 31, 60, 91, 121, 152, 182, 213, 244, 274, 305, 335},
+};
+
+struct tm *localtime64(const int64_t *time) {
+	time_t _t = *time;
+	return localtime(&_t);
+}
+
+struct tm *gmtime64(const int64_t *time) {
+	time_t _t = *time;
+	return gmtime(&_t);
+}
+
+int64_t mktime64(struct tm *time) {
+	return mktime(time);
+}
+
+int64_t timegm64(const struct tm *date) {
+    int64_t days    = 0;
+    int64_t seconds = 0;
+    int64_t year;
+    int64_t orig_year = (int64_t)date->tm_year;
+    int cycles  = 0;
+    if( orig_year > 100 ) {
+        cycles = (orig_year - 100) / 400;
+        orig_year -= cycles * 400;
+        days      += (int64_t)cycles * days_in_gregorian_cycle;
+    }
+    else if( orig_year < -300 ) {
+        cycles = (orig_year - 100) / 400;
+        orig_year -= cycles * 400;
+        days      += (int64_t)cycles * days_in_gregorian_cycle;
+    }
+
+    if( orig_year > 70 ) {
+        year = 70;
+        while( year < orig_year ) {
+            days += length_of_year[IS_LEAP(year)];
+            year++;
+        }
+    }
+    else if ( orig_year < 70 ) {
+        year = 69;
+        do {
+            days -= length_of_year[IS_LEAP(year)];
+            year--;
+        } while( year >= orig_year );
+    }
+    days += julian_days_by_month[IS_LEAP(orig_year)][date->tm_mon];
+    days += date->tm_mday - 1;
+    seconds = days * 60 * 60 * 24;
+    seconds += date->tm_hour * 60 * 60;
+    seconds += date->tm_min * 60;
+    seconds += date->tm_sec;
+    return seconds;
+}
+
 static so_default_dynlib default_dynlib[] = {
+	{ "AAssetManager_open", (uintptr_t)&AAssetManager_open},
+	{ "AAsset_close", (uintptr_t)&AAsset_close},
+	{ "AAssetManager_fromJava", (uintptr_t)&AAssetManager_fromJava},
+	{ "AAsset_read", (uintptr_t)&AAsset_read},
+	{ "AAsset_seek", (uintptr_t)&AAsset_seek},
+	{ "AAsset_getLength", (uintptr_t)&AAsset_getLength},
 	{ "_Znaj", (uintptr_t)&_Znaj },
 	{ "_Znwj", (uintptr_t)&_Znwj },
 	{ "_ZdaPv", (uintptr_t)&_ZdaPv },
@@ -617,9 +759,11 @@ static so_default_dynlib default_dynlib[] = {
 	{ "__aeabi_atexit", (uintptr_t)&__aeabi_atexit },
 	{ "__android_log_print", (uintptr_t)&__android_log_print },
 	{ "__android_log_vprint", (uintptr_t)&__android_log_vprint },
+	{ "__cxa_allocate_exception", (uintptr_t)&__cxa_allocate_exception },
 	{ "__cxa_atexit", (uintptr_t)&__cxa_atexit },
 	{ "__cxa_finalize", (uintptr_t)&__cxa_finalize },
 	{ "__cxa_pure_virtual", (uintptr_t)&__cxa_pure_virtual },
+	{ "__cxa_throw", (uintptr_t)&__cxa_throw },
 	{ "__errno", (uintptr_t)&__errno },
 	{ "__gnu_unwind_frame", (uintptr_t)&__gnu_unwind_frame },
 	// { "__google_potentially_blocking_region_begin", (uintptr_t)&__google_potentially_blocking_region_begin },
@@ -736,6 +880,7 @@ static so_default_dynlib default_dynlib[] = {
 	{ "getenv", (uintptr_t)&ret0 },
 	{ "getwc", (uintptr_t)&getwc },
 	{ "gettimeofday", (uintptr_t)&gettimeofday },
+	{ "gmtime64", (uintptr_t)&gmtime64 },
 	{ "inflate", (uintptr_t)&inflate },
 	{ "inflateEnd", (uintptr_t)&inflateEnd },
 	{ "inflateInit_", (uintptr_t)&inflateInit_ },
@@ -767,6 +912,7 @@ static so_default_dynlib default_dynlib[] = {
 	// { "listen", (uintptr_t)&listen },
 	{ "llrint", (uintptr_t)&llrint },
 	{ "localtime_r", (uintptr_t)&localtime_r },
+	{ "localtime64", (uintptr_t)&localtime64 },
 	{ "log", (uintptr_t)&log },
 	{ "log10", (uintptr_t)&log10 },
 	{ "longjmp", (uintptr_t)&longjmp },
@@ -783,11 +929,12 @@ static so_default_dynlib default_dynlib[] = {
 	{ "memset", (uintptr_t)&sceClibMemset },
 	{ "mkdir", (uintptr_t)&mkdir },
 	{ "mktime", (uintptr_t)&mktime },
+	{ "mktime64", (uintptr_t)&mktime64 },
 	{ "mmap", (uintptr_t)&mmap},
 	{ "munmap", (uintptr_t)&munmap},
 	{ "modf", (uintptr_t)&modf },
 	{ "modff", (uintptr_t)&modff },
-	{ "nanosleep", (uintptr_t)&ret0 },
+	{ "nanosleep", (uintptr_t)&nanosleep },
 	// { "poll", (uintptr_t)&poll },
 	{ "open", (uintptr_t)&open },
 	{ "pow", (uintptr_t)&pow },
@@ -796,24 +943,23 @@ static so_default_dynlib default_dynlib[] = {
 	{ "pthread_attr_destroy", (uintptr_t)&ret0 },
 	{ "pthread_attr_init", (uintptr_t)&ret0 },
 	{ "pthread_attr_setdetachstate", (uintptr_t)&ret0 },
-	{ "pthread_cond_broadcast", (uintptr_t)&ret0},
-	{ "pthread_cond_wait", (uintptr_t)&ret0},
-	{ "pthread_create", (uintptr_t)&pthread_create_fake },
-	{ "pthread_getschedparam", (uintptr_t)&ret0 },
-	{ "pthread_getspecific", (uintptr_t)&retJNI },
-	{ "pthread_key_create", (uintptr_t)&ret0 },
-	{ "pthread_key_delete", (uintptr_t)&ret0 },
-	{ "pthread_mutex_destroy", (uintptr_t)&pthread_mutex_destroy_fake },
-	{ "pthread_mutex_init", (uintptr_t)&pthread_mutex_init_fake },
-	{ "pthread_mutex_lock", (uintptr_t)&pthread_mutex_lock_fake },
-	{ "pthread_mutex_unlock", (uintptr_t)&pthread_mutex_unlock_fake },
-	{ "pthread_mutexattr_destroy", (uintptr_t)&ret0},
-	{ "pthread_mutexattr_init", (uintptr_t)&ret0},
-	{ "pthread_mutexattr_settype", (uintptr_t)&ret0},
-	{ "pthread_once", (uintptr_t)&pthread_once_fake },
-	{ "pthread_self", (uintptr_t)&pthread_self },
-	{ "pthread_setschedparam", (uintptr_t)&ret0 },
-	{ "pthread_setspecific", (uintptr_t)&ret0},
+	{ "pthread_cond_broadcast", (uintptr_t)&pthread_cond_broadcast_fake},
+    { "pthread_cond_destroy", (uintptr_t)&pthread_cond_destroy_fake},
+    { "pthread_cond_init", (uintptr_t)&pthread_cond_init_fake},
+    { "pthread_cond_wait", (uintptr_t)&pthread_cond_wait_fake},
+    { "pthread_create", (uintptr_t)&pthread_create_fake},
+    { "pthread_join", (uintptr_t)&pthread_join},
+    { "pthread_key_create", (uintptr_t)&pthread_key_create},
+    { "pthread_key_delete", (uintptr_t)&pthread_key_delete},
+    { "pthread_mutex_destroy", (uintptr_t)&pthread_mutex_destroy_fake},
+    { "pthread_mutex_init", (uintptr_t)&pthread_mutex_init_fake},
+    { "pthread_mutex_lock", (uintptr_t)&pthread_mutex_lock_fake},
+    { "pthread_mutex_unlock", (uintptr_t)&pthread_mutex_unlock_fake},
+    { "pthread_mutexattr_destroy", (uintptr_t)&pthread_mutexattr_destroy},
+    { "pthread_mutexattr_init", (uintptr_t)&pthread_mutexattr_init},
+    { "pthread_mutexattr_settype", (uintptr_t)&pthread_mutexattr_settype},
+    { "pthread_setspecific", (uintptr_t)&pthread_setspecific},
+    { "pthread_getspecific", (uintptr_t)&pthread_getspecific},
 	{ "putc", (uintptr_t)&putc },
 	{ "putwc", (uintptr_t)&putwc },
 	{ "qsort", (uintptr_t)&qsort },
@@ -829,6 +975,7 @@ static so_default_dynlib default_dynlib[] = {
 	// { "setsockopt", (uintptr_t)&setsockopt },
 	{ "setvbuf", (uintptr_t)&setvbuf },
 	{ "sin", (uintptr_t)&sin },
+	{ "sincosf", (uintptr_t)&sincosf },
 	{ "sinf", (uintptr_t)&sinf },
 	{ "sinh", (uintptr_t)&sinh },
 	{ "snprintf", (uintptr_t)&snprintf },
@@ -869,6 +1016,7 @@ static so_default_dynlib default_dynlib[] = {
 	{ "tanf", (uintptr_t)&tanf },
 	{ "tanh", (uintptr_t)&tanh },
 	{ "time", (uintptr_t)&time },
+	{ "timegm64", (uintptr_t)&timegm64 },
 	{ "tolower", (uintptr_t)&tolower },
 	{ "toupper", (uintptr_t)&toupper },
 	{ "towlower", (uintptr_t)&towlower },
@@ -1062,6 +1210,10 @@ int CallBooleanMethodV(void *env, void *obj, int methodID, uintptr_t *args) {
 	}
 }
 
+double CallDoubleMethodV(void *env, void *obj, int methodID, uintptr_t *args) {
+	return 0.0;
+}
+
 void CallVoidMethodV(void *env, void *obj, int methodID, uintptr_t *args) {
 	switch (methodID) {
 	default:
@@ -1073,8 +1225,23 @@ void *NewIntArray(void *env, int size) {
 	return malloc(sizeof(int) * size);	
 }
 
-void SetIntArrayRegion(void *env, int *array, int start, int len, void *buf) {
+void *NewObjectArray(void *env, int size) {
+	return NULL;	
+}
+
+void *NewDoubleArray(void *env, int size) {
+	return malloc(sizeof(double) * size);	
+}
+
+void SetIntArrayRegion(void *env, int *array, int start, int len, int *buf) {
 	sceClibMemcpy(&array[start], buf, sizeof(int) * len);
+}
+
+void SetDoubleArrayRegion(void *env, double *array, int start, int len, double *buf) {
+	sceClibMemcpy(&array[start], buf, sizeof(double) * len);
+}
+
+void SetObjectArrayElement(void *env, void *array, int size, void *val) {
 }
 
 int GetIntField(void *env, void *obj, int fieldID) { return 0; }
@@ -1088,7 +1255,7 @@ int gms_main(unsigned int argc, void *argv) {
 		sceIoRemove(LAUNCH_FILE_PATH);
 		game_name[size] = 0;
 	} else {
-		strcpy(game_name, "Apoc"); // Debug
+		strcpy(game_name, "Maldita"); // Debug
 	}
 	sprintf(so_path, "%s/%s/libyoyo.so", DATA_PATH, game_name);
 	
@@ -1099,6 +1266,7 @@ int gms_main(unsigned int argc, void *argv) {
 	sceAppUtilInit(&init_param, &boot_param);
 	
 	sceTouchSetSamplingState(SCE_TOUCH_PORT_FRONT, SCE_TOUCH_SAMPLING_STATE_START);
+	sceCtrlSetSamplingModeExt(SCE_CTRL_MODE_ANALOG_WIDE);
 
 	scePowerSetArmClockFrequency(444);
 	scePowerSetBusClockFrequency(222);
@@ -1122,7 +1290,10 @@ int gms_main(unsigned int argc, void *argv) {
 	so_flush_caches(&gmsloader_mod);
 
 	so_initialize(&gmsloader_mod);
+	
 	patch_game_post_init();
+	patch_gamepad();
+	so_flush_caches(&gmsloader_mod);
 	
 	vglSetupGarbageCollector(127, 0x20000);
 	vglInitExtended(0, SCREEN_W, SCREEN_H, MEMORY_VITAGL_THRESHOLD_MB * 1024 * 1024, SCE_GXM_MULTISAMPLE_4X);
@@ -1146,6 +1317,7 @@ int gms_main(unsigned int argc, void *argv) {
 	*(uintptr_t *)(fake_env + 0x8C) = (uintptr_t)CallObjectMethodV;
 	*(uintptr_t *)(fake_env + 0x98) = (uintptr_t)CallBooleanMethodV;
 	*(uintptr_t *)(fake_env + 0xD4) = (uintptr_t)CallLongMethodV;
+	*(uintptr_t *)(fake_env + 0xEC) = (uintptr_t)CallDoubleMethodV;
 	*(uintptr_t *)(fake_env + 0xF8) = (uintptr_t)CallVoidMethodV;
 	*(uintptr_t *)(fake_env + 0x178) = (uintptr_t)GetFieldID;
 	*(uintptr_t *)(fake_env + 0x17C) = (uintptr_t)GetBooleanField;
@@ -1161,8 +1333,12 @@ int gms_main(unsigned int argc, void *argv) {
 	*(uintptr_t *)(fake_env + 0x29C) = (uintptr_t)NewStringUTF;
 	*(uintptr_t *)(fake_env + 0x2A4) = (uintptr_t)GetStringUTFChars;
 	*(uintptr_t *)(fake_env + 0x2A8) = (uintptr_t)ret0; // ReleaseStringUTFChars
+	*(uintptr_t *)(fake_env + 0x2B0) = (uintptr_t)NewObjectArray;
+	*(uintptr_t *)(fake_env + 0x2B8) = (uintptr_t)SetObjectArrayElement;
 	*(uintptr_t *)(fake_env + 0x2CC) = (uintptr_t)NewIntArray;
+	*(uintptr_t *)(fake_env + 0x2D8) = (uintptr_t)NewDoubleArray;
 	*(uintptr_t *)(fake_env + 0x34C) = (uintptr_t)SetIntArrayRegion;
+	*(uintptr_t *)(fake_env + 0x358) = (uintptr_t)SetDoubleArrayRegion;
 	*(uintptr_t *)(fake_env + 0x36C) = (uintptr_t)GetJavaVM;
 	
 	int (*Java_com_yoyogames_runner_RunnerJNILib_RenderSplash) (void *env, int a2, char *apk_path, char *fname, int w, int h, signed int tex_w, signed int tex_h, signed int png_w, signed int png_h) = (void *)so_symbol(&gmsloader_mod, "Java_com_yoyogames_runner_RunnerJNILib_RenderSplash");
@@ -1221,11 +1397,14 @@ int main(int argc, char **argv)
 		printf("Error while creating AL context\n");
 	if (!alcMakeContextCurrent(ALContext))
 		printf("Error while making AL context current\n");
-
-	// We need a bigger stack to run Yoyo Runner, so we create a new thread with a proper stack size
-	SceUID main_thread = sceKernelCreateThread("YoyoLoader", gms_main, 0x40, 0x800000, 0, 0, NULL);
-	if (main_thread >= 0){
-		sceKernelStartThread(main_thread, 0, NULL);
-		sceKernelWaitThreadEnd(main_thread, NULL, NULL);
+	
+	if (forceMainThread) {
+		gms_main(0, NULL);
+	} else {
+		SceUID main_thread = sceKernelCreateThread("YoyoLoader", gms_main, 0x40, 0x800000, 0, 0, NULL);
+		if (main_thread >= 0){
+			sceKernelStartThread(main_thread, 0, NULL);
+			sceKernelWaitThreadEnd(main_thread, NULL, NULL);
+		}
 	}
 }

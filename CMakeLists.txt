@@ -60,6 +60,7 @@ add_executable(loader
   loader/sha1.c
   loader/openal_patch.c
   loader/glsl2cg.c
+  loader/gamepad.c
 )
 
 target_link_libraries(loader
