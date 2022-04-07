@@ -109,7 +109,7 @@ void OptimizeApk(char *game) {
 	tot_idx = -1;
 	saved_size = -1.0f;
 	extracting = true;
-	SceUID extractor_thid = sceKernelCreateThread("Audio Thread", &extractor_thread, 0x10000100, 0x100000, 0, 0, NULL);
+	SceUID extractor_thid = sceKernelCreateThread("Extractor Thread", &extractor_thread, 0x10000100, 0x100000, 0, 0, NULL);
 	sceKernelStartThread(extractor_thid, strlen(game) + 1, game);
 }
 
