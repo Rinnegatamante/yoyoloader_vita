@@ -3,6 +3,8 @@
 #include <imgui_vita.h>
 #include <stdio.h>
 #include <string>
+#include "../loader/zip.h"
+#include "../loader/unzip.h"
 
 #define VERSION "0.1"
 #define FUNC_TO_NAME(x) #x
@@ -51,6 +53,65 @@ float ver_len = 0.0f;
 bool calculate_ver_len = true;
 bool is_config_invoked = false;
 uint32_t oldpad;
+bool extracting = false;
+
+volatile int cur_idx = 0;
+volatile int tot_idx = -1;
+volatile float saved_size = -1.0f;
+int extractor_thread(unsigned int argc, void *argv) {
+	char *game = (char *)argv;
+	char apk_path[256], tmp_path[256], fname[512];
+	sprintf(apk_path, "ux0:data/gms/%s/game.apk", game);
+	sprintf(tmp_path, "ux0:data/gms/%s/game.tmp", game);
+	
+	SceIoStat stat;
+	sceIoGetstat(apk_path, &stat);
+	uint32_t orig_size = stat.st_size;
+	
+	unz_global_info global_info;
+	unz_file_info file_info;
+	unzFile src_file = unzOpen(apk_path);
+	unzGetGlobalInfo(src_file, &global_info);
+	unzGoToFirstFile(src_file);
+	zipFile dst_file = zipOpen(tmp_path, APPEND_STATUS_CREATE);
+	cur_idx = 0;
+	tot_idx = global_info.number_entry;
+	for (uint32_t zip_idx = 0; zip_idx < global_info.number_entry; ++zip_idx) {
+		unzGetCurrentFileInfo(src_file, &file_info, fname, 512, NULL, 0, NULL, 0);
+		if ((strstr(fname, "assets/") && fname[strlen(fname) - 1] != '/') || !strcmp(fname, "lib/armeabi-v7a/libyoyo.so")) {
+			void *buffer = malloc(file_info.uncompressed_size);
+			unzOpenCurrentFile(src_file);
+			unzReadCurrentFile(src_file, buffer, file_info.uncompressed_size);
+			unzCloseCurrentFile(src_file);
+			if (strstr(fname, ".ogg")) {
+				zipOpenNewFileInZip(dst_file, fname, NULL, NULL, 0, NULL, 0, NULL, 0, Z_NO_COMPRESSION);
+			} else {
+				zipOpenNewFileInZip(dst_file, fname, NULL, NULL, 0, NULL, 0, NULL, Z_DEFLATED, Z_DEFAULT_COMPRESSION);
+			}
+			zipWriteInFileInZip(dst_file, buffer, file_info.uncompressed_size);
+			zipCloseFileInZip(dst_file);
+			free(buffer);
+		}
+		unzGoToNextFile(src_file);
+		cur_idx++;
+	}
+	unzClose(src_file);
+	zipClose(dst_file, NULL);
+	sceIoRemove(apk_path);
+	sceIoRename(tmp_path, apk_path);
+	
+	sceIoGetstat(apk_path, &stat);
+	saved_size = (float)(orig_size - stat.st_size) / (1024.0f * 1024.0f);
+	return sceKernelExitDeleteThread(0);
+}
+
+void OptimizeApk(char *game) {
+	tot_idx = -1;
+	saved_size = -1.0f;
+	extracting = true;
+	SceUID extractor_thid = sceKernelCreateThread("Audio Thread", &extractor_thread, 0x10000100, 0x100000, 0, 0, NULL);
+	sceKernelStartThread(extractor_thid, strlen(game) + 1, game);
+}
 
 int main(int argc, char *argv[]) {
 	GameSelection *hovered = nullptr;
@@ -116,9 +177,10 @@ int main(int argc, char *argv[]) {
 		
 		SceCtrlData pad;
 		sceCtrlPeekBufferPositive(0, &pad, 1);
-		if (pad.buttons & SCE_CTRL_TRIANGLE && !(oldpad & SCE_CTRL_TRIANGLE) && hovered) {
+		if (pad.buttons & SCE_CTRL_TRIANGLE && !(oldpad & SCE_CTRL_TRIANGLE) && hovered && !extracting) {
 			is_config_invoked = !is_config_invoked;
 			sprintf(settings_str, "%s - Settings", hovered->name);
+			saved_size = 0.0f;
 		}
 		oldpad = pad.buttons;
 		
@@ -136,6 +198,25 @@ int main(int argc, char *argv[]) {
 			ImGui::Separator();
 			ImGui::Checkbox("Run with Debug Mode", &hovered->debug_mode);
 			ImGui::Checkbox("Run with Shaders Debug Mode", &hovered->debug_shaders);
+			ImGui::Separator();
+			if (ImGui::Button("Optimize Apk")) {
+				if (!extracting)
+					OptimizeApk(hovered->name);
+			}
+			printf("saved from main: %f\n", saved_size);
+			if (saved_size > -1.0f) {
+				ImGui::Text("");
+				ImGui::Text("Optimization completed!");
+				ImGui::Text("Reduced apk size by %.2f MBs!", saved_size);
+				extracting = false;
+			} else if (extracting) {
+				ImGui::Text("");
+				ImGui::Text("Optimization in progress, please wait...");
+				if (tot_idx > 0)
+					ImGui::ProgressBar((float)cur_idx / float(tot_idx), ImVec2(200, 0));
+				else
+					ImGui::ProgressBar(0.0f, ImVec2(200, 0));
+			}
 			ImGui::End();
 		}
 		

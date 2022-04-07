@@ -25,6 +25,9 @@ set(CMAKE_CXX_FLAGS "${CMAKE_C_FLAGS} -DGIT_VERSION=\"${GIT_HASH}\" -std=c++11")
 
 add_executable(YoYoLoader
   selector/main.cpp
+  loader/ioapi.c
+  loader/unzip.c
+  loader/zip.c
 )
 
 add_dependencies(YoYoLoader loader.bin)
