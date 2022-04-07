@@ -203,11 +203,12 @@ int main(int argc, char *argv[]) {
 				if (!extracting)
 					OptimizeApk(hovered->name);
 			}
-			printf("saved from main: %f\n", saved_size);
 			if (saved_size > -1.0f) {
 				ImGui::Text("");
 				ImGui::Text("Optimization completed!");
 				ImGui::Text("Reduced apk size by %.2f MBs!", saved_size);
+				if (extracting)
+					hovered->size -= saved_size;
 				extracting = false;
 			} else if (extracting) {
 				ImGui::Text("");
