@@ -17,6 +17,10 @@
 #include "main.h"
 #include "so_util.h"
 
+#define IS_AXIS_BOUNDS (axis >= 0 && axis < 4)
+#define IS_BTN_BOUNDS  (btn  >= 0 && btn  < 16)
+#define IS_CONTROLLER_BOUNDS (id >= 0 && id < 4)
+
 extern so_module gmsloader_mod;
 
 typedef enum GamepadButtonState {
@@ -119,6 +123,10 @@ void gamepad_axis_count(retval_t *ret, void *self, void *other, int argc, retval
 void gamepad_set_axis_deadzone(retval_t *ret, void *self, void *other, int argc, retval_t *args) {
 	int id = (int)args[0].rvalue.val;
 	double deadzone = args[1].rvalue.val;
+	
+	if (!IS_CONTROLLER_BOUNDS) {
+		return;
+	}
 
 	yoyo_gamepads[id].deadzone = deadzone;
 }
@@ -126,6 +134,11 @@ void gamepad_set_axis_deadzone(retval_t *ret, void *self, void *other, int argc,
 void gamepad_get_axis_deadzone(retval_t *ret, void *self, void *other, int argc, retval_t *args) {
 	ret->kind = VALUE_REAL;
 	int id = (int)args[0].rvalue.val;
+	
+	if (!IS_CONTROLLER_BOUNDS) {
+		ret->rvalue.val = 0.0f;
+		return;
+	}
  
 	ret->rvalue.val = yoyo_gamepads[id].deadzone;
 }
@@ -134,6 +147,11 @@ void gamepad_axis_value(retval_t *ret, void *self, void *other, int argc, retval
 	ret->kind = VALUE_REAL;
 	int id = (int)args[0].rvalue.val;
 	int axis = (int)(args[1].rvalue.val - ((double)(32785.0f)));
+	
+	if (!IS_CONTROLLER_BOUNDS || !IS_AXIS_BOUNDS) {
+		ret->rvalue.val = 0.0f;
+		return;
+	}
 
 	ret->rvalue.val = yoyo_gamepads[id].axis[axis];
 	if (fabs(ret->rvalue.val) < yoyo_gamepads[id].deadzone)
@@ -144,6 +162,11 @@ void gamepad_button_check(retval_t *ret, void *self, void *other, int argc, retv
 	ret->kind = VALUE_REAL;
 	int id = (int)args[0].rvalue.val;
 	int btn = (int)(args[1].rvalue.val - ((double)(32769.0f)));
+	
+	if (!IS_CONTROLLER_BOUNDS || !IS_BTN_BOUNDS) {
+		ret->rvalue.val = 0.0f;
+		return;
+	}
 
 	ret->rvalue.val = (yoyo_gamepads[id].buttons[btn] > 0) ? 1.0f : 0.0f;
 }
@@ -152,6 +175,11 @@ void gamepad_button_check_pressed(retval_t *ret, void *self, void *other, int ar
 	ret->kind = VALUE_REAL;
 	int id = (int)args[0].rvalue.val;
 	int btn = (int)(args[1].rvalue.val - ((double)(32769.0f)));
+	
+	if (!IS_CONTROLLER_BOUNDS || !IS_BTN_BOUNDS) {
+		ret->rvalue.val = 0.0f;
+		return;
+	}
 
 	ret->rvalue.val = (yoyo_gamepads[id].buttons[btn] == 2) ? 1.0f : 0.0f;
 }
@@ -160,6 +188,11 @@ void gamepad_button_check_released(retval_t *ret, void *self, void *other, int a
 	ret->kind = VALUE_REAL;
 	int id = (int)args[0].rvalue.val;
 	int btn = (int)(args[1].rvalue.val - ((double)(32769.0f)));
+	
+	if (!IS_CONTROLLER_BOUNDS || !IS_BTN_BOUNDS) {
+		ret->rvalue.val = 0.0f;
+		return;
+	}
 
 	ret->rvalue.val = (yoyo_gamepads[id].buttons[btn] == -1) ? 1.0f : 0.0f;
 }
@@ -173,6 +206,11 @@ void gamepad_button_value(retval_t *ret, void *self, void *other, int argc, retv
 	ret->kind = VALUE_REAL;
 	int id = (int)args[0].rvalue.val;
 	int btn = (int)(args[1].rvalue.val - ((double)(32769.0f)));
+	
+	if (!IS_CONTROLLER_BOUNDS || !IS_BTN_BOUNDS) {
+		ret->rvalue.val = 0.0f;
+		return;
+	}
 
 	ret->rvalue.val = (yoyo_gamepads[id].buttons[btn] > 0) ? 1.0f : 0.0f;
 }
