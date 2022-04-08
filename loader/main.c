@@ -1535,6 +1535,7 @@ int gms_main(unsigned int argc, void *argv) {
 		glBindTexture(GL_TEXTURE_2D, bg_image);
 		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, bg_data);
 		free(bg_data);
+		free(splash_buf);
 		if (forceGL1)
 			forceGL1 = 2;
 		Java_com_yoyogames_runner_RunnerJNILib_RenderSplash(fake_env, 0, apk_path, "splash.png", SCREEN_W, SCREEN_H, SCREEN_W, SCREEN_H, SCREEN_W, SCREEN_H);
