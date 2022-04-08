@@ -49,11 +49,7 @@ target_link_libraries(YoYoLoader
   SceCommonDialog_stub
   SceDisplay_stub
   SceKernelDmacMgr_stub
-  SceRazorHud_stub
-  SceRazorCapture_stub
-  SceFios2_stub
   SceGxm_stub
-  SceLibcBridge_stub
   SceShaccCg_stub
   SceSysmodule_stub
   ScePower_stub
@@ -96,11 +92,8 @@ target_link_libraries(loader
   SceCommonDialog_stub
   SceDisplay_stub
   SceKernelDmacMgr_stub
-  SceRazorHud_stub
-  SceRazorCapture_stub
   SceFios2_stub
   SceGxm_stub
-  SceLibcBridge_stub
   SceShaccCg_stub
   SceSysmodule_stub
   ScePower_stub
