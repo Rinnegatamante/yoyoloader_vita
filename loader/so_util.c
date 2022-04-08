@@ -19,6 +19,12 @@
 #include "dialog.h"
 #include "so_util.h"
 
+#if 0
+#define debugPrintf printf
+#else
+int debugPrintf(char *text, ...);
+#endif
+
 static so_module *head = NULL, *tail = NULL;
 
 void hook_thumb(uintptr_t addr, uintptr_t dst) {

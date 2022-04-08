@@ -68,6 +68,7 @@ add_executable(loader
   loader/ioapi.c
   loader/unzip.c
   loader/zip.c
+  loader/ctype_patch.c
 )
 
 target_link_libraries(loader
