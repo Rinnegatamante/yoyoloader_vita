@@ -6,6 +6,9 @@
 #include "../loader/zip.h"
 #include "../loader/unzip.h"
 
+#define DATA_PATH "ux0:data/gms"
+#define LAUNCH_FILE_PATH DATA_PATH "/launch.txt"
+
 #define VERSION "0.1"
 #define FUNC_TO_NAME(x) #x
 #define stringify(x) FUNC_TO_NAME(x)
@@ -40,7 +43,27 @@ void *__wrap_memset(void *s, int c, size_t n) {
 }
 }
 
-#define LAUNCH_FILE_PATH "ux0:data/gms/launch.txt"
+void loadConfig(GameSelection *g) {
+	char configFile[512];
+	char buffer[30];
+	int value;
+	
+	sprintf(configFile, "%s/%s/yyl.cfg", DATA_PATH, g->name);
+	FILE *config = fopen(configFile, "r");
+
+	if (config) {
+		while (EOF != fscanf(config, "%[^=]=%d\n", buffer, &value)) {
+			if (strcmp("forceGLES1", buffer) == 0) g->gles1 = (bool)value;
+			else if (strcmp("forceBilinear", buffer) == 0) g->bilinear = (bool)value;
+			else if (strcmp("winMode", buffer) == 0) g->fake_win_mode = (bool)value;
+			else if (strcmp("singleThreaded", buffer) == 0) g->single_thread = (bool)value;
+			else if (strcmp("debugShaders", buffer) == 0) g->debug_shaders = (bool)value;
+			else if (strcmp("debugMode", buffer) == 0) g->debug_mode = (bool)value;
+			else if (strcmp("noSplash", buffer) == 0) g->skip_splash = (bool)value;
+		}
+		fclose(config);
+	}
+}
 
 char *desc = nullptr;
 char *launch_item = nullptr;
@@ -135,6 +158,7 @@ int main(int argc, char *argv[]) {
 			GameSelection *g = (GameSelection *)malloc(sizeof(GameSelection));
 			strcpy(g->name, g_dir.d_name);
 			g->size = (float)stat.st_size / (1024.0f * 1024.0f);
+			loadConfig(g);
 			g->next = games;
 			games = g;
 		}
