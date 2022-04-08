@@ -1,28 +1,29 @@
-# World of Goo Vita
+# YoYo Loader Vita
 
 <p align="center"><img src="./screenshots/game.png"></p>
 
-This is a wrapper/port of <b>World of Goo</b> for the *PS Vita*.
+YoYo Loader is a loader for libyoyo.so, the official GameMaker Studio Runner application for Android, for the *PS Vita*.
 
-The port works by loading the official Android ARMv7 executables in memory, resolving its imports with native functions and patching it in order to properly run.
+The port works by loading such ARMv7 executable in memory, resolving its imports with native functions and patching it in order to properly run.
 
-## Changelog
+This enables to run potentially any game made with GameMaker Studio.
 
-### v1.1
+## What is supported
 
-- Enabled VBOs usage (Less CPU load during rendering).
-- Fixed an issue causing freezes on level ends in certain circumstances.
-- Added support for other languages (Italian, Spanish, Dutch, German, Korean, Chinese, French, Polish)
-- Implemented Menu key with Start button. Now pressing it will pause the game/return to main menu from game HUB.
-- Disabled all debug loggings (Less CPU load and no waste of storage).
+| Type of Game         | Compatibility                                                            |
+| :------------------- |:------------------------------------------------------------------------ |
+| Android Bytecode     | ![#c5f015](https://via.placeholder.com/15/c5f015/000000?text=+) `Native` |
+| Android YYC          | ![#c5f015](https://via.placeholder.com/15/c5f015/000000?text=+) `Native` |
+| PC/Console Bytecode  | ![#1589f0](https://via.placeholder.com/15/1589f0/000000?text=+) `Yes`    |
+| PC/Console YYC       | ![#f03c15](https://via.placeholder.com/15/f03c15/000000?text=+) `No`     |
 
-### v1.0
+For PC/Console exported games, you will need to perform an assets swap with a blank Android exported project with a Game Maker Studio version similar or equal of the one of the game you want to attempt to run.
 
-- Initial release.
+Note that patches to the bytecode may still be required in order to fix resolution, inputs or performances issues. Any game reported as ![#c5f015](https://via.placeholder.com/15/c5f015/000000?text=+) `Native`, instead, will work with simple drag'n'drop of the apk.
 
 ## Setup Instructions (For End Users)
 
-In order to properly install the game, you'll have to follow these steps precisely:
+In order to properly install the loader, you'll have to follow these steps precisely:
 
 - Install [kubridge](https://github.com/TheOfficialFloW/kubridge/releases/) and [FdFix](https://github.com/TheOfficialFloW/FdFix/releases/) by copying `kubridge.skprx` and `fd_fix.skprx` to your taiHEN plugins folder (usually `ux0:tai`) and adding two entries to your `config.txt` under `*KERNEL`:
   
@@ -34,19 +35,15 @@ In order to properly install the game, you'll have to follow these steps precise
 
 **Note** Don't install fd_fix.skprx if you're using rePatch plugin
 
-- **Optional**: Install [PSVshell](https://github.com/Electry/PSVshell/releases) to overclock your device to 500Mhz.
 - Install `libshacccg.suprx`, if you don't have it already, by following [this guide](https://samilops2.gitbook.io/vita-troubleshooting-guide/shader-compiler/extract-libshacccg.suprx).
-- Obtain your copy of *World of Goo* legally for Android in form of an `.apk` file. [You can get all the required files directly from your phone](https://stackoverflow.com/questions/11012976/how-do-i-get-the-apk-of-an-installed-app-without-root-access) or by using an apk extractor you can find in the play store.
-- Open the apk with your zip explorer and extract the file `libworldofgoo.so` from the `lib/armeabi-v7a` folder to `ux0:data/goo`. 
-- Extract the folders `res` and `properties` from the `assets` folder inside `ux0:data/goo`.
+- Games must be placed inside `ux0:data/gms/GAMENAME`, where `GAMENAME` must refer to the name of the game, in form of an apk file. [You can get all the required files directly from your phone](https://stackoverflow.com/questions/11012976/how-do-i-get-the-apk-of-an-installed-app-without-root-access).
+- Inside the loader, you can also find a feature, by pressing Triangle in the game selector screen, to optimize the apk. Such feature will optimize compression of the files inside the apk to not cause stuttering and loading issues and will also remove any unnecessary file thus reducing the final apk size.
 
 ## Build Instructions (For Developers)
 
 In order to build the loader, you'll need a [vitasdk](https://github.com/vitasdk) build fully compiled with softfp usage.  
 You can find a precompiled version here: https://github.com/vitasdk/buildscripts/actions/runs/1102643776.  
 Additionally, you'll need these libraries to be compiled as well with `-mfloat-abi=softfp` added to their CFLAGS:
-
-- [SoLoud](https://github.com/vitasdk/packages/blob/master/soloud/VITABUILD)
 
 - [libmathneon](https://github.com/Rinnegatamante/math-neon)
 
@@ -70,7 +67,7 @@ Additionally, you'll need these libraries to be compiled as well with `-mfloat-a
 - [vitaGL](https://github.com/Rinnegatamante/vitaGL)
 
   - ````bash
-    make SOFTFP_ABI=1 NO_DEBUG=1 install
+    make SOFTFP_ABI=1 NO_DEBUG=1 SAMPLER_UNIFORMS=1 install
     ````
 
 After all these requirements are met, you can compile the loader with the following commands:
@@ -82,6 +79,6 @@ cmake .. && make
 
 ## Credits
 
-- TheFloW for the original .so loader and general advices during the porting.
-- f2pwn for testing the homebrew.
+- TheFloW for the original .so loader.
+- JohnnyonFlame for GMSLoader used as reference for some implementations and for generic advices.
 - Once13One for the Livearea assets.
