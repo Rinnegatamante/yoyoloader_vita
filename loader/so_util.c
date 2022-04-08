@@ -432,6 +432,49 @@ uintptr_t so_resolve_link(so_module *mod, const char *symbol) {
   return 0;
 }
 
+void reloc_err(uintptr_t got0)
+{
+  // Find to which module this missing symbol belongs
+  int found = 0;
+  so_module *curr = head;
+  while (curr && !found) {
+    if ((got0 >= curr->data_base) && (got0 <= curr->data_base + curr->data_size))
+      found = 1;
+    
+    if (!found)
+      curr = curr->next;
+  }
+
+  if (curr) {
+    // Attempt to find symbol name and then display error
+    for (int i = 0; i < curr->num_reldyn + curr->num_relplt; i++) {
+      Elf32_Rel *rel = i < curr->num_reldyn ? &curr->reldyn[i] : &curr->relplt[i - curr->num_reldyn];
+      Elf32_Sym *sym = &curr->dynsym[ELF32_R_SYM(rel->r_info)];
+      uintptr_t *ptr = (uintptr_t *)(curr->text_base + rel->r_offset);
+
+      int type = ELF32_R_TYPE(rel->r_info);
+      switch (type) {
+        case R_ARM_JUMP_SLOT:
+        {
+          if (got0 == (uintptr_t)ptr) {
+            fatal_error("Unknown symbol \"%s\" (%p).\n", curr->dynstr + sym->st_name, (void*)got0);
+          }
+          break;
+        }
+      }
+    }
+  }
+
+  // Ooops, this shouldn't have happened.
+  fatal_error("Unknown symbol \"???\" (%p).\n", (void*)got0);
+}
+
+__attribute__((naked)) void plt0_stub()
+{
+    register uintptr_t got0 asm("r12");
+    reloc_err(got0);
+}
+
 int so_resolve(so_module *mod, so_default_dynlib *default_dynlib, int size_default_dynlib, int default_dynlib_only) {
   for (int i = 0; i < mod->num_reldyn + mod->num_relplt; i++) {
     Elf32_Rel *rel = i < mod->num_reldyn ? &mod->reldyn[i] : &mod->relplt[i - mod->num_reldyn];
@@ -469,7 +512,13 @@ int so_resolve(so_module *mod, so_default_dynlib *default_dynlib, int size_defau
           }
 
           if (!resolved) {
-            debugPrintf("Missing: %s\n", mod->dynstr + sym->st_name);
+			if (type == R_ARM_JUMP_SLOT) {
+              debugPrintf("Missing: %s\n", mod->dynstr + sym->st_name);
+              *ptr = (uintptr_t)&plt0_stub;
+            }
+            else {
+              fatal_error("Missing: %s\n", mod->dynstr + sym->st_name);
+            }
           }
         }
 

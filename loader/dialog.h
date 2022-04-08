@@ -1,6 +1,8 @@
 #ifndef __DIALOG_H__
 #define __DIALOG_H__
 
+extern uint8_t vgl_booted;
+
 int init_ime_dialog(const char *title, const char *initial_text);
 char *get_ime_dialog_result(void);
 
