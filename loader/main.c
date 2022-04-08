@@ -51,8 +51,8 @@
 int forceGL1 = 0;
 int forceSplashSkip = 0;
 int forceMainThread = 0;
-int forceWinMode = 1;
-int forceBilinear = 1;
+int forceWinMode = 0;
+int forceBilinear = 0;
 int debugShaders = 0;
 int debugMode = 0;
 
