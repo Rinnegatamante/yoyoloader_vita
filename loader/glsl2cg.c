@@ -44,6 +44,7 @@ char *translate_frag_shader(char *string, int size) {
 	char *mat4 = strstr(p, "mat4");
 	char *modu = strstr(p, "mod(");
 	char *atan = strstr(p, "atan");
+	char *cons = strstr(p, "const ");
 	for (;;) {
 		// Updating any symbol that requires such
 		lowp = (lowp != NULL && lowp < p) ? strstr(p, "lowp") : lowp;
@@ -61,6 +62,7 @@ char *translate_frag_shader(char *string, int size) {
 		mat4 = (mat4 != NULL && mat4 < p) ? strstr(p, "mat4") : mat4;
 		modu = (modu != NULL && modu < p) ? strstr(p, "mod(") : modu;
 		atan = (atan != NULL && atan < p) ? strstr(p, "atan") : atan;
+		cons = (cons != NULL && cons < p) ? strstr(p, "const ") : cons;
 		
 		// Detecting closest symbol
 		char *lower_symbol = ((lowp < mediump && lowp != NULL) || mediump == NULL) ? lowp : mediump;
@@ -77,6 +79,7 @@ char *translate_frag_shader(char *string, int size) {
 		lower_symbol = ((mat4 < lower_symbol && mat4 != NULL) || lower_symbol == NULL) ? mat4 : lower_symbol;
 		lower_symbol = ((modu < lower_symbol && modu != NULL) || lower_symbol == NULL) ? modu : lower_symbol;
 		lower_symbol = ((atan < lower_symbol && atan != NULL) || lower_symbol == NULL) ? atan : lower_symbol;
+		lower_symbol = ((cons < lower_symbol && cons != NULL) || lower_symbol == NULL) ? cons : lower_symbol;
 		
 		// Handling symbol
 		if (!lower_symbol) {
@@ -85,7 +88,18 @@ char *translate_frag_shader(char *string, int size) {
 			p2[0] = 0;
 			break;
 		} else {
-			if (lower_symbol == atan) {
+			if (lower_symbol == cons) {
+				memcpy(p2, p, lower_symbol - p);
+				p2 += lower_symbol - p;
+				p2[0] = 's';
+				p2[1] = 't';
+				p2[2] = 'a';
+				p2[3] = 't';
+				p2[4] = 'i';
+				p2[5] = 'c';
+				p2 += 6;
+				p = lower_symbol + 5;
+			} else if (lower_symbol == atan) {
 				memcpy(p2, p, lower_symbol - p + 4);
 				p2 += lower_symbol - p + 4;
 				p2[0] = '2';
@@ -328,6 +342,7 @@ char *translate_vert_shader(char *string, int size) {
 	char *mat4 = strstr(p, "mat4");
 	char *modu = strstr(p, "mod(");
 	char *atan = strstr(p, "atan");
+	char *cons = strstr(p, "const ");
 	for (;;) {
 		// Updating any symbol that requires such
 		lowp = (lowp != NULL && lowp < p) ? strstr(p, "lowp") : lowp;
@@ -345,6 +360,7 @@ char *translate_vert_shader(char *string, int size) {
 		mat4 = (mat4 != NULL && mat4 < p) ? strstr(p, "mat4") : mat4;
 		modu = (modu != NULL && modu < p) ? strstr(p, "mod(") : modu;
 		atan = (atan != NULL && atan < p) ? strstr(p, "atan") : atan;
+		cons = (cons != NULL && cons < p) ? strstr(p, "const ") : cons;
 		
 		// Detecting closest symbol
 		char *lower_symbol = ((lowp < mediump && lowp != NULL) || mediump == NULL) ? lowp : mediump;
@@ -361,6 +377,7 @@ char *translate_vert_shader(char *string, int size) {
 		lower_symbol = ((mat4 < lower_symbol && mat4 != NULL) || lower_symbol == NULL) ? mat4 : lower_symbol;
 		lower_symbol = ((modu < lower_symbol && modu != NULL) || lower_symbol == NULL) ? modu : lower_symbol;
 		lower_symbol = ((atan < lower_symbol && atan != NULL) || lower_symbol == NULL) ? atan : lower_symbol;
+		lower_symbol = ((cons < lower_symbol && cons != NULL) || lower_symbol == NULL) ? cons : lower_symbol;
 		
 		// Handling symbol
 		if (!lower_symbol) {
@@ -369,7 +386,18 @@ char *translate_vert_shader(char *string, int size) {
 			p2[0] = 0;
 			break;
 		} else {
-			if (lower_symbol == atan) {
+			if (lower_symbol == cons) {
+				memcpy(p2, p, lower_symbol - p);
+				p2 += lower_symbol - p;
+				p2[0] = 's';
+				p2[1] = 't';
+				p2[2] = 'a';
+				p2[3] = 't';
+				p2[4] = 'i';
+				p2[5] = 'c';
+				p2 += 6;
+				p = lower_symbol + 5;
+			} else if (lower_symbol == atan) {
 				memcpy(p2, p, lower_symbol - p + 4);
 				p2 += lower_symbol - p + 4;
 				p2[0] = '2';
