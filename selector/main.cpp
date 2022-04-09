@@ -262,9 +262,9 @@ static int updaterThread(unsigned int args, void *arg) {
 				fwrite((const void*)downloader_mem_buffer, 1, downloaded_bytes, fh);
 				fclose(fh);
 #ifdef STABLE_BUILD
-				sprintf(url, "https://github.com/Rinnegatamante/yoyoloader_vita/releases/download/Stable/DaedalusX64.vpk");
+				sprintf(url, "https://github.com/Rinnegatamante/yoyoloader_vita/releases/download/Stable/YoYoLoader.vpk");
 #else
-				sprintf(url, "https://github.com/Rinnegatamante/yoyoloader_vita/releases/download/Nightly/DaedalusX64.vpk");
+				sprintf(url, "https://github.com/Rinnegatamante/yoyoloader_vita/releases/download/Nightly/YoYoLoader.vpk");
 #endif
 			}
 		}
