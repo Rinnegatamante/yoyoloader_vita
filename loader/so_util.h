@@ -4,13 +4,15 @@
 #include "elf.h"
 
 #define ALIGN_MEM(x, align) (((x) + ((align) - 1)) & ~((align) - 1))
+#define MAX_DATA_SEG 4
 
 typedef struct so_module {
   struct so_module *next;
 
-  SceUID text_blockid, data_blockid;
-  uintptr_t text_base, data_base;
-  size_t text_size, data_size;
+  SceUID text_blockid, data_blockid[MAX_DATA_SEG];
+  uintptr_t text_base, data_base[MAX_DATA_SEG];
+  size_t text_size, data_size[MAX_DATA_SEG];
+  int n_data;
 
   Elf32_Ehdr *ehdr;
   Elf32_Phdr *phdr;
@@ -45,7 +47,7 @@ void hook_arm(uintptr_t addr, uintptr_t dst);
 void hook_addr(uintptr_t addr, uintptr_t dst);
 
 void so_flush_caches(so_module *mod);
-int so_load(so_module *mod, const char *filename, uintptr_t load_addr);
+int so_file_load(so_module *mod, const char *filename, uintptr_t load_addr);
 int so_mem_load(so_module *mod, void * buffer, size_t so_size, uintptr_t load_addr);
 int so_relocate(so_module *mod);
 int so_resolve(so_module *mod, so_default_dynlib *default_dynlib, int size_default_dynlib, int default_dynlib_only);
