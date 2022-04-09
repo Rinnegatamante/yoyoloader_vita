@@ -525,6 +525,7 @@ void patch_runner(void) {
 	hook_addr(so_symbol(&yoyoloader_mod, "_Z30PackageManagerHasSystemFeaturePKc"), (uintptr_t)&ret0);
 	hook_addr(so_symbol(&yoyoloader_mod, "_Z17alBufferDebugNamejPKc"), (uintptr_t)&ret0);
 	hook_addr(so_symbol(&yoyoloader_mod, "_ZN13MemoryManager10DumpMemoryEP7__sFILE"), (uintptr_t)&ret0);
+	hook_addr(so_symbol(&yoyoloader_mod, "_ZN13MemoryManager10DumpMemoryEPvS0_"), (uintptr_t)&ret0);
 	hook_addr(so_symbol(&yoyoloader_mod, "_Z23YoYo_GetPlatform_DoWorkv"), (uintptr_t)&GetPlatform);
 	hook_addr(so_symbol(&yoyoloader_mod, "_Z20GET_YoYo_GetPlatformP9CInstanceiP6RValue"), (uintptr_t)&GetPlatformInstance);
 	
@@ -552,6 +553,11 @@ extern void *_Znaj;
 extern void *_Znwj;
 extern void *_ZdlPv;
 extern void *_ZdaPv;
+extern void *_ZTVN10__cxxabiv117__class_type_infoE;
+extern void *_ZTVN10__cxxabiv120__si_class_type_infoE;
+extern void *_ZNSt12length_errorD1Ev;
+extern void *_ZNSt13runtime_errorD1Ev;
+extern void *_ZTVSt12length_error;
 extern void *__aeabi_memclr;
 extern void *__aeabi_memclr4;
 extern void *__aeabi_memclr8;
@@ -594,6 +600,8 @@ extern void *__cxa_allocate_exception;
 extern void *__cxa_throw;
 extern void *__gnu_unwind_frame;
 extern void *__stack_chk_fail;
+
+char __progname[32] = {0};
 
 int open(const char *pathname, int flags);
 
@@ -904,6 +912,11 @@ static so_default_dynlib default_dynlib[] = {
 	{ "_Znwj", (uintptr_t)&_Znwj },
 	{ "_ZdaPv", (uintptr_t)&_ZdaPv },
 	{ "_ZdlPv", (uintptr_t)&_ZdlPv },
+	{ "_ZTVN10__cxxabiv117__class_type_infoE", (uintptr_t)&_ZTVN10__cxxabiv117__class_type_infoE},
+	{ "_ZTVN10__cxxabiv120__si_class_type_infoE", (uintptr_t)&_ZTVN10__cxxabiv120__si_class_type_infoE},
+	{ "_ZNSt12length_errorD1Ev", (uintptr_t)&_ZNSt12length_errorD1Ev},
+	{ "_ZNSt13runtime_errorD1Ev", (uintptr_t)&_ZNSt13runtime_errorD1Ev},
+	{ "_ZTVSt12length_error", (uintptr_t)&_ZTVSt12length_error},
 	{ "__aeabi_f2d", (uintptr_t)&__aeabi_f2d },
 	{ "__aeabi_l2d", (uintptr_t)&__aeabi_l2d },
 	{ "__aeabi_l2f", (uintptr_t)&__aeabi_l2f },
@@ -949,8 +962,7 @@ static so_default_dynlib default_dynlib[] = {
 	{ "__errno", (uintptr_t)&__errno },
 	{ "__gnu_unwind_frame", (uintptr_t)&__gnu_unwind_frame },
 	{ "__gnu_Unwind_Find_exidx", (uintptr_t)&ret0 },
-	// { "__google_potentially_blocking_region_begin", (uintptr_t)&__google_potentially_blocking_region_begin },
-	// { "__google_potentially_blocking_region_end", (uintptr_t)&__google_potentially_blocking_region_end },
+	{ "__progname", (uintptr_t)&__progname },
 	{ "__sF", (uintptr_t)&__sF_fake },
 	{ "__stack_chk_fail", (uintptr_t)&__stack_chk_fail_fake },
 	{ "__stack_chk_guard", (uintptr_t)&__stack_chk_guard_fake },
