@@ -26,6 +26,7 @@ struct GameSelection {
 	bool fake_win_mode;
 	bool debug_mode;
 	bool debug_shaders;
+	bool mem_extended;
 	GameSelection *next;
 };
 
@@ -60,8 +61,11 @@ void loadConfig(GameSelection *g) {
 			else if (strcmp("debugShaders", buffer) == 0) g->debug_shaders = (bool)value;
 			else if (strcmp("debugMode", buffer) == 0) g->debug_mode = (bool)value;
 			else if (strcmp("noSplash", buffer) == 0) g->skip_splash = (bool)value;
+			else if (strcmp("maximizeMem", buffer) == 0) g->mem_extended = (bool)value;
 		}
 		fclose(config);
+	} else {
+		sceClibMemset(&g->bilinear, 0, sizeof(bool) * 8);
 	}
 }
 
@@ -215,6 +219,7 @@ int main(int argc, char *argv[]) {
 			ImGui::Checkbox("Force GLES1 Mode", &hovered->gles1);
 			ImGui::Checkbox("Force Runner on Main Thread", &hovered->single_thread);
 			ImGui::Checkbox("Fake Windows as Platform", &hovered->fake_win_mode);
+			ImGui::Checkbox("Run with Extended Mem Mode", &hovered->mem_extended);
 			ImGui::Separator();
 			ImGui::Checkbox("Force Bilinear Filtering", &hovered->bilinear);
 			ImGui::Separator();
@@ -286,6 +291,7 @@ int main(int argc, char *argv[]) {
 	fprintf(f, "%s=%d\n", "debugMode", (int)hovered->debug_mode);
 	fprintf(f, "%s=%d\n", "debugShaders", (int)hovered->debug_shaders);
 	fprintf(f, "%s=%d\n", "singleThreaded", (int)hovered->single_thread);
+	fprintf(f, "%s=%d\n", "maximizeMem", (int)hovered->mem_extended);
 	fclose(f);
 
 	sceAppMgrLoadExec("app0:/loader.bin", NULL, NULL);

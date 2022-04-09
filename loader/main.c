@@ -55,6 +55,7 @@ int forceSplashSkip = 0;
 int forceMainThread = 0;
 int forceWinMode = 0;
 int forceBilinear = 0;
+int maximizeMem = 0;
 int debugShaders = 0;
 int debugMode = 0;
 
@@ -83,6 +84,7 @@ void loadConfig(const char *game) {
 			else if (strcmp("debugShaders", buffer) == 0) debugShaders = value;
 			else if (strcmp("debugMode", buffer) == 0) debugMode = value;
 			else if (strcmp("noSplash", buffer) == 0) forceSplashSkip = value;
+			else if (strcmp("maximizeMem", buffer) == 0) maximizeMem = value;
 		}
 		fclose(config);
 	}
@@ -1517,7 +1519,10 @@ int gms_main(unsigned int argc, void *argv) {
 	
 	// Initializing vitaGL
 	vglSetupGarbageCollector(127, 0x20000);
-	vglInitExtended(0, SCREEN_W, SCREEN_H, MEMORY_VITAGL_THRESHOLD_MB * 1024 * 1024, SCE_GXM_MULTISAMPLE_4X);
+	if (maximizeMem)
+		vglInitWithCustomThreshold(0, SCREEN_W, SCREEN_H, MEMORY_VITAGL_THRESHOLD_MB * 1024 * 1024, 0, 0, 0, SCE_GXM_MULTISAMPLE_4X);
+	else
+		vglInitExtended(0, SCREEN_W, SCREEN_H, MEMORY_VITAGL_THRESHOLD_MB * 1024 * 1024, SCE_GXM_MULTISAMPLE_4X);
 	vgl_booted = 1;
 
 	// Initializing Java VM and JNI Interface
