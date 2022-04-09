@@ -21,10 +21,11 @@ execute_process(COMMAND git describe --abbrev=6 --dirty --always
 )
 
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -g -Wl,-q,--wrap,memcpy,--wrap,memmove,--wrap,memset -Wno-format-overflow -D_GNU_SOURCE -Wall -O3 -mfloat-abi=softfp")
-set(CMAKE_CXX_FLAGS "${CMAKE_C_FLAGS} -DGIT_VERSION=\"${GIT_HASH}\" -std=c++11")
+set(CMAKE_CXX_FLAGS "${CMAKE_C_FLAGS} -Wno-write-strings -DGIT_VERSION=\"${GIT_HASH}\" -std=c++11")
 
 add_executable(YoYoLoader
   selector/main.cpp
+  selector/dialogs.cpp
   loader/ioapi.c
   loader/unzip.c
   loader/zip.c
@@ -40,6 +41,9 @@ target_link_libraries(YoYoLoader
   vitaGL
   vitashark
   mathneon
+  curl
+  ssl
+  crypto
   kubridge_stub
   SceAppMgr_stub
   SceAppUtil_stub

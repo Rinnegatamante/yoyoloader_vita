@@ -1,6 +1,7 @@
 #include <vitasdk.h>
 #include <vitaGL.h>
 #include <imgui_vita.h>
+#include <curl/curl.h>
 #include <stdio.h>
 #include <string>
 #include "../loader/zip.h"
@@ -8,13 +9,35 @@
 
 #define DATA_PATH "ux0:data/gms"
 #define LAUNCH_FILE_PATH DATA_PATH "/launch.txt"
+#define TEMP_DOWNLOAD_NAME "ux0:data/yyl.tmp"
+#define LOG_DOWNLOAD_NAME "ux0:data/gms/yyl.log"
 
 #define VERSION "0.1"
 #define FUNC_TO_NAME(x) #x
 #define stringify(x) FUNC_TO_NAME(x)
 #define MIN(x, y) (x) < (y) ? (x) : (y)
 
+void DrawDownloaderDialog(int index, float downloaded_bytes, float total_bytes, char *text, int passes);
+void DrawExtractorDialog(int index, float file_extracted_bytes, float extracted_bytes, float file_total_bytes, float total_bytes, char *filename, int num_files);
+void DrawChangeListDialog(FILE *f);
+
+// Auto updater passes
+enum {
+	UPDATER_CHECK_UPDATES,
+	UPDATER_DOWNLOAD_CHANGELIST,
+	UPDATER_DOWNLOAD_UPDATE,
+	NUM_UPDATE_PASSES
+};
+
 int _newlib_heap_size_user = 256 * 1024 * 1024;
+
+static CURL *curl_handle = NULL;
+static volatile uint64_t total_bytes = 0xFFFFFFFF;
+static volatile uint64_t downloaded_bytes = 0;
+static volatile uint8_t downloader_pass = 0;
+uint8_t *downloader_mem_buffer = nullptr;
+static FILE *fh;
+char *bytes_string;
 
 struct GameSelection {
 	char name[128];
@@ -42,6 +65,49 @@ void *__wrap_memmove(void *dest, const void *src, size_t n) {
 void *__wrap_memset(void *s, int c, size_t n) {
 	return sceClibMemset(s, c, n);
 }
+}
+
+static size_t write_cb(void *ptr, size_t size, size_t nmemb, void *stream)
+{
+	uint8_t *dst = &downloader_mem_buffer[downloaded_bytes];
+	downloaded_bytes += nmemb;
+	if (total_bytes < downloaded_bytes) total_bytes = downloaded_bytes;
+	sceClibMemcpy(dst, ptr, nmemb);
+	return nmemb;
+}
+
+static size_t header_cb(char *buffer, size_t size, size_t nitems, void *userdata)
+{
+	char *ptr = strcasestr(buffer, "Content-Length");
+	if (ptr != NULL) sscanf(ptr, "Content-Length: %llu", &total_bytes);
+	return nitems;
+}
+
+static void startDownload(const char *url)
+{
+	curl_easy_reset(curl_handle);
+	curl_easy_setopt(curl_handle, CURLOPT_URL, url);
+	curl_easy_setopt(curl_handle, CURLOPT_HTTPGET, 1L);
+	curl_easy_setopt(curl_handle, CURLOPT_USERAGENT, "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.36");
+	curl_easy_setopt(curl_handle, CURLOPT_SSL_VERIFYHOST, 0L);
+	curl_easy_setopt(curl_handle, CURLOPT_SSL_VERIFYPEER, 0L);
+	curl_easy_setopt(curl_handle, CURLOPT_SSLVERSION, CURL_SSLVERSION_TLSv1_2);
+	curl_easy_setopt(curl_handle, CURLOPT_CONNECTTIMEOUT, 10L);
+	curl_easy_setopt(curl_handle, CURLOPT_FOLLOWLOCATION, 1L);
+	curl_easy_setopt(curl_handle, CURLOPT_NOPROGRESS, 1L);
+	curl_easy_setopt(curl_handle, CURLOPT_WRITEFUNCTION, write_cb);
+	curl_easy_setopt(curl_handle, CURLOPT_WRITEDATA, bytes_string); // Dummy
+	curl_easy_setopt(curl_handle, CURLOPT_HEADERFUNCTION, header_cb);
+	curl_easy_setopt(curl_handle, CURLOPT_HEADERDATA, bytes_string); // Dummy*/
+	curl_easy_setopt(curl_handle, CURLOPT_RESUME_FROM, downloaded_bytes);
+	curl_easy_setopt(curl_handle, CURLOPT_BUFFERSIZE, 524288);
+	struct curl_slist *headerchunk = NULL;
+	headerchunk = curl_slist_append(headerchunk, "Accept: */*");
+	headerchunk = curl_slist_append(headerchunk, "Content-Type: application/json");
+	headerchunk = curl_slist_append(headerchunk, "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.36");
+	headerchunk = curl_slist_append(headerchunk, "Content-Length: 0");
+	curl_easy_setopt(curl_handle, CURLOPT_HTTPHEADER, headerchunk);
+	curl_easy_perform(curl_handle);
 }
 
 void loadConfig(GameSelection *g) {
@@ -163,7 +229,119 @@ void OptimizeApk(char *game) {
 	sceKernelStartThread(extractor_thid, strlen(game) + 1, game);
 }
 
+static int updaterThread(unsigned int args, void *arg) {
+	bool update_detected = false;
+	char url[512];
+	curl_handle = curl_easy_init();
+	for (int i = UPDATER_CHECK_UPDATES; i < NUM_UPDATE_PASSES; i++) {
+		downloader_pass = i;
+#ifdef STABLE_BUILD
+		if (i == UPDATER_CHECK_UPDATES) sprintf(url, "https://api.github.com/repos/Rinnegatamante/yoyoloader_vita/releases/tags/Stable");
+#else
+		if (i == UPDATER_CHECK_UPDATES) sprintf(url, "https://api.github.com/repos/Rinnegatamante/yoyoloader_vita/releases/tags/Nightly");
+#endif
+		else if (!update_detected) break;
+		downloaded_bytes = 0;
+
+		// FIXME: Workaround since GitHub Api does not set Content-Length
+		total_bytes = i == UPDATER_DOWNLOAD_UPDATE ? 2 * 1024 * 1024 : 20 * 1024; /* 2 MB / 20 KB */
+
+		startDownload(url);
+
+		if (downloaded_bytes > 12 * 1024) {
+			if (i == UPDATER_CHECK_UPDATES) {
+				char target_commit[7];
+				snprintf(target_commit, 6, strstr((char*)downloader_mem_buffer, "target_commitish") + 20);
+				if (strncmp(target_commit, stringify(GIT_VERSION), 5)) {
+					sprintf(url, "https://api.github.com/repos/Rinnegatamante/yoyoloader_vita/compare/%s...%s", stringify(GIT_VERSION), target_commit);
+					update_detected = true;
+				}
+			} else if (i == UPDATER_DOWNLOAD_CHANGELIST) {
+				fh = fopen(LOG_DOWNLOAD_NAME, "wb");
+				fwrite((const void*)downloader_mem_buffer, 1, downloaded_bytes, fh);
+				fclose(fh);
+#ifdef STABLE_BUILD
+				sprintf(url, "https://github.com/Rinnegatamante/yoyoloader_vita/releases/download/Stable/YoYoLoader.vpk");
+#else
+				sprintf(url, "https://github.com/Rinnegatamante/yoyoloader_vita/releases/download/Nightly/YoYoLoader.vpk");
+#endif
+			}
+		}
+	}
+	if (update_detected) {
+		if (downloaded_bytes > 12 * 1024) {
+			fh = fopen(TEMP_DOWNLOAD_NAME, "wb");
+			fwrite((const void*)downloader_mem_buffer, 1, downloaded_bytes, fh);
+			fclose(fh);
+		}
+	}
+	curl_easy_cleanup(curl_handle);
+	sceKernelExitDeleteThread(0);
+	return 0;
+}
+
+static char fname[512], ext_fname[512], read_buffer[8192];
+
+void recursive_mkdir(char *dir) {
+	char *p = dir;
+	while (p) {
+		char *p2 = strstr(p, "/");
+		if (p2) {
+			p2[0] = 0;
+			sceIoMkdir(dir, 0777);
+			p = p2 + 1;
+			p2[0] = '/';
+		} else break;
+	}
+}
+
+void extract_file(char *file, char *dir) {
+	unz_global_info global_info;
+	unz_file_info file_info;
+	unzFile zipfile = unzOpen(file);
+	unzGetGlobalInfo(zipfile, &global_info);
+	unzGoToFirstFile(zipfile);
+	uint64_t total_extracted_bytes = 0;
+	uint64_t curr_extracted_bytes = 0;
+	uint64_t curr_file_bytes = 0;
+	int num_files = global_info.number_entry;
+	for (int zip_idx = 0; zip_idx < num_files; ++zip_idx) {
+		unzGetCurrentFileInfo(zipfile, &file_info, fname, 512, NULL, 0, NULL, 0);
+		total_extracted_bytes += file_info.uncompressed_size;
+		if ((zip_idx + 1) < num_files) unzGoToNextFile(zipfile);
+	}
+	unzGoToFirstFile(zipfile);
+	for (int zip_idx = 0; zip_idx < num_files; ++zip_idx) {
+		unzGetCurrentFileInfo(zipfile, &file_info, fname, 512, NULL, 0, NULL, 0);
+		sprintf(ext_fname, "%s%s", dir, fname); 
+		const size_t filename_length = strlen(ext_fname);
+		if (ext_fname[filename_length - 1] != '/') {
+			curr_file_bytes = 0;
+			unzOpenCurrentFile(zipfile);
+			recursive_mkdir(ext_fname);
+			FILE *f = fopen(ext_fname, "wb");
+			while (curr_file_bytes < file_info.uncompressed_size) {
+				int rbytes = unzReadCurrentFile(zipfile, read_buffer, 8192);
+				if (rbytes > 0) {
+					fwrite(read_buffer, 1, rbytes, f);
+					curr_extracted_bytes += rbytes;
+					curr_file_bytes += rbytes;
+				}
+				DrawExtractorDialog(zip_idx + 1, curr_file_bytes, curr_extracted_bytes, file_info.uncompressed_size, total_extracted_bytes, fname, num_files);
+			}
+			fclose(f);
+			unzCloseCurrentFile(zipfile);
+		}
+		if ((zip_idx + 1) < num_files) unzGoToNextFile(zipfile);
+	}
+	unzClose(zipfile);
+	ImGui::GetIO().MouseDrawCursor = true;
+}
+
 int main(int argc, char *argv[]) {
+	downloader_mem_buffer = (uint8_t*)malloc(32 * 1024 * 1024);
+	sceIoMkdir("ux0:data/gms", 0777);
+	
 	GameSelection *hovered = nullptr;
 	vglInitExtended(0, 960, 544, 0x1800000, SCE_GXM_MULTISAMPLE_4X);
 	ImGui::CreateContext();
@@ -172,9 +350,44 @@ int main(int argc, char *argv[]) {
 	ImGui_ImplVitaGL_GamepadUsage(true);
 	ImGui::StyleColorsDark();
 	ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f);
-
 	ImGui::GetIO().MouseDrawCursor = false;
 	
+	SceKernelThreadInfo info;
+	info.size = sizeof(SceKernelThreadInfo);
+	int res = 0;
+	FILE *f;
+	
+	// Checking for updates
+	SceUID thd = sceKernelCreateThread("Auto Updater", &updaterThread, 0x10000100, 0x100000, 0, 0, NULL);
+	sceKernelStartThread(thd, 0, NULL);
+	do {
+		if (downloader_pass == UPDATER_CHECK_UPDATES) DrawDownloaderDialog(downloader_pass + 1, downloaded_bytes, total_bytes, "Checking for updates", NUM_UPDATE_PASSES);
+		else if (downloader_pass == UPDATER_DOWNLOAD_CHANGELIST) DrawDownloaderDialog(downloader_pass + 1, downloaded_bytes, total_bytes, "Downloading Changelist", NUM_UPDATE_PASSES);
+		else DrawDownloaderDialog(downloader_pass + 1, downloaded_bytes, total_bytes, "Downloading an update", NUM_UPDATE_PASSES);
+		res = sceKernelGetThreadInfo(thd, &info);
+	} while (info.status <= SCE_THREAD_DORMANT && res >= 0);
+	total_bytes = 0xFFFFFFFF;
+	downloaded_bytes = 0;
+	downloader_pass = 1;
+		
+	// Found an update, extracting and installing it
+	f = fopen(TEMP_DOWNLOAD_NAME, "r");
+	if (f) {
+		sceAppMgrUmount("app0:");
+		fclose(f);
+		extract_file(TEMP_DOWNLOAD_NAME, "ux0:app/YYOLOADER/");
+		sceIoRemove(TEMP_DOWNLOAD_NAME);
+		sceAppMgrLoadExec("app0:eboot.bin", NULL, NULL);
+	}
+	
+	// Showing changelist
+	f = fopen(LOG_DOWNLOAD_NAME, "r");
+	if (f) {
+		DrawChangeListDialog(f);
+		sceIoRemove(LOG_DOWNLOAD_NAME);
+	}
+	
+	free(downloader_mem_buffer);
 	SceUID fd = sceIoDopen("ux0:data/gms");
 	SceIoDirent g_dir;
 	while (sceIoDread(fd, &g_dir) > 0) {
@@ -323,7 +536,7 @@ int main(int argc, char *argv[]) {
 		vglSwapBuffers(GL_FALSE);
 	}
 
-	FILE *f = fopen(LAUNCH_FILE_PATH, "w+");
+	f = fopen(LAUNCH_FILE_PATH, "w+");
 	fwrite(launch_item, 1, strlen(launch_item), f);
 	fclose(f);
 	
