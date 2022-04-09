@@ -18,7 +18,7 @@
 #include "so_util.h"
 
 #define IS_AXIS_BOUNDS (axis >= 0 && axis < 4)
-#define IS_BTN_BOUNDS  (btn  >= 0 && btn  < 16)
+#define IS_BTN_BOUNDS (btn >= 0 && btn	< 16)
 #define IS_CONTROLLER_BOUNDS (id >= 0 && id < 4)
 
 extern so_module yoyoloader_mod;
@@ -79,8 +79,8 @@ typedef struct retval_t {
 Gamepad yoyo_gamepads[4];
 
 void GetPlatformInstance(void *self, int n, retval_t *args) {
-    args[0].kind = VALUE_REAL;
-    args[0].rvalue.val = forceWinMode ? 0.0f : 4.0f;
+	args[0].kind = VALUE_REAL;
+	args[0].rvalue.val = forceWinMode ? 0.0f : 4.0f;
 }
 
 void gamepad_is_supported(retval_t *ret, void *self, void *other, int argc, retval_t *args) {
@@ -258,33 +258,52 @@ void GamePadUpdate() {
 	sceCtrlPeekBufferPositiveExt2(0, &pad, 1);
 	
 	uint8_t new_states[16] = {};
-	int k = 0;
-	new_states[k++] = pad.buttons & SCE_CTRL_CROSS ? 1 : 0;
-	new_states[k++] = pad.buttons & SCE_CTRL_CIRCLE ? 1 : 0;
-	new_states[k++] = pad.buttons & SCE_CTRL_SQUARE ? 1 : 0;
-	new_states[k++] = pad.buttons & SCE_CTRL_TRIANGLE ? 1 : 0;
-	new_states[k++] = pad.buttons & SCE_CTRL_L1 ? 1 : 0;
-	new_states[k++] = pad.buttons & SCE_CTRL_R1 ? 1 : 0;
-	new_states[k++] = pad.buttons & SCE_CTRL_L2 ? 1 : 0;
-	new_states[k++] = pad.buttons & SCE_CTRL_R2 ? 1 : 0;
-	new_states[k++] = pad.buttons & SCE_CTRL_SELECT ? 1 : 0;
-	new_states[k++] = pad.buttons & SCE_CTRL_START ? 1 : 0;
-	new_states[k++] = pad.buttons & SCE_CTRL_L3 ? 1 : 0;
-	new_states[k++] = pad.buttons & SCE_CTRL_R3 ? 1 : 0;
-	new_states[k++] = pad.buttons & SCE_CTRL_UP ? 1 : 0;
-	new_states[k++] = pad.buttons & SCE_CTRL_DOWN ? 1 : 0;
-	new_states[k++] = pad.buttons & SCE_CTRL_LEFT ? 1 : 0;
-	new_states[k++] = pad.buttons & SCE_CTRL_RIGHT ? 1 : 0;
+	new_states[0] = pad.buttons & SCE_CTRL_CROSS ? 1 : 0;
+	new_states[1] = pad.buttons & SCE_CTRL_CIRCLE ? 1 : 0;
+	new_states[2] = pad.buttons & SCE_CTRL_SQUARE ? 1 : 0;
+	new_states[3] = pad.buttons & SCE_CTRL_TRIANGLE ? 1 : 0;
+	new_states[4] = pad.buttons & SCE_CTRL_L1 ? 1 : 0;
+	new_states[5] = pad.buttons & SCE_CTRL_R1 ? 1 : 0;
+	new_states[6] = pad.buttons & SCE_CTRL_L2 ? 1 : 0;
+	new_states[7] = pad.buttons & SCE_CTRL_R2 ? 1 : 0;
+	new_states[8] = pad.buttons & SCE_CTRL_SELECT ? 1 : 0;
+	new_states[9] = pad.buttons & SCE_CTRL_START ? 1 : 0;
+	new_states[10] = pad.buttons & SCE_CTRL_L3 ? 1 : 0;
+	new_states[11] = pad.buttons & SCE_CTRL_R3 ? 1 : 0;
+	new_states[12] = pad.buttons & SCE_CTRL_UP ? 1 : 0;
+	new_states[13] = pad.buttons & SCE_CTRL_DOWN ? 1 : 0;
+	new_states[14] = pad.buttons & SCE_CTRL_LEFT ? 1 : 0;
+	new_states[15] = pad.buttons & SCE_CTRL_RIGHT ? 1 : 0;
+	
+	// Rearpad support for L2/R2/L3/R3 emulation
+	SceTouchData touch;
+	sceTouchPeek(SCE_TOUCH_PORT_BACK, &touch, 1);
+	for (int i = 0; i < touch.reportNum; i++) {
+		int x = touch.report[i].x;
+		int y = touch.report[i].y;
+		if (x > 960) {
+			if (y > 544) {
+				new_states[11] = 1; // R3
+			} else {
+				new_states[7] = 1; // R2
+			}
+		} else {
+			if (y > 544) {
+				new_states[10] = 1; // L3
+			} else {
+				new_states[6] = 1; // L2
+			}
+		}
+	}
 	
 	for (int j = 0; j < 16; j++) {
 		yoyo_gamepads[0].buttons[j] = (double)update_button(new_states[j], (int)yoyo_gamepads[0].buttons[j]);
 	}
 	
-	k = 0;
-	yoyo_gamepads[0].axis[k++] = (double)((int)pad.lx - 127) / 127.0f;
-	yoyo_gamepads[0].axis[k++] = (double)((int)pad.ly - 127) / 127.0f;
-	yoyo_gamepads[0].axis[k++] = (double)((int)pad.rx - 127)	/ 127.0f;
-	yoyo_gamepads[0].axis[k++] = (double)((int)pad.ry - 127) / 127.0f;
+	yoyo_gamepads[0].axis[0] = (double)((int)pad.lx - 127) / 127.0f;
+	yoyo_gamepads[0].axis[1] = (double)((int)pad.ly - 127) / 127.0f;
+	yoyo_gamepads[0].axis[2] = (double)((int)pad.rx - 127)	/ 127.0f;
+	yoyo_gamepads[0].axis[3] = (double)((int)pad.ry - 127) / 127.0f;
 }
 
 void patch_gamepad() {
