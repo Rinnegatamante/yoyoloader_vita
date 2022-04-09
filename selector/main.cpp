@@ -228,14 +228,14 @@ int main(int argc, char *argv[]) {
 					OptimizeApk(hovered->name);
 			}
 			if (saved_size > -1.0f) {
-				ImGui::Text("");
+				ImGui::Text(" ");
 				ImGui::Text("Optimization completed!");
 				ImGui::Text("Reduced apk size by %.2f MBs!", saved_size);
 				if (extracting)
 					hovered->size -= saved_size;
 				extracting = false;
 			} else if (extracting) {
-				ImGui::Text("");
+				ImGui::Text(" ");
 				ImGui::Text("Optimization in progress, please wait...");
 				if (tot_idx > 0)
 					ImGui::ProgressBar((float)cur_idx / float(tot_idx), ImVec2(200, 0));
@@ -261,7 +261,7 @@ int main(int argc, char *argv[]) {
 			ImGui::Separator();
 			ImGui::Text("Run with Debug Mode: %s", hovered->debug_mode ? "Yes" : "No");
 			ImGui::Text("Run with Shaders Debug Mode: %s", hovered->debug_shaders ? "Yes" : "No");
-			ImGui::Text("");
+			ImGui::Text(" ");
 			ImGui::TextColored(ImVec4(1.0f,1.0f,0.0f,1.0f), "Press Triangle to change settings");
 		}
 		ImGui::End();

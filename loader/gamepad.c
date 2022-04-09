@@ -78,7 +78,7 @@ typedef struct retval_t {
 
 Gamepad yoyo_gamepads[4];
 
-int GetPlatformInstance(void *self, int n, retval_t *args) {
+void GetPlatformInstance(void *self, int n, retval_t *args) {
     args[0].kind = VALUE_REAL;
     args[0].rvalue.val = forceWinMode ? 0.0f : 4.0f;
 }
@@ -291,23 +291,23 @@ void patch_gamepad() {
 	void (*Function_Add)(const char *name, intptr_t func, int argc, char ret) = (void *)so_symbol(&yoyoloader_mod, "_Z12Function_AddPKcPFvR6RValueP9CInstanceS4_iPS1_Eib");
 	if (Function_Add == NULL)
 		Function_Add = (void *)so_symbol(&yoyoloader_mod, "_Z12Function_AddPcPFvR6RValueP9CInstanceS3_iPS0_Eib");
-	Function_Add("gamepad_is_supported", gamepad_is_supported, 0, 1);
-	Function_Add("gamepad_get_device_count", gamepad_get_device_count, 0, 1);
-	Function_Add("gamepad_is_connected", gamepad_is_connected, 1, 1);
-	Function_Add("gamepad_get_description", gamepad_get_description, 1, 1);
-	Function_Add("gamepad_get_button_threshold", gamepad_get_button_threshold, 1, 1);
-	Function_Add("gamepad_set_button_threshold", gamepad_set_button_threshold, 2, 1);
-	Function_Add("gamepad_get_axis_deadzone", gamepad_get_axis_deadzone, 1, 1);
-	Function_Add("gamepad_set_axis_deadzone", gamepad_set_axis_deadzone, 2, 1);
-	Function_Add("gamepad_button_count", gamepad_button_count, 1, 1);
-	Function_Add("gamepad_button_check", gamepad_button_check, 2, 1);
-	Function_Add("gamepad_button_check_pressed", gamepad_button_check_pressed, 2, 1);
-	Function_Add("gamepad_button_check_released", gamepad_button_check_released, 2, 1);
-	Function_Add("gamepad_button_value", gamepad_button_value, 2, 1);
-	Function_Add("gamepad_axis_count", gamepad_axis_count, 1, 1);
-	Function_Add("gamepad_axis_value", gamepad_axis_value, 2, 1);
-	Function_Add("gamepad_set_vibration", gamepad_set_vibration, 3, 1);
-	Function_Add("gamepad_set_color", gamepad_set_colour, 2, 1);
-	Function_Add("gamepad_set_colour", gamepad_set_colour, 2, 1);
-	hook_addr(so_symbol(&yoyoloader_mod, "_Z14GamePadRestartv"), GamePadRestart);
+	Function_Add("gamepad_is_supported", (intptr_t)gamepad_is_supported, 0, 1);
+	Function_Add("gamepad_get_device_count", (intptr_t)gamepad_get_device_count, 0, 1);
+	Function_Add("gamepad_is_connected", (intptr_t)gamepad_is_connected, 1, 1);
+	Function_Add("gamepad_get_description", (intptr_t)gamepad_get_description, 1, 1);
+	Function_Add("gamepad_get_button_threshold", (intptr_t)gamepad_get_button_threshold, 1, 1);
+	Function_Add("gamepad_set_button_threshold", (intptr_t)gamepad_set_button_threshold, 2, 1);
+	Function_Add("gamepad_get_axis_deadzone", (intptr_t)gamepad_get_axis_deadzone, 1, 1);
+	Function_Add("gamepad_set_axis_deadzone", (intptr_t)gamepad_set_axis_deadzone, 2, 1);
+	Function_Add("gamepad_button_count", (intptr_t)gamepad_button_count, 1, 1);
+	Function_Add("gamepad_button_check", (intptr_t)gamepad_button_check, 2, 1);
+	Function_Add("gamepad_button_check_pressed", (intptr_t)gamepad_button_check_pressed, 2, 1);
+	Function_Add("gamepad_button_check_released", (intptr_t)gamepad_button_check_released, 2, 1);
+	Function_Add("gamepad_button_value", (intptr_t)gamepad_button_value, 2, 1);
+	Function_Add("gamepad_axis_count", (intptr_t)gamepad_axis_count, 1, 1);
+	Function_Add("gamepad_axis_value", (intptr_t)gamepad_axis_value, 2, 1);
+	Function_Add("gamepad_set_vibration", (intptr_t)gamepad_set_vibration, 3, 1);
+	Function_Add("gamepad_set_color", (intptr_t)gamepad_set_colour, 2, 1);
+	Function_Add("gamepad_set_colour", (intptr_t)gamepad_set_colour, 2, 1);
+	hook_addr(so_symbol(&yoyoloader_mod, "_Z14GamePadRestartv"), (intptr_t)GamePadRestart);
 }

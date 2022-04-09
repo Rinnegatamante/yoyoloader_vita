@@ -44,6 +44,8 @@
 #include "sha1.h"
 #include "unzip.h"
 
+#include "openal_patch.h"
+
 #define STB_IMAGE_IMPLEMENTATION
 #define STB_ONLY_PNG
 #include "stb_image.h"
@@ -57,6 +59,12 @@ int debugShaders = 0;
 int debugMode = 0;
 
 char data_path[256];
+
+void patch_gamepad();
+void GamePadUpdate();
+
+char *translate_frag_shader(const char *string, int size);
+char *translate_vert_shader(const char *string, int size);
 
 void loadConfig(const char *game) {
 	char configFile[512];
@@ -145,12 +153,12 @@ int scandir(const char *dir, struct dirent ***namelist,
     struct dirent *current;
     struct dirent **names = NULL;
     size_t names_size = 0, pos;
-    int save;
+    //int save;
 
     if (dp == NULL)
 	return -1;
 
-    save = errno;
+    //save = errno;
     //__set_errno (0);
 
     pos = 0;
@@ -199,7 +207,7 @@ int scandir(const char *dir, struct dirent ***namelist,
 
     if (errno != 0)
     {
-	save = errno;
+	//save = errno;
 	closedir (dp);
 	while (pos > 0)
 	    free (names[--pos]);
@@ -543,8 +551,8 @@ void patch_runner_post_init(void) {
 	if (debugMode) {
 		int *dbg_csol = (int *)so_symbol(&yoyoloader_mod, "_dbg_csol");
 		if (dbg_csol) {
-			kuKernelCpuUnrestrictedMemcpy(*(int *)so_symbol(&yoyoloader_mod, "_dbg_csol") + 0x0C, so_symbol(&yoyoloader_mod, "_ZTV11TRelConsole") + 0x14, 4);
-			kuKernelCpuUnrestrictedMemcpy(*(int *)so_symbol(&yoyoloader_mod, "_rel_csol") + 0x0C, so_symbol(&yoyoloader_mod, "_ZTV11TRelConsole") + 0x14, 4);
+			kuKernelCpuUnrestrictedMemcpy((void *)(*(int *)so_symbol(&yoyoloader_mod, "_dbg_csol") + 0x0C), (void *)(so_symbol(&yoyoloader_mod, "_ZTV11TRelConsole") + 0x14), 4);
+			kuKernelCpuUnrestrictedMemcpy((void *)(*(int *)so_symbol(&yoyoloader_mod, "_rel_csol") + 0x0C), (void *)(so_symbol(&yoyoloader_mod, "_ZTV11TRelConsole") + 0x14), 4);
 		}
 	}
 }
@@ -664,12 +672,8 @@ int fstat_hook(int fd, void *statbuf) {
 void *dlopen_hook(const char *filename, int flags) {
 	debugPrintf("Opening %s\n", filename);
 	if (forceGL1 == 1 && strstr(filename, "v2"))
-		return 0;
-	return 0xDEADBEEF;
-}
-
-int dlclose_hook(void *handle) {
-	return 0;
+		return NULL;
+	return (void *)0xDEADBEEF;
 }
 
 void glShaderSourceHook(GLuint shader, GLsizei count, const GLchar **string, const GLint *length) {
@@ -968,7 +972,6 @@ static so_default_dynlib default_dynlib[] = {
 	{ "__stack_chk_guard", (uintptr_t)&__stack_chk_guard_fake },
 	{ "_ctype_", (uintptr_t)&BIONIC_ctype_},
 	{ "abort", (uintptr_t)&abort },
-	// { "accept", (uintptr_t)&accept },
 	{ "acos", (uintptr_t)&acos },
 	{ "acosf", (uintptr_t)&acosf },
 	{ "alBufferData", (uintptr_t)&alBufferData },
@@ -1019,7 +1022,6 @@ static so_default_dynlib default_dynlib[] = {
 	{ "atoi", (uintptr_t)&atoi },
 	{ "atol", (uintptr_t)&atol },
 	{ "atoll", (uintptr_t)&atoll },
-	// { "bind", (uintptr_t)&bind },
 	{ "bsearch", (uintptr_t)&bsearch },
 	{ "btowc", (uintptr_t)&btowc },
 	{ "calloc", (uintptr_t)&calloc },
@@ -1037,7 +1039,7 @@ static so_default_dynlib default_dynlib[] = {
 	{ "deflateInit_", (uintptr_t)&deflateInit_ },
 	{ "deflateInit2_", (uintptr_t)&deflateInit2_ },
 	{ "deflateReset", (uintptr_t)&deflateReset },
-	{ "dlclose", (uintptr_t)&dlclose_hook },
+	{ "dlclose", (uintptr_t)&ret0 },
 	{ "dlopen", (uintptr_t)&dlopen_hook },
 	{ "dlsym", (uintptr_t)&dlsym_hook },
 	{ "exit", (uintptr_t)&exit },
@@ -1104,7 +1106,6 @@ static so_default_dynlib default_dynlib[] = {
 	{ "isxdigit", (uintptr_t)&isxdigit },
 	{ "ldexp", (uintptr_t)&ldexp },
 	{ "ldiv", (uintptr_t)&ldiv },
-	// { "listen", (uintptr_t)&listen },
 	{ "llrint", (uintptr_t)&llrint },
 	{ "localtime_r", (uintptr_t)&localtime_r },
 	{ "localtime64", (uintptr_t)&localtime64 },
@@ -1130,7 +1131,6 @@ static so_default_dynlib default_dynlib[] = {
 	{ "modf", (uintptr_t)&modf },
 	{ "modff", (uintptr_t)&modff },
 	{ "nanosleep", (uintptr_t)&nanosleep },
-	// { "poll", (uintptr_t)&poll },
 	{ "open", (uintptr_t)&open },
 	{ "pow", (uintptr_t)&pow },
 	{ "powf", (uintptr_t)&powf },
@@ -1160,23 +1160,18 @@ static so_default_dynlib default_dynlib[] = {
 	{ "qsort", (uintptr_t)&qsort },
 	{ "read", (uintptr_t)&read },
 	{ "realloc", (uintptr_t)&realloc },
-	// { "recv", (uintptr_t)&recv },
 	{ "remove", (uintptr_t)&sceIoRemove },
 	{ "rint", (uintptr_t)&rint },
 	{ "scandir", (uintptr_t)&scandir },
-	// { "send", (uintptr_t)&send },
-	// { "sendto", (uintptr_t)&sendto },
 	{ "setenv", (uintptr_t)&ret0 },
 	{ "setjmp", (uintptr_t)&setjmp },
 	{ "setlocale", (uintptr_t)&ret0 },
-	// { "setsockopt", (uintptr_t)&setsockopt },
 	{ "setvbuf", (uintptr_t)&setvbuf },
 	{ "sin", (uintptr_t)&sin },
 	{ "sincosf", (uintptr_t)&sincosf },
 	{ "sinf", (uintptr_t)&sinf },
 	{ "sinh", (uintptr_t)&sinh },
 	{ "snprintf", (uintptr_t)&snprintf },
-	// { "socket", (uintptr_t)&socket },
 	{ "sprintf", (uintptr_t)&sprintf },
 	{ "sqrt", (uintptr_t)&sqrt },
 	{ "sqrtf", (uintptr_t)&sqrtf },
@@ -1242,7 +1237,6 @@ static so_default_dynlib default_dynlib[] = {
 	{ "wmemmove", (uintptr_t)&wmemmove },
 	{ "wmemset", (uintptr_t)&wmemset },
 	{ "write", (uintptr_t)&write },
-	// { "writev", (uintptr_t)&writev },
 };
 
 int check_kubridge(void) {
@@ -1440,7 +1434,7 @@ int GetIntField(void *env, void *obj, int fieldID) { return 0; }
 
 int gms_main(unsigned int argc, void *argv) {
 	// Checking requested game launch
-	char game_name[0x200], so_path[0x200];
+	char game_name[0x200];
 	FILE *f = fopen(LAUNCH_FILE_PATH, "r");
 	if (f) {
 		size_t size = fread(game_name, 1, 0x200, f);
@@ -1450,7 +1444,6 @@ int gms_main(unsigned int argc, void *argv) {
 	} else {
 		strcpy(game_name, "AM2R"); // Debug
 	}
-	sprintf(so_path, "%s/%s/libyoyo.so", DATA_PATH, game_name);
 	
 	// Enabling analogs and touch sampling
 	sceTouchSetSamplingState(SCE_TOUCH_PORT_FRONT, SCE_TOUCH_SAMPLING_STATE_START);
@@ -1490,7 +1483,7 @@ int gms_main(unsigned int argc, void *argv) {
 	unzReadCurrentFile(apk_file, so_buffer, so_size);
 	unzCloseCurrentFile(apk_file);
 	if (so_mem_load(&yoyoloader_mod, so_buffer, so_size, LOAD_ADDRESS) < 0)
-		fatal_error("Error could not load %s.", so_path);
+		fatal_error("Error could not load lib/armeabi-v7a/libyoyo.so from inside game.apk.");
 	free(so_buffer);
 	
 	// Loading config file

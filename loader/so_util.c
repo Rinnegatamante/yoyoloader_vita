@@ -6,9 +6,7 @@
  * of the MIT license.  See the LICENSE file for details.
  */
 
-#include <psp2/io/dirent.h>
-#include <psp2/io/fcntl.h>
-#include <psp2/kernel/sysmem.h>
+#include <vitasdk.h>
 #include <kubridge.h>
 
 #include <stdio.h>
@@ -320,7 +318,7 @@ void reloc_err(uintptr_t got0)
   so_module *curr = head;
   while (curr && !found) {
     for (int i = 0; i < curr->n_data; i++)
-      if ((got0 >= curr->data_base[i]) && (got0 <= curr->data_base[i] + curr->data_size))
+      if ((got0 >= curr->data_base[i]) && (got0 <= (uintptr_t)(curr->data_base[i] + curr->data_size)))
         found = 1;
     
     if (!found)

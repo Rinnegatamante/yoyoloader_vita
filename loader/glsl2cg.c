@@ -7,6 +7,8 @@
  */
 
 #include <vitasdk.h>
+#include <stdio.h>
+#include <stdlib.h>
 
 #if 0
 #define debugPrintf printf
@@ -21,10 +23,7 @@ enum {
 	VARYING_FOG
 };
 
-char *translate_frag_shader(char *string, int size) {
-	debugPrintf("glsl2cg: Attempting to automatically translate the fragment shader...\n");
-	
-	// Static analysis
+char *perform_static_analysis(const char *string, int size) {
 	debugPrintf("glsl2cg: Static analysis pass started...\n");
 	char *p = string;
 	char *new_src = (char *)malloc(0x8000);
@@ -231,17 +230,26 @@ char *translate_frag_shader(char *string, int size) {
 		}
 	}
 	
+	return new_src;
+}
+
+char *translate_frag_shader(const char *string, int size) {
+	debugPrintf("glsl2cg: Attempting to automatically translate the fragment shader...\n");
+	
+	// Static analysis
+	char *new_src = perform_static_analysis(string, size);
+	
 	// Detecting main function
 	debugPrintf("glsl2cg: Locating main function...\n");
-	p = new_src;
+	char *p = new_src;
 	char *main_f = strstr(p, "void main()");
 	char varyings[32][32];
 	int varyings_type[32];
 	int num_varyings = 0;
 	char *new_src2 = (char *)malloc(0x8000);
 	char *p3 = new_src2;
-	char *last_end;
-	p2 = strstr(p, "varying");
+	char *last_end = NULL;
+	char *p2 = strstr(p, "varying");
 	memcpy(p3, p, p2 - p);
 	p3 += p2 - p;
 	
@@ -323,215 +331,11 @@ char *translate_vert_shader(char *string, int size) {
 	debugPrintf("glsl2cg: Attempting to automatically translate the vertex shader...\n");
 	
 	// Static analysis
-	debugPrintf("glsl2cg: Static analysis pass started...\n");
-	char *p = string;
-	char *new_src = (char *)malloc(0x8000);
-	char *p2 = new_src;
-	char *lowp = strstr(p, "lowp");
-	char *mediump = strstr(p, "mediump");
-	char *highp = strstr(p, "highp");
-	char *precision = strstr(p, "precision");
-	char *texture2d = strstr(p, "texture2D");
-	char *fract = strstr(p, "fract");
-	char *mix = strstr(p, "mix");
-	char *vec2 = strstr(p, "vec2");
-	char *vec3 = strstr(p, "vec3");
-	char *vec4 = strstr(p, "vec4");
-	char *mat2 = strstr(p, "mat2");
-	char *mat3 = strstr(p, "mat3");
-	char *mat4 = strstr(p, "mat4");
-	char *modu = strstr(p, "mod(");
-	char *atan = strstr(p, "atan");
-	char *cons = strstr(p, "const ");
-	for (;;) {
-		// Updating any symbol that requires such
-		lowp = (lowp != NULL && lowp < p) ? strstr(p, "lowp") : lowp;
-		mediump = (mediump != NULL && mediump < p) ? strstr(p, "mediump") : mediump;
-		highp = (highp != NULL && highp < p) ? strstr(p, "highp") : highp;
-		precision = (precision != NULL && precision < p) ? strstr(p, "precision") : precision;
-		texture2d = (texture2d != NULL && texture2d < p) ? strstr(p, "texture2D") : texture2d;
-		fract = (fract != NULL && fract < p) ? strstr(p, "fract") : fract;
-		mix = (mix != NULL && mix < p) ? strstr(p, "mix") : mix;
-		vec2 = (vec2 != NULL && vec2 < p) ? strstr(p, "vec2") : vec2;
-		vec3 = (vec3 != NULL && vec3 < p) ? strstr(p, "vec3") : vec3;
-		vec4 = (vec4 != NULL && vec4 < p) ? strstr(p, "vec4") : vec4;
-		mat2 = (mat2 != NULL && mat2 < p) ? strstr(p, "mat2") : mat2;
-		mat3 = (mat3 != NULL && mat3 < p) ? strstr(p, "mat3") : mat3;
-		mat4 = (mat4 != NULL && mat4 < p) ? strstr(p, "mat4") : mat4;
-		modu = (modu != NULL && modu < p) ? strstr(p, "mod(") : modu;
-		atan = (atan != NULL && atan < p) ? strstr(p, "atan") : atan;
-		cons = (cons != NULL && cons < p) ? strstr(p, "const ") : cons;
-		
-		// Detecting closest symbol
-		char *lower_symbol = ((lowp < mediump && lowp != NULL) || mediump == NULL) ? lowp : mediump;
-		lower_symbol = ((highp < lower_symbol && highp != NULL) || lower_symbol == NULL) ? highp : lower_symbol;
-		lower_symbol = ((precision < lower_symbol && precision != NULL) || lower_symbol == NULL) ? precision : lower_symbol;
-		lower_symbol = ((texture2d < lower_symbol && texture2d != NULL) || lower_symbol == NULL) ? texture2d : lower_symbol;
-		lower_symbol = ((fract < lower_symbol && fract != NULL) || lower_symbol == NULL) ? fract : lower_symbol;
-		lower_symbol = ((mix < lower_symbol && mix != NULL) || lower_symbol == NULL) ? mix : lower_symbol;
-		lower_symbol = ((vec2 < lower_symbol && vec2 != NULL) || lower_symbol == NULL) ? vec2 : lower_symbol;
-		lower_symbol = ((vec3 < lower_symbol && vec3 != NULL) || lower_symbol == NULL) ? vec3 : lower_symbol;
-		lower_symbol = ((vec4 < lower_symbol && vec4 != NULL) || lower_symbol == NULL) ? vec4 : lower_symbol;
-		lower_symbol = ((mat2 < lower_symbol && mat2 != NULL) || lower_symbol == NULL) ? mat2 : lower_symbol;
-		lower_symbol = ((mat3 < lower_symbol && mat3 != NULL) || lower_symbol == NULL) ? mat3 : lower_symbol;
-		lower_symbol = ((mat4 < lower_symbol && mat4 != NULL) || lower_symbol == NULL) ? mat4 : lower_symbol;
-		lower_symbol = ((modu < lower_symbol && modu != NULL) || lower_symbol == NULL) ? modu : lower_symbol;
-		lower_symbol = ((atan < lower_symbol && atan != NULL) || lower_symbol == NULL) ? atan : lower_symbol;
-		lower_symbol = ((cons < lower_symbol && cons != NULL) || lower_symbol == NULL) ? cons : lower_symbol;
-		
-		// Handling symbol
-		if (!lower_symbol) {
-			memcpy(p2, p, string + size - p);
-			p2 += string + size - p;
-			p2[0] = 0;
-			break;
-		} else {
-			if (lower_symbol == cons) {
-				memcpy(p2, p, lower_symbol - p);
-				p2 += lower_symbol - p;
-				p2[0] = 's';
-				p2[1] = 't';
-				p2[2] = 'a';
-				p2[3] = 't';
-				p2[4] = 'i';
-				p2[5] = 'c';
-				p2 += 6;
-				p = lower_symbol + 5;
-			} else if (lower_symbol == atan) {
-				memcpy(p2, p, lower_symbol - p + 4);
-				p2 += lower_symbol - p + 4;
-				p2[0] = '2';
-				p2++;
-				p = lower_symbol + 4;
-			} else if (lower_symbol == modu) {
-				memcpy(p2, p, lower_symbol - p);
-				p2 += lower_symbol - p;
-				p2[0] = 'f';
-				p2++;
-				memcpy(p2, lower_symbol, 4);
-				p2 += 4;
-				p = lower_symbol + 4;
-			} else if (lower_symbol == lowp) {
-				memcpy(p2, p, lower_symbol - p);
-				p2 += lower_symbol - p;
-				p = lower_symbol + 4;
-			} else if (lower_symbol == mediump) {
-				memcpy(p2, p, lower_symbol - p);
-				p2 += lower_symbol - p;
-				p = lower_symbol + 7;
-			} else if (lower_symbol == highp) {
-				memcpy(p2, p, lower_symbol - p);
-				p2 += lower_symbol - p;
-				p = lower_symbol + 5;
-			} else if (lower_symbol == precision) {
-				memcpy(p2, p, lower_symbol - p);
-				p2 += lower_symbol - p;
-				p2[0] = '/';
-				p2[1] = '/';
-				p2[2] = 'p';
-				p2 += 3;
-				p = lower_symbol + 1;
-			} else if (lower_symbol == texture2d) {
-				lower_symbol += 3;
-				memcpy(p2, p, lower_symbol - p);
-				p2 += lower_symbol - p;
-				p2[0] = '2';
-				p2[1] = 'D';
-				p2 += 2;
-				p = lower_symbol + 6;
-			} else if (lower_symbol == fract) {
-				lower_symbol += 4;
-				memcpy(p2, p, lower_symbol - p);
-				p2 += lower_symbol - p;
-				p = lower_symbol + 1;
-			} else if (lower_symbol == mix) {
-				memcpy(p2, p, lower_symbol - p);
-				p2 += lower_symbol - p;
-				p2[0] = 'l';
-				p2[1] = 'e';
-				p2[2] = 'r';
-				p2[3] = 'p';
-				p2 += 4;
-				p = lower_symbol + 3;
-			} else if (lower_symbol == vec2) {
-				memcpy(p2, p, lower_symbol - p);
-				p2 += lower_symbol - p;
-				p2[0] = 'f';
-				p2[1] = 'l';
-				p2[2] = 'o';
-				p2[3] = 'a';
-				p2[4] = 't';
-				p2[5] = '2';
-				p2 += 6;
-				p = lower_symbol + 4;
-			} else if (lower_symbol == vec3) {
-				memcpy(p2, p, lower_symbol - p);
-				p2 += lower_symbol - p;
-				p2[0] = 'f';
-				p2[1] = 'l';
-				p2[2] = 'o';
-				p2[3] = 'a';
-				p2[4] = 't';
-				p2[5] = '3';
-				p2 += 6;
-				p = lower_symbol + 4;
-			} else if (lower_symbol == vec4) {
-				memcpy(p2, p, lower_symbol - p);
-				p2 += lower_symbol - p;
-				p2[0] = 'f';
-				p2[1] = 'l';
-				p2[2] = 'o';
-				p2[3] = 'a';
-				p2[4] = 't';
-				p2[5] = '4';
-				p2 += 6;
-				p = lower_symbol + 4;
-			} else if (lower_symbol == mat2) {
-				memcpy(p2, p, lower_symbol - p);
-				p2 += lower_symbol - p;
-				p2[0] = 'f';
-				p2[1] = 'l';
-				p2[2] = 'o';
-				p2[3] = 'a';
-				p2[4] = 't';
-				p2[5] = '2';
-				p2[6] = 'x';
-				p2[7] = '2';
-				p2 += 8;
-				p = lower_symbol + 4;
-			} else if (lower_symbol == mat3) {
-				memcpy(p2, p, lower_symbol - p);
-				p2 += lower_symbol - p;
-				p2[0] = 'f';
-				p2[1] = 'l';
-				p2[2] = 'o';
-				p2[3] = 'a';
-				p2[4] = 't';
-				p2[5] = '3';
-				p2[6] = 'x';
-				p2[7] = '3';
-				p2 += 8;
-				p = lower_symbol + 4;
-			} else if (lower_symbol == mat4) {
-				memcpy(p2, p, lower_symbol - p);
-				p2 += lower_symbol - p;
-				p2[0] = 'f';
-				p2[1] = 'l';
-				p2[2] = 'o';
-				p2[3] = 'a';
-				p2[4] = 't';
-				p2[5] = '4';
-				p2[6] = 'x';
-				p2[7] = '4';
-				p2 += 8;
-				p = lower_symbol + 4;
-			}
-		}
-	}
+	char *new_src = perform_static_analysis(string, size);
 	
 	// Detecting main function
 	debugPrintf("glsl2cg: Locating main function...\n");
-	p = new_src;
+	char *p = new_src;
 	char *main_f = strstr(p, "void main()");
 	char varyings[32][32];
 	char attributes[32][32];
@@ -540,8 +344,8 @@ char *translate_vert_shader(char *string, int size) {
 	int num_attributes = 0;
 	char *new_src2 = (char *)malloc(0x8000);
 	char *p3 = new_src2;
-	char *last_end;
-	p2 = strstr(p, "attribute");
+	char *last_end = NULL;
+	char *p2 = strstr(p, "attribute");
 	memcpy(p3, p, p2 - p);
 	p3 += p2 - p;
 	
@@ -645,7 +449,7 @@ char *translate_vert_shader(char *string, int size) {
 	// Handling matrices multiplications
 	p = new_src2;
 	p2 = strstr(p, "gm_Matrices") + 11; // Skipping first occurrance since it's its declaration
-	if (p2 == 11) { // No gm_Matrices, probably some internal shader (?)
+	if (p2 == (char *)11) { // No gm_Matrices, probably some internal shader (?)
 		debugPrintf("glsl2cg: Translation process completed!\n");	
 		return new_src2;
 	}
