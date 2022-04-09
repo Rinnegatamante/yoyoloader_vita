@@ -69,7 +69,30 @@ void loadConfig(GameSelection *g) {
 	}
 }
 
-char *desc = nullptr;
+enum {
+	FORCE_GLES1,
+	BILINEAR_FILTER,
+	FAKE_WIN_MODE,
+	SINGLE_THREAD,
+	DEBUG_SHADERS,
+	DEBUG_MODE,
+	DISABLE_SPLASH,
+	EXTRA_MEM_MODE,
+	OPTIMIZE_APK
+};
+
+const char *options_descs[] = {
+	"Enforces GLES1 as rendering backend mode. May improve performances or make a game go further when crashing.",
+	"Enforces bilinear filtering on textures.",
+	"Fakes the reported target mode to the Runner as Windows. Some games require it to properly handle inputs.",
+	"Forces runner thread to be the main one. May solve some crash instances.",
+	"Enables dumping of attempted shader translations by the built-in GLSL to CG shader translator in ux0:data/gms/shared/glsl.",
+	"Enables debug logging in ux0:data/gms/shared/yyl.log.",
+	"Disables splashscreen rendering at game boot.",
+	"Allows the Runner to use approximately extra 12 MBs of memory. May break some debugging tools.",
+	"Reduces Apk size by removing unnecessary data inside it and improves performances by recompressing files one by one depending on their expected use.",
+};
+
 char *launch_item = nullptr;
 
 GameSelection *games = nullptr;
@@ -170,7 +193,6 @@ int main(int argc, char *argv[]) {
 	sceIoDclose(fd);
 	
 	while (!launch_item) {
-		desc = nullptr;
 		ImGui_ImplVitaGL_NewFrame();
 		
 		if (ImGui::BeginMainMenuBar()) {
@@ -208,31 +230,51 @@ int main(int argc, char *argv[]) {
 		if (pad.buttons & SCE_CTRL_TRIANGLE && !(oldpad & SCE_CTRL_TRIANGLE) && hovered && !extracting) {
 			is_config_invoked = !is_config_invoked;
 			sprintf(settings_str, "%s - Settings", hovered->name);
-			saved_size = 0.0f;
+			saved_size = -1.0f;
 		}
 		oldpad = pad.buttons;
 		
 		if (is_config_invoked) {
+			const char *desc = nullptr;
+			
 			ImGui::SetNextWindowPos(ImVec2(50, 30), ImGuiSetCond_Always);
 			ImGui::SetNextWindowSize(ImVec2(860, 400), ImGuiSetCond_Always);
 			ImGui::Begin(settings_str, nullptr, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoCollapse);
 			ImGui::Checkbox("Force GLES1 Mode", &hovered->gles1);
+			if (ImGui::IsItemHovered())
+				desc = options_descs[FORCE_GLES1];
 			ImGui::Checkbox("Force Runner on Main Thread", &hovered->single_thread);
+			if (ImGui::IsItemHovered())
+				desc = options_descs[SINGLE_THREAD];
 			ImGui::Checkbox("Fake Windows as Platform", &hovered->fake_win_mode);
+			if (ImGui::IsItemHovered())
+				desc = options_descs[FAKE_WIN_MODE];
 			ImGui::Checkbox("Run with Extended Mem Mode", &hovered->mem_extended);
+			if (ImGui::IsItemHovered())
+				desc = options_descs[EXTRA_MEM_MODE];
 			ImGui::Separator();
 			ImGui::Checkbox("Force Bilinear Filtering", &hovered->bilinear);
+			if (ImGui::IsItemHovered())
+				desc = options_descs[BILINEAR_FILTER];
 			ImGui::Separator();
 			ImGui::Checkbox("Skip Splashscreen at Boot", &hovered->skip_splash);
+			if (ImGui::IsItemHovered())
+				desc = options_descs[DISABLE_SPLASH];
 			ImGui::Separator();
 			ImGui::Checkbox("Run with Debug Mode", &hovered->debug_mode);
+			if (ImGui::IsItemHovered())
+				desc = options_descs[DEBUG_MODE];
 			ImGui::Checkbox("Run with Shaders Debug Mode", &hovered->debug_shaders);
+			if (ImGui::IsItemHovered())
+				desc = options_descs[DEBUG_SHADERS];
 			ImGui::Separator();
 			if (ImGui::Button("Optimize Apk")) {
 				if (!extracting)
 					OptimizeApk(hovered->name);
 			}
-			if (saved_size > -1.0f) {
+			if (ImGui::IsItemHovered())
+				desc = options_descs[OPTIMIZE_APK];
+			if (saved_size != -1.0f) {
 				ImGui::Text(" ");
 				ImGui::Text("Optimization completed!");
 				ImGui::Text("Reduced apk size by %.2f MBs!", saved_size);
@@ -247,6 +289,9 @@ int main(int argc, char *argv[]) {
 				else
 					ImGui::ProgressBar(0.0f, ImVec2(200, 0));
 			}
+			ImGui::SetCursorPosY(360);
+			if (desc)
+				ImGui::TextWrapped(desc);
 			ImGui::End();
 		}
 		
@@ -259,6 +304,7 @@ int main(int argc, char *argv[]) {
 			ImGui::Text("Force GLES1 Mode: %s", hovered->gles1 ? "Yes" : "No");
 			ImGui::Text("Force Runner on Main Thread: %s", hovered->single_thread ? "Yes" : "No");
 			ImGui::Text("Fake Windows as Platform: %s", hovered->fake_win_mode ? "Yes" : "No");
+			ImGui::Text("Run with Extended Mem Mode: %s", hovered->mem_extended ? "Yes" : "No");
 			ImGui::Separator();
 			ImGui::Text("Force Bilinear Filtering: %s", hovered->fake_win_mode ? "Yes" : "No");
 			ImGui::Separator();
