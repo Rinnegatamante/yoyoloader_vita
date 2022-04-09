@@ -4,7 +4,7 @@
 
 YoYo Loader is a loader for libyoyo.so, the official GameMaker Studio Runner application for Android, for the *PS Vita*.
 
-The port works by loading such ARMv7 executable in memory, resolving its imports with native functions and patching it in order to properly run.
+YoYo Loader works by loading such ARMv7 executable in memory, resolving its imports with native functions and patching it in order to properly run.
 
 This enables to run potentially any game made with GameMaker Studio.
 
@@ -36,7 +36,7 @@ In order to properly install the loader, you'll have to follow these steps preci
 **Note** Don't install fd_fix.skprx if you're using rePatch plugin
 
 - Install `libshacccg.suprx`, if you don't have it already, by following [this guide](https://samilops2.gitbook.io/vita-troubleshooting-guide/shader-compiler/extract-libshacccg.suprx).
-- Games must be placed inside `ux0:data/gms/GAMENAME`, where `GAMENAME` must refer to the name of the game, in form of an apk file. [You can get all the required files directly from your phone](https://stackoverflow.com/questions/11012976/how-do-i-get-the-apk-of-an-installed-app-without-root-access).
+- Games must be placed inside `ux0:data/gms/GAMENAME`, where `GAMENAME` must refer to the name of the game, in form of an apk file renamed as `game.apk`. [You can get all the required files directly from your phone](https://stackoverflow.com/questions/11012976/how-do-i-get-the-apk-of-an-installed-app-without-root-access).
 - Inside the loader, you can also find a feature, by pressing Triangle in the game selector screen, to optimize the apk. Such feature will optimize compression of the files inside the apk to not cause stuttering and loading issues and will also remove any unnecessary file thus reducing the final apk size.
 
 ## Build Instructions (For Developers)
