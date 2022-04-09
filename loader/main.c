@@ -120,9 +120,7 @@ int file_exists(const char *path) {
 	return sceIoGetstat(path, &stat) >= 0;
 }
 
-#if 0
-#define debugPrintf printf
-#else
+#if 1
 int debugPrintf(char *text, ...) {
 	if (!debugMode)
 		return 0;
@@ -457,7 +455,7 @@ enum {
 
 
 void main_loop() {
-	int (*Java_com_yoyogames_runner_RunnerJNILib_Process) (void *env, int a2, int w, int h, float accel_x, float accel_y, float accel_z, int exit, int orientation, float refresh_rate) = (void *)so_symbol(&yoyoloader_mod, "Java_com_yoyogames_runner_RunnerJNILib_Process");
+	int (*Java_com_yoyogames_runner_RunnerJNILib_Process) (void *env, int a2, int w, int h, float accel_x, float accel_y, float accel_z, int keypad_open, int orientation, float refresh_rate) = (void *)so_symbol(&yoyoloader_mod, "Java_com_yoyogames_runner_RunnerJNILib_Process");
 	int (*Java_com_yoyogames_runner_RunnerJNILib_TouchEvent) (void *env, int a2, int type, int id, float x, float y) = (void *)so_symbol(&yoyoloader_mod, "Java_com_yoyogames_runner_RunnerJNILib_TouchEvent");
 	int lastX[SCE_TOUCH_MAX_REPORT] = {-1, -1, -1, -1, -1, -1, -1, -1};
 	int lastY[SCE_TOUCH_MAX_REPORT] = {-1, -1, -1, -1, -1, -1, -1, -1};
@@ -492,7 +490,9 @@ void main_loop() {
 			GamePadUpdate();
 		}
 		
-		Java_com_yoyogames_runner_RunnerJNILib_Process(fake_env, 0, SCREEN_W, SCREEN_H, 0.0f, 0.0f, 0.0f, 0, 0, 60.0f);
+		SceMotionSensorState sensor;
+		sceMotionGetSensorState(&sensor, 1);
+		Java_com_yoyogames_runner_RunnerJNILib_Process(fake_env, 0, SCREEN_W, SCREEN_H, sensor.accelerometer.x, sensor.accelerometer.y, sensor.accelerometer.z, 0, 0, 60.0f);
 		if (Java_com_yoyogames_runner_RunnerJNILib_canFlip())
 			vglSwapBuffers(GL_FALSE);
 	}
@@ -1449,6 +1449,7 @@ int gms_main(unsigned int argc, void *argv) {
 	sceTouchSetSamplingState(SCE_TOUCH_PORT_FRONT, SCE_TOUCH_SAMPLING_STATE_START);
 	sceTouchSetSamplingState(SCE_TOUCH_PORT_BACK, SCE_TOUCH_SAMPLING_STATE_START);
 	sceCtrlSetSamplingModeExt(SCE_CTRL_MODE_ANALOG_WIDE);
+	sceMotionStartSampling();
 
 	// Maximizing clocks
 	scePowerSetArmClockFrequency(444);

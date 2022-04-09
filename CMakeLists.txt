@@ -95,6 +95,7 @@ target_link_libraries(loader
   SceKernelDmacMgr_stub
   SceFios2_stub
   SceGxm_stub
+  SceMotion_stub
   SceShaccCg_stub
   SceSysmodule_stub
   ScePower_stub

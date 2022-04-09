@@ -10,11 +10,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#if 0
-#define debugPrintf printf
-#else
-int debugPrintf(char *text, ...);
-#endif
+#include "main.h"
 
 enum {
 	VARYING_TEXCOORD,

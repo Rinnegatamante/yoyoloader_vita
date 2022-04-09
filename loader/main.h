@@ -7,7 +7,11 @@
 
 extern so_module twom_mod;
 
+#if 0
+#define debugPrintf printf
+#else
 int debugPrintf(char *text, ...);
+#endif
 
 int ret0();
 
