@@ -149,81 +149,81 @@ int scandir(const char *dir, struct dirent ***namelist,
 	int (*selector) (const struct dirent *),
 	int (*compar) (const struct dirent **, const struct dirent **))
 {
-    DIR *dp = opendir (dir);
-    struct dirent *current;
-    struct dirent **names = NULL;
-    size_t names_size = 0, pos;
-    //int save;
+	DIR *dp = opendir (dir);
+	struct dirent *current;
+	struct dirent **names = NULL;
+	size_t names_size = 0, pos;
+	//int save;
 
-    if (dp == NULL)
+	if (dp == NULL)
 	return -1;
 
-    //save = errno;
-    //__set_errno (0);
+	//save = errno;
+	//__set_errno (0);
 
-    pos = 0;
-    while ((current = readdir (dp)) != NULL) {
+	pos = 0;
+	while ((current = readdir (dp)) != NULL) {
 	int use_it = selector == NULL;
 
 	if (! use_it)
 	{
-	    use_it = (*selector) (current);
-	    /* The selector function might have changed errno.
-	     * It was zero before and it need to be again to make
-	     * the latter tests work.  */
-	    //if (! use_it)
+		use_it = (*selector) (current);
+		/* The selector function might have changed errno.
+		 * It was zero before and it need to be again to make
+		 * the latter tests work.  */
+		//if (! use_it)
 		//__set_errno (0);
 	}
 	if (use_it)
 	{
-	    struct dirent *vnew;
-	    size_t dsize;
+		struct dirent *vnew;
+		size_t dsize;
 
-	    /* Ignore errors from selector or readdir */
-	    //__set_errno (0);
+		/* Ignore errors from selector or readdir */
+		//__set_errno (0);
 
-	    if (pos == names_size)
-	    {
+		if (pos == names_size)
+		{
 		struct dirent **new;
 		if (names_size == 0)
-		    names_size = 10;
+			names_size = 10;
 		else
-		    names_size *= 2;
+			names_size *= 2;
 		new = (struct dirent **) realloc (names,
 					names_size * sizeof (struct dirent *));
 		if (new == NULL)
-		    break;
+			break;
 		names = new;
-	    }
+		}
 
-	    dsize = &current->d_name[256+1] - (char*)current;
-	    vnew = (struct dirent *) malloc (dsize);
-	    if (vnew == NULL)
+		dsize = &current->d_name[256+1] - (char*)current;
+		vnew = (struct dirent *) malloc (dsize);
+		if (vnew == NULL)
 		break;
 
-	    names[pos++] = (struct dirent *) memcpy (vnew, current, dsize);
+		names[pos++] = (struct dirent *) memcpy (vnew, current, dsize);
 	}
-    }
+	}
 
-    if (errno != 0)
-    {
+	if (errno != 0)
+	{
 	//save = errno;
 	closedir (dp);
 	while (pos > 0)
-	    free (names[--pos]);
+		free (names[--pos]);
 	free (names);
 	//__set_errno (save);
 	return -1;
-    }
+	}
 
-    closedir (dp);
-    //__set_errno (save);
+	closedir (dp);
+	//__set_errno (save);
 
-    /* Sort the list if we have a comparison function to sort with.  */
-    if (compar != NULL)
+	/* Sort the list if we have a comparison function to sort with.  */
+	if (compar != NULL)
 	qsort (names, pos, sizeof (struct dirent *), (__compar_fn_t) compar);
-    *namelist = names;
-    return pos;
+	*namelist = names;
+	return pos;
 }
 
 int __android_log_print(int prio, const char *tag, const char *fmt, ...) {
@@ -274,151 +274,147 @@ int clock_gettime(int clk_ik, struct timespec *t) {
 	return 0;
 }
 
-int pthread_mutex_init_fake(pthread_mutex_t **uid,
-                            const pthread_mutexattr_t *mutexattr) {
-  pthread_mutex_t *m = calloc(1, sizeof(pthread_mutex_t));
-  if (!m)
-    return -1;
+int pthread_mutex_init_fake(pthread_mutex_t **uid, const pthread_mutexattr_t *mutexattr) {
+	pthread_mutex_t *m = calloc(1, sizeof(pthread_mutex_t));
+	if (!m)
+		return -1;
 
-  const int recursive = (mutexattr && *(const int *)mutexattr == 1);
-  *m = recursive ? PTHREAD_RECURSIVE_MUTEX_INITIALIZER
-                 : PTHREAD_MUTEX_INITIALIZER;
+	const int recursive = (mutexattr && *(const int *)mutexattr == 1);
+	*m = recursive ? PTHREAD_RECURSIVE_MUTEX_INITIALIZER : PTHREAD_MUTEX_INITIALIZER;
 
-  int ret = pthread_mutex_init(m, mutexattr);
-  if (ret < 0) {
-    free(m);
-    return -1;
-  }
+	int ret = pthread_mutex_init(m, mutexattr);
+	if (ret < 0) {
+		free(m);
+		return -1;
+	}
 
-  *uid = m;
+	*uid = m;
 
-  return 0;
+	return 0;
 }
 
 int pthread_mutex_destroy_fake(pthread_mutex_t **uid) {
-  if (uid && *uid && (uintptr_t)*uid > 0x8000) {
-    pthread_mutex_destroy(*uid);
-    free(*uid);
-    *uid = NULL;
-  }
-  return 0;
+	if (uid && *uid && (uintptr_t)*uid > 0x8000) {
+		pthread_mutex_destroy(*uid);
+		free(*uid);
+		*uid = NULL;
+	}
+	return 0;
 }
 
 int pthread_mutex_lock_fake(pthread_mutex_t **uid) {
-  int ret = 0;
-  if (!*uid) {
-    ret = pthread_mutex_init_fake(uid, NULL);
-  } else if ((uintptr_t)*uid == 0x4000) {
-    pthread_mutexattr_t attr;
-    pthread_mutexattr_init(&attr);
-    pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_RECURSIVE);
-    ret = pthread_mutex_init_fake(uid, &attr);
-    pthread_mutexattr_destroy(&attr);
-  } else if ((uintptr_t)*uid == 0x8000) {
-    pthread_mutexattr_t attr;
-    pthread_mutexattr_init(&attr);
-    pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_ERRORCHECK);
-    ret = pthread_mutex_init_fake(uid, &attr);
-    pthread_mutexattr_destroy(&attr);
-  }
-  if (ret < 0)
-    return ret;
-  return pthread_mutex_lock(*uid);
+	int ret = 0;
+	if (!*uid) {
+		ret = pthread_mutex_init_fake(uid, NULL);
+	} else if ((uintptr_t)*uid == 0x4000) {
+		pthread_mutexattr_t attr;
+		pthread_mutexattr_init(&attr);
+		pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_RECURSIVE);
+		ret = pthread_mutex_init_fake(uid, &attr);
+		pthread_mutexattr_destroy(&attr);
+	} else if ((uintptr_t)*uid == 0x8000) {
+		pthread_mutexattr_t attr;
+		pthread_mutexattr_init(&attr);
+		pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_ERRORCHECK);
+		ret = pthread_mutex_init_fake(uid, &attr);
+		pthread_mutexattr_destroy(&attr);
+	}
+	if (ret < 0)
+		return ret;
+	return pthread_mutex_lock(*uid);
 }
 
 int pthread_mutex_unlock_fake(pthread_mutex_t **uid) {
-  int ret = 0;
-  if (!*uid) {
-    ret = pthread_mutex_init_fake(uid, NULL);
-  } else if ((uintptr_t)*uid == 0x4000) {
-    pthread_mutexattr_t attr;
-    pthread_mutexattr_init(&attr);
-    pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_RECURSIVE);
-    ret = pthread_mutex_init_fake(uid, &attr);
-    pthread_mutexattr_destroy(&attr);
-  } else if ((uintptr_t)*uid == 0x8000) {
-    pthread_mutexattr_t attr;
-    pthread_mutexattr_init(&attr);
-    pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_ERRORCHECK);
-    ret = pthread_mutex_init_fake(uid, &attr);
-    pthread_mutexattr_destroy(&attr);
-  }
-  if (ret < 0)
-    return ret;
-  return pthread_mutex_unlock(*uid);
+	int ret = 0;
+	if (!*uid) {
+		ret = pthread_mutex_init_fake(uid, NULL);
+	} else if ((uintptr_t)*uid == 0x4000) {
+		pthread_mutexattr_t attr;
+		pthread_mutexattr_init(&attr);
+		pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_RECURSIVE);
+		ret = pthread_mutex_init_fake(uid, &attr);
+		pthread_mutexattr_destroy(&attr);
+	} else if ((uintptr_t)*uid == 0x8000) {
+		pthread_mutexattr_t attr;
+		pthread_mutexattr_init(&attr);
+		pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_ERRORCHECK);
+		ret = pthread_mutex_init_fake(uid, &attr);
+		pthread_mutexattr_destroy(&attr);
+	}
+	if (ret < 0)
+		return ret;
+	return pthread_mutex_unlock(*uid);
 }
 
 int pthread_cond_init_fake(pthread_cond_t **cnd, const int *condattr) {
-  pthread_cond_t *c = calloc(1, sizeof(pthread_cond_t));
-  if (!c)
-    return -1;
+	pthread_cond_t *c = calloc(1, sizeof(pthread_cond_t));
+	if (!c)
+		return -1;
 
-  *c = PTHREAD_COND_INITIALIZER;
+	*c = PTHREAD_COND_INITIALIZER;
 
-  int ret = pthread_cond_init(c, NULL);
-  if (ret < 0) {
-    free(c);
-    return -1;
-  }
+	int ret = pthread_cond_init(c, NULL);
+	if (ret < 0) {
+		free(c);
+		return -1;
+	}
 
-  *cnd = c;
+	*cnd = c;
 
-  return 0;
+	return 0;
 }
 
 int pthread_cond_broadcast_fake(pthread_cond_t **cnd) {
-  if (!*cnd) {
-    if (pthread_cond_init_fake(cnd, NULL) < 0)
-      return -1;
-  }
-  return pthread_cond_broadcast(*cnd);
+	if (!*cnd) {
+		if (pthread_cond_init_fake(cnd, NULL) < 0)
+			return -1;
+	}
+	return pthread_cond_broadcast(*cnd);
 }
 
 int pthread_cond_signal_fake(pthread_cond_t **cnd) {
-  if (!*cnd) {
-    if (pthread_cond_init_fake(cnd, NULL) < 0)
-      return -1;
-  }
-  return pthread_cond_signal(*cnd);
+	if (!*cnd) {
+		if (pthread_cond_init_fake(cnd, NULL) < 0)
+			return -1;
+	}
+	return pthread_cond_signal(*cnd);
 }
 
 int pthread_cond_destroy_fake(pthread_cond_t **cnd) {
-  if (cnd && *cnd) {
-    pthread_cond_destroy(*cnd);
-    free(*cnd);
-    *cnd = NULL;
-  }
-  return 0;
+	if (cnd && *cnd) {
+		pthread_cond_destroy(*cnd);
+		free(*cnd);
+		*cnd = NULL;
+	}
+	return 0;
 }
 
 int pthread_cond_wait_fake(pthread_cond_t **cnd, pthread_mutex_t **mtx) {
-  if (!*cnd) {
-    if (pthread_cond_init_fake(cnd, NULL) < 0)
-      return -1;
-  }
-  return pthread_cond_wait(*cnd, *mtx);
+	if (!*cnd) {
+		if (pthread_cond_init_fake(cnd, NULL) < 0)
+			return -1;
+	}
+	return pthread_cond_wait(*cnd, *mtx);
 }
 
-int pthread_cond_timedwait_fake(pthread_cond_t **cnd, pthread_mutex_t **mtx,
-                                const struct timespec *t) {
-  if (!*cnd) {
-    if (pthread_cond_init_fake(cnd, NULL) < 0)
-      return -1;
-  }
-  return pthread_cond_timedwait(*cnd, *mtx, t);
+int pthread_cond_timedwait_fake(pthread_cond_t **cnd, pthread_mutex_t **mtx, const struct timespec *t) {
+	if (!*cnd) {
+		if (pthread_cond_init_fake(cnd, NULL) < 0)
+			return -1;
+	}
+	return pthread_cond_timedwait(*cnd, *mtx, t);
 }
 
-int pthread_create_fake(pthread_t *thread, const void *unused, void *entry,
-                        void *arg) {
-  return pthread_create(thread, NULL, entry, arg);
+int pthread_create_fake(pthread_t *thread, const void *unused, void *entry, void *arg) {
+	return pthread_create(thread, NULL, entry, arg);
 }
 
 int pthread_once_fake(volatile int *once_control, void (*init_routine)(void)) {
-  if (!once_control || !init_routine)
-    return -1;
-  if (__sync_lock_test_and_set(once_control, 1) == 0)
-    (*init_routine)();
-  return 0;
+	if (!once_control || !init_routine)
+		return -1;
+	if (__sync_lock_test_and_set(once_control, 1) == 0)
+		(*init_routine)();
+	return 0;
 }
 
 
@@ -506,9 +502,8 @@ void __stack_chk_fail_fake() {
 	main_loop();
 }
 
-double GetPlatform()
-{
-    return forceWinMode ? 0.0f : 4.0f;
+double GetPlatform() {
+	return forceWinMode ? 0.0f : 4.0f;
 }
 
 /*int (*zip_name_locate)(void *handle, const char *fname, uint32_t flags);
@@ -526,9 +521,9 @@ int zip_fopen(int handle, const char *fname, uint32_t flags) {
 	
 	int idx;
 	if ((idx = zip_name_locate(handle, fname, flags)) < 0)
-        return NULL;
+		return NULL;
 
-    return zip_fopen_index(handle, idx, flags);
+	return zip_fopen_index(handle, idx, flags);
 }*/
 
 void patch_runner(void) {
@@ -640,27 +635,27 @@ int munmap(void *addr, size_t length) {
 }
 
 void *AAssetManager_open(void *mgr, const char *filename, int mode) {
-  return NULL;
+	return NULL;
 }
 
 void *AAsset_close() {
-  return NULL;
+	return NULL;
 }
 
 void *AAssetManager_fromJava() {
-  return NULL;
+	return NULL;
 }
 
 void *AAsset_read() {
-  return NULL;
+	return NULL;
 }
 
 void *AAsset_seek() {
-  return NULL;
+	return NULL;
 }
 
 void *AAsset_getLength() {
-  return NULL;
+	return NULL;
 }
 
 int fstat_hook(int fd, void *statbuf) {
@@ -836,8 +831,8 @@ void *sceClibMemset2(void *dst, SceSize len, int ch) {
 }
 
 int nanosleep(const struct timespec *req, struct timespec *rem) {
-  const uint32_t usec = req->tv_sec * 1000 * 1000 + req->tv_nsec / 1000;
-  return sceKernelDelayThreadCB(usec);
+	const uint32_t usec = req->tv_sec * 1000 * 1000 + req->tv_nsec / 1000;
+	return sceKernelDelayThreadCB(usec);
 }
 
 ALCcontext *alcCreateContextHook(ALCdevice *dev, const ALCint *unused);
@@ -847,8 +842,8 @@ ALCdevice *alcOpenDeviceHook(void *unused);
 #define days_in_gregorian_cycle ((365 * 400) + 100 - 4 + 1)
 static const int length_of_year[2] = { 365, 366 };
 static const int julian_days_by_month[2][12] = {
-    {0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334},
-    {0, 31, 60, 91, 121, 152, 182, 213, 244, 274, 305, 335},
+	{0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334},
+	{0, 31, 60, 91, 121, 152, 182, 213, 244, 274, 305, 335},
 };
 
 struct tm *localtime64(const int64_t *time) {
@@ -866,43 +861,43 @@ int64_t mktime64(struct tm *time) {
 }
 
 int64_t timegm64(const struct tm *date) {
-    int64_t days    = 0;
-    int64_t seconds = 0;
-    int64_t year;
-    int64_t orig_year = (int64_t)date->tm_year;
-    int cycles  = 0;
-    if( orig_year > 100 ) {
-        cycles = (orig_year - 100) / 400;
-        orig_year -= cycles * 400;
-        days      += (int64_t)cycles * days_in_gregorian_cycle;
-    }
-    else if( orig_year < -300 ) {
-        cycles = (orig_year - 100) / 400;
-        orig_year -= cycles * 400;
-        days      += (int64_t)cycles * days_in_gregorian_cycle;
-    }
+	int64_t days = 0;
+	int64_t seconds = 0;
+	int64_t year;
+	int64_t orig_year = (int64_t)date->tm_year;
+	int cycles  = 0;
+	if( orig_year > 100 ) {
+		cycles = (orig_year - 100) / 400;
+		orig_year -= cycles * 400;
+		days += (int64_t)cycles * days_in_gregorian_cycle;
+	}
+	else if( orig_year < -300 ) {
+		cycles = (orig_year - 100) / 400;
+		orig_year -= cycles * 400;
+		days += (int64_t)cycles * days_in_gregorian_cycle;
+	}
 
-    if( orig_year > 70 ) {
-        year = 70;
-        while( year < orig_year ) {
-            days += length_of_year[IS_LEAP(year)];
-            year++;
-        }
-    }
-    else if ( orig_year < 70 ) {
-        year = 69;
-        do {
-            days -= length_of_year[IS_LEAP(year)];
-            year--;
-        } while( year >= orig_year );
-    }
-    days += julian_days_by_month[IS_LEAP(orig_year)][date->tm_mon];
-    days += date->tm_mday - 1;
-    seconds = days * 60 * 60 * 24;
-    seconds += date->tm_hour * 60 * 60;
-    seconds += date->tm_min * 60;
-    seconds += date->tm_sec;
-    return seconds;
+	if( orig_year > 70 ) {
+		year = 70;
+		while( year < orig_year ) {
+			days += length_of_year[IS_LEAP(year)];
+			year++;
+		}
+	}
+	else if ( orig_year < 70 ) {
+		year = 69;
+		do {
+			days -= length_of_year[IS_LEAP(year)];
+			year--;
+		} while( year >= orig_year );
+	}
+	days += julian_days_by_month[IS_LEAP(orig_year)][date->tm_mon];
+	days += date->tm_mday - 1;
+	seconds = days * 60 * 60 * 24;
+	seconds += date->tm_hour * 60 * 60;
+	seconds += date->tm_min * 60;
+	seconds += date->tm_sec;
+	return seconds;
 }
 
 static so_default_dynlib default_dynlib[] = {
