@@ -35,8 +35,7 @@ void DrawDownloaderDialog(int index, float downloaded_bytes, float total_bytes, 
 	char msg[512];
 	sprintf(msg, "%s (%d / %d)", text, index, passes);
 	ImVec2 pos = ImGui::CalcTextSize(msg);
-	
-	ImGui::GetIO().MouseDrawCursor = false;
+
 	ImGui::SetNextWindowPos(ImVec2((SCR_WIDTH / 2) - 200, (SCR_HEIGHT / 2) - 50), ImGuiSetCond_Always);
 	ImGui::SetNextWindowSize(ImVec2(400, 100), ImGuiSetCond_Always);
 	ImGui::Begin("", nullptr, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoBringToFrontOnFocus);

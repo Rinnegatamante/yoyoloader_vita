@@ -21,6 +21,8 @@ For PC/Console exported games, you will need to perform an assets swap with a bl
 
 Note that patches to the bytecode may still be required in order to fix resolution, inputs or performances issues. Any game reported as ![#c5f015](https://via.placeholder.com/15/c5f015/000000?text=+) `Native`, instead, will work with simple drag'n'drop of the apk.
 
+A comprehensive Compatibility List can be found here: https://yoyo.rinnegatamante.it. You can contribute to it by opening an Issue here: https://github.com/Rinnegatamante/YoYo-Loader-Vita-Compatibility/issues.
+
 ## Setup Instructions (For End Users)
 
 In order to properly install the loader, you'll have to follow these steps precisely:

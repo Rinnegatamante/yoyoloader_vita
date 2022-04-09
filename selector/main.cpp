@@ -34,7 +34,7 @@ int _newlib_heap_size_user = 256 * 1024 * 1024;
 static CURL *curl_handle = NULL;
 static volatile uint64_t total_bytes = 0xFFFFFFFF;
 static volatile uint64_t downloaded_bytes = 0;
-static volatile uint8_t downloader_pass = 0;
+static volatile uint8_t downloader_pass = 1;
 uint8_t *downloader_mem_buffer = nullptr;
 static FILE *fh;
 char *bytes_string;
@@ -245,25 +245,26 @@ static int updaterThread(unsigned int args, void *arg) {
 
 		// FIXME: Workaround since GitHub Api does not set Content-Length
 		total_bytes = i == UPDATER_DOWNLOAD_UPDATE ? 2 * 1024 * 1024 : 20 * 1024; /* 2 MB / 20 KB */
-
+		
 		startDownload(url);
-
 		if (downloaded_bytes > 12 * 1024) {
 			if (i == UPDATER_CHECK_UPDATES) {
 				char target_commit[7];
 				snprintf(target_commit, 6, strstr((char*)downloader_mem_buffer, "target_commitish") + 20);
+				printf("%s vs %s\n", target_commit, stringify(GIT_VERSION));
 				if (strncmp(target_commit, stringify(GIT_VERSION), 5)) {
 					sprintf(url, "https://api.github.com/repos/Rinnegatamante/yoyoloader_vita/compare/%s...%s", stringify(GIT_VERSION), target_commit);
 					update_detected = true;
+					printf("found update\n");
 				}
 			} else if (i == UPDATER_DOWNLOAD_CHANGELIST) {
 				fh = fopen(LOG_DOWNLOAD_NAME, "wb");
 				fwrite((const void*)downloader_mem_buffer, 1, downloaded_bytes, fh);
 				fclose(fh);
 #ifdef STABLE_BUILD
-				sprintf(url, "https://github.com/Rinnegatamante/yoyoloader_vita/releases/download/Stable/YoYoLoader.vpk");
+				sprintf(url, "https://github.com/Rinnegatamante/yoyoloader_vita/releases/download/Stable/DaedalusX64.vpk");
 #else
-				sprintf(url, "https://github.com/Rinnegatamante/yoyoloader_vita/releases/download/Nightly/YoYoLoader.vpk");
+				sprintf(url, "https://github.com/Rinnegatamante/yoyoloader_vita/releases/download/Nightly/DaedalusX64.vpk");
 #endif
 			}
 		}
@@ -339,7 +340,6 @@ void extract_file(char *file, char *dir) {
 }
 
 int main(int argc, char *argv[]) {
-	downloader_mem_buffer = (uint8_t*)malloc(32 * 1024 * 1024);
 	sceIoMkdir("ux0:data/gms", 0777);
 	
 	GameSelection *hovered = nullptr;
@@ -357,37 +357,59 @@ int main(int argc, char *argv[]) {
 	int res = 0;
 	FILE *f;
 	
+	// Check if YoYo Loader has been launched with a custom bubble
+	bool skip_updates_check = strstr(stringify(GIT_VERSION), "dirty") != nullptr;
+	char boot_params[1024];
+	sceAppMgrGetAppParam(boot_params);
+	if (strstr(boot_params,"psgm:play") && strstr(boot_params, "&param=")) {
+		skip_updates_check = true;
+		launch_item = strstr(boot_params, "&param=") + 7;
+	}
+	
 	// Checking for updates
-	SceUID thd = sceKernelCreateThread("Auto Updater", &updaterThread, 0x10000100, 0x100000, 0, 0, NULL);
-	sceKernelStartThread(thd, 0, NULL);
-	do {
-		if (downloader_pass == UPDATER_CHECK_UPDATES) DrawDownloaderDialog(downloader_pass + 1, downloaded_bytes, total_bytes, "Checking for updates", NUM_UPDATE_PASSES);
-		else if (downloader_pass == UPDATER_DOWNLOAD_CHANGELIST) DrawDownloaderDialog(downloader_pass + 1, downloaded_bytes, total_bytes, "Downloading Changelist", NUM_UPDATE_PASSES);
-		else DrawDownloaderDialog(downloader_pass + 1, downloaded_bytes, total_bytes, "Downloading an update", NUM_UPDATE_PASSES);
-		res = sceKernelGetThreadInfo(thd, &info);
-	} while (info.status <= SCE_THREAD_DORMANT && res >= 0);
-	total_bytes = 0xFFFFFFFF;
-	downloaded_bytes = 0;
-	downloader_pass = 1;
+	if (!skip_updates_check) {
+		sceSysmoduleLoadModule(SCE_SYSMODULE_NET);
+		int ret = sceNetShowNetstat();
+		SceNetInitParam initparam;
+		if (ret == SCE_NET_ERROR_ENOTINIT) {
+			initparam.memory = malloc(1024 * 1024);
+			initparam.size = 1024 * 1024;
+			initparam.flags = 0;
+			sceNetInit(&initparam);
+		}
+	
+		downloader_mem_buffer = (uint8_t*)malloc(32 * 1024 * 1024);
+		SceUID thd = sceKernelCreateThread("Auto Updater", &updaterThread, 0x10000100, 0x100000, 0, 0, NULL);
+		sceKernelStartThread(thd, 0, NULL);
+		do {
+			if (downloader_pass == UPDATER_CHECK_UPDATES) DrawDownloaderDialog(downloader_pass + 1, downloaded_bytes, total_bytes, "Checking for updates", NUM_UPDATE_PASSES);
+			else if (downloader_pass == UPDATER_DOWNLOAD_CHANGELIST) DrawDownloaderDialog(downloader_pass + 1, downloaded_bytes, total_bytes, "Downloading Changelist", NUM_UPDATE_PASSES);
+			else DrawDownloaderDialog(downloader_pass + 1, downloaded_bytes, total_bytes, "Downloading an update", NUM_UPDATE_PASSES);
+			res = sceKernelGetThreadInfo(thd, &info);
+		} while (info.status <= SCE_THREAD_DORMANT && res >= 0);
+		total_bytes = 0xFFFFFFFF;
+		downloaded_bytes = 0;
+		downloader_pass = 1;
 		
-	// Found an update, extracting and installing it
-	f = fopen(TEMP_DOWNLOAD_NAME, "r");
-	if (f) {
-		sceAppMgrUmount("app0:");
-		fclose(f);
-		extract_file(TEMP_DOWNLOAD_NAME, "ux0:app/YYOLOADER/");
-		sceIoRemove(TEMP_DOWNLOAD_NAME);
-		sceAppMgrLoadExec("app0:eboot.bin", NULL, NULL);
+		// Found an update, extracting and installing it
+		f = fopen(TEMP_DOWNLOAD_NAME, "r");
+		if (f) {
+			sceAppMgrUmount("app0:");
+			fclose(f);
+			extract_file(TEMP_DOWNLOAD_NAME, "ux0:app/YYOLOADER/");
+			sceIoRemove(TEMP_DOWNLOAD_NAME);
+			sceAppMgrLoadExec("app0:eboot.bin", NULL, NULL);
+		}
+	
+		// Showing changelist
+		f = fopen(LOG_DOWNLOAD_NAME, "r");
+		if (f) {
+			DrawChangeListDialog(f);
+			sceIoRemove(LOG_DOWNLOAD_NAME);
+		}
+		free(downloader_mem_buffer);
 	}
 	
-	// Showing changelist
-	f = fopen(LOG_DOWNLOAD_NAME, "r");
-	if (f) {
-		DrawChangeListDialog(f);
-		sceIoRemove(LOG_DOWNLOAD_NAME);
-	}
-	
-	free(downloader_mem_buffer);
 	SceUID fd = sceIoDopen("ux0:data/gms");
 	SceIoDirent g_dir;
 	while (sceIoDread(fd, &g_dir) > 0) {
