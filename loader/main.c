@@ -506,26 +506,6 @@ double GetPlatform() {
 	return forceWinMode ? 0.0f : 4.0f;
 }
 
-/*int (*zip_name_locate)(void *handle, const char *fname, uint32_t flags);
-int (*zip_fopen_index)(void *handle, int index, uint32_t flags);
-
-int zip_fopen(int handle, const char *fname, uint32_t flags) {
-	char real_fname[256];
-	char *s = strstr(fname, "ux0:");
-	if (s) {
-		s[0] = 0;
-		sprintf(real_fname, "%s%s", fname, s + strlen(data_path));
-		fname = real_fname;
-		s[0] = 'u';
-	}
-	
-	int idx;
-	if ((idx = zip_name_locate(handle, fname, flags)) < 0)
-		return NULL;
-
-	return zip_fopen_index(handle, idx, flags);
-}*/
-
 void patch_runner(void) {
 	hook_addr(so_symbol(&yoyoloader_mod, "_Z30PackageManagerHasSystemFeaturePKc"), (uintptr_t)&ret0);
 	hook_addr(so_symbol(&yoyoloader_mod, "_Z17alBufferDebugNamejPKc"), (uintptr_t)&ret0);
@@ -534,9 +514,6 @@ void patch_runner(void) {
 	hook_addr(so_symbol(&yoyoloader_mod, "_Z23YoYo_GetPlatform_DoWorkv"), (uintptr_t)&GetPlatform);
 	hook_addr(so_symbol(&yoyoloader_mod, "_Z20GET_YoYo_GetPlatformP9CInstanceiP6RValue"), (uintptr_t)&GetPlatformInstance);
 	
-	//zip_name_locate = so_symbol(&yoyoloader_mod, "zip_name_locate");
-	//zip_fopen_index = so_symbol(&yoyoloader_mod, "zip_fopen_index");
-	//hook_addr(so_symbol(&yoyoloader_mod, "zip_fopen"), (uintptr_t)&zip_fopen);
 	so_symbol_fix_ldmia(&yoyoloader_mod, "_Z11Shader_LoadPhjS_");
 	
 	// Debug
@@ -669,7 +646,7 @@ int fstat_hook(int fd, void *statbuf) {
 
 void *dlopen_hook(const char *filename, int flags) {
 	debugPrintf("Opening %s\n", filename);
-	if (forceGL1 == 1 && strstr(filename, "v2"))
+	if (forceGL1 && strstr(filename, "v2"))
 		return NULL;
 	return (void *)0xDEADBEEF;
 }
@@ -1430,7 +1407,7 @@ void SetObjectArrayElement(void *env, void *array, int size, void *val) {
 
 int GetIntField(void *env, void *obj, int fieldID) { return 0; }
 
-int gms_main(unsigned int argc, void *argv) {
+void *gms_main(void *argv) {
 	// Checking requested game launch
 	char game_name[0x200];
 	FILE *f = fopen(LAUNCH_FILE_PATH, "r");
@@ -1610,7 +1587,7 @@ int gms_main(unsigned int argc, void *argv) {
 	debugPrintf("Startup ended\n");
 	main_loop();
 
-	return 0;
+	return NULL;
 }
 
 int main(int argc, char **argv)
@@ -1636,12 +1613,15 @@ int main(int argc, char **argv)
 		debugPrintf("Error while making AL context current\n");
 	
 	if (forceMainThread) {
-		gms_main(0, NULL);
+		gms_main(NULL);
 	} else {
-		SceUID main_thread = sceKernelCreateThread("YoyoLoader", gms_main, 0x40, 0x800000, 0, 0, NULL);
-		if (main_thread >= 0){
-			sceKernelStartThread(main_thread, 0, NULL);
-			sceKernelWaitThreadEnd(main_thread, NULL, NULL);
-		}
+		pthread_t t;
+		pthread_attr_t attr;
+		pthread_attr_init(&attr);
+		pthread_attr_setstacksize(&attr, 0x800000);
+		pthread_create(&t, &attr, gms_main, NULL);
+		pthread_join(t, NULL);
 	}
+	
+	return 0;
 }
