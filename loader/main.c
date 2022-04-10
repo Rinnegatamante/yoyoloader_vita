@@ -513,9 +513,9 @@ void patch_runner(void) {
 	hook_addr(so_symbol(&yoyoloader_mod, "_ZN13MemoryManager10DumpMemoryEPvS0_"), (uintptr_t)&ret0);
 	hook_addr(so_symbol(&yoyoloader_mod, "_Z23YoYo_GetPlatform_DoWorkv"), (uintptr_t)&GetPlatform);
 	hook_addr(so_symbol(&yoyoloader_mod, "_Z20GET_YoYo_GetPlatformP9CInstanceiP6RValue"), (uintptr_t)&GetPlatformInstance);
-	
+#if 0 // FIXME: Something seems broken atm with this...
 	so_symbol_fix_ldmia(&yoyoloader_mod, "_Z11Shader_LoadPhjS_");
-	
+#endif
 	// Debug
 	if (debugMode)
 		hook_addr(so_symbol(&yoyoloader_mod, "_ZN11TRelConsole6OutputEPKcz"), (uintptr_t)&DebugPrintf);
@@ -578,6 +578,8 @@ extern void *__aeabi_dcmpgt;
 extern void *__aeabi_i2d;
 extern void *__cxa_atexit;
 extern void *__cxa_finalize;
+extern void *__cxa_guard_acquire;
+extern void *__cxa_guard_release;
 extern void *__cxa_pure_virtual;
 extern void *__cxa_allocate_exception;
 extern void *__cxa_throw;
@@ -936,6 +938,8 @@ static so_default_dynlib default_dynlib[] = {
 	{ "__cxa_allocate_exception", (uintptr_t)&__cxa_allocate_exception },
 	{ "__cxa_atexit", (uintptr_t)&__cxa_atexit },
 	{ "__cxa_finalize", (uintptr_t)&__cxa_finalize },
+	{ "__cxa_guard_acquire", (uintptr_t)&__cxa_guard_acquire },
+	{ "__cxa_guard_release", (uintptr_t)&__cxa_guard_release },
 	{ "__cxa_pure_virtual", (uintptr_t)&__cxa_pure_virtual },
 	{ "__cxa_throw", (uintptr_t)&__cxa_throw },
 	{ "__errno", (uintptr_t)&__errno },
