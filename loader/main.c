@@ -537,6 +537,7 @@ void patch_runner(void) {
 	//zip_name_locate = so_symbol(&yoyoloader_mod, "zip_name_locate");
 	//zip_fopen_index = so_symbol(&yoyoloader_mod, "zip_fopen_index");
 	//hook_addr(so_symbol(&yoyoloader_mod, "zip_fopen"), (uintptr_t)&zip_fopen);
+	so_symbol_fix_ldmia(&yoyoloader_mod, "_Z11Shader_LoadPhjS_");
 	
 	// Debug
 	if (debugMode)

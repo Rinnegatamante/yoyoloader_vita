@@ -156,7 +156,7 @@ const char *options_descs[] = {
 	"Enables debug logging in ux0:data/gms/shared/yyl.log.",
 	"Disables splashscreen rendering at game boot.",
 	"Allows the Runner to use approximately extra 12 MBs of memory. May break some debugging tools.",
-	"Reduces Apk size by removing unnecessary data inside it and improves performances by recompressing files one by one depending on their expected use.",
+	"Reduces apk size by removing unnecessary data inside it and improves performances by recompressing files one by one depending on their expected use.",
 };
 
 char *launch_item = nullptr;
@@ -174,7 +174,7 @@ bool extracting = false;
 volatile int cur_idx = 0;
 volatile int tot_idx = -1;
 volatile float saved_size = -1.0f;
-int extractor_thread(unsigned int argc, void *argv) {
+int optimizer_thread(unsigned int argc, void *argv) {
 	char *game = (char *)argv;
 	char apk_path[256], tmp_path[256], fname[512];
 	sprintf(apk_path, "ux0:data/gms/%s/game.apk", game);
@@ -225,8 +225,8 @@ void OptimizeApk(char *game) {
 	tot_idx = -1;
 	saved_size = -1.0f;
 	extracting = true;
-	SceUID extractor_thid = sceKernelCreateThread("Extractor Thread", &extractor_thread, 0x10000100, 0x100000, 0, 0, NULL);
-	sceKernelStartThread(extractor_thid, strlen(game) + 1, game);
+	SceUID optimizer_thid = sceKernelCreateThread("Optimizer Thread", &optimizer_thread, 0x10000100, 0x100000, 0, 0, NULL);
+	sceKernelStartThread(optimizer_thid, strlen(game) + 1, game);
 }
 
 static int updaterThread(unsigned int args, void *arg) {

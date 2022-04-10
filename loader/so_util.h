@@ -9,9 +9,9 @@
 typedef struct so_module {
   struct so_module *next;
 
-  SceUID text_blockid, data_blockid[MAX_DATA_SEG];
-  uintptr_t text_base, data_base[MAX_DATA_SEG];
-  size_t text_size, data_size[MAX_DATA_SEG];
+  SceUID patch_blockid, text_blockid, data_blockid[MAX_DATA_SEG];
+  uintptr_t patch_base, patch_head, cave_base, cave_head, text_base, data_base[MAX_DATA_SEG];
+  size_t patch_size, cave_size, text_size, data_size[MAX_DATA_SEG];
   int n_data;
 
   Elf32_Ehdr *ehdr;
@@ -51,6 +51,7 @@ int so_file_load(so_module *mod, const char *filename, uintptr_t load_addr);
 int so_mem_load(so_module *mod, void * buffer, size_t so_size, uintptr_t load_addr);
 int so_relocate(so_module *mod);
 int so_resolve(so_module *mod, so_default_dynlib *default_dynlib, int size_default_dynlib, int default_dynlib_only);
+void so_symbol_fix_ldmia(so_module *mod, const char *symbol);
 void so_initialize(so_module *mod);
 uintptr_t so_symbol(so_module *mod, const char *symbol);
 
