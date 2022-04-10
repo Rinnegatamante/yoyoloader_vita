@@ -44,8 +44,8 @@ In order to properly install the loader, you'll have to follow these steps preci
 ## Build Instructions (For Developers)
 
 In order to build the loader, you'll need a [vitasdk](https://github.com/vitasdk) build fully compiled with softfp usage.  
-You can find a precompiled version here: https://github.com/vitasdk/buildscripts/releases.  
-Additionally, you'll need some libraries normally included in vdpm compiled with softfp. You can get most of the required ones here: https://github.com/Rinnegatamante/vitasdk-packages-softfp/releases
+You can find a precompiled version here: https://github.com/vitasdk/buildscripts/releases.
+Additionally, you'll need some libraries normally included in vdpm compiled with softfp. You can get most of the required ones here: https://github.com/Rinnegatamante/vitasdk-packages-softfp/releases.
 Finally, you'll need to recompile the few missing ones on your own:
 
 - [vitaGL](https://github.com/Rinnegatamante/vitaGL)
