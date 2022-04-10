@@ -1634,7 +1634,7 @@ int main(int argc, char **argv)
 	attrlist[3] = AL_FALSE;
 	attrlist[4] = 0;
 
-	ALDevice	= alcOpenDevice(NULL);
+	ALDevice = alcOpenDevice(NULL);
 	if (ALDevice == NULL)
 		debugPrintf("Error while opening AL device\n");
 	ALContext = alcCreateContext(ALDevice, attrlist);
