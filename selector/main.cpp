@@ -247,14 +247,13 @@ static int updaterThread(unsigned int args, void *arg) {
 		total_bytes = i == UPDATER_DOWNLOAD_UPDATE ? 2 * 1024 * 1024 : 20 * 1024; /* 2 MB / 20 KB */
 		
 		startDownload(url);
-		if (downloaded_bytes > 12 * 1024) {
+		if (downloaded_bytes > 4 * 1024) {
 			if (i == UPDATER_CHECK_UPDATES) {
 				char target_commit[7];
 				snprintf(target_commit, 6, strstr((char*)downloader_mem_buffer, "body") + 10);
 				if (strncmp(target_commit, stringify(GIT_VERSION), 5)) {
 					sprintf(url, "https://api.github.com/repos/Rinnegatamante/yoyoloader_vita/compare/%s...%s", stringify(GIT_VERSION), target_commit);
 					update_detected = true;
-					printf("found update\n");
 				}
 			} else if (i == UPDATER_DOWNLOAD_CHANGELIST) {
 				fh = fopen(LOG_DOWNLOAD_NAME, "wb");
