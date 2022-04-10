@@ -1564,7 +1564,6 @@ int gms_main(unsigned int argc, void *argv) {
 	*(uintptr_t *)(fake_env + 0x358) = (uintptr_t)SetDoubleArrayRegion;
 	*(uintptr_t *)(fake_env + 0x36C) = (uintptr_t)GetJavaVM;
 	
-	int (*Java_com_yoyogames_runner_RunnerJNILib_RenderSplash) (void *env, int a2, char *apk_path, char *fname, int w, int h, signed int tex_w, signed int tex_h, signed int png_w, signed int png_h) = (void *)so_symbol(&yoyoloader_mod, "Java_com_yoyogames_runner_RunnerJNILib_RenderSplash");
 	int (*Java_com_yoyogames_runner_RunnerJNILib_Startup) (void *env, int a2, char *apk_path, char *save_dir, char *pkg_dir, int sleep_margin) = (void *)so_symbol(&yoyoloader_mod, "Java_com_yoyogames_runner_RunnerJNILib_Startup");
 	
 	// Displaying splash screen
@@ -1577,14 +1576,29 @@ int gms_main(unsigned int argc, void *argv) {
 		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, bg_data);
 		free(bg_data);
 		free(splash_buf);
-		if (forceGL1)
-			forceGL1 = 2;
-		Java_com_yoyogames_runner_RunnerJNILib_RenderSplash(fake_env, 0, apk_path, "splash.png", SCREEN_W, SCREEN_H, SCREEN_W, SCREEN_H, SCREEN_W, SCREEN_H);
-		if (forceGL1) {
-			forceGL1 = 1;
-			*(int *)so_symbol(&yoyoloader_mod, "g_GL_funcs_imported") = 0;
-			glUseProgram(0);
-		}
+		glEnable(GL_TEXTURE_2D);
+		glEnableClientState(GL_VERTEX_ARRAY);
+		glEnableClientState(GL_TEXTURE_COORD_ARRAY);
+		glViewport(0, 0, 960, 544);
+		glMatrixMode(GL_PROJECTION);
+		glLoadIdentity();
+		glOrtho(0, 960, 544, 0, -1, 1);
+		glMatrixMode(GL_MODELVIEW);
+		glLoadIdentity();
+		float splash_vertices[] = {
+			       0,        0, 0,
+			SCREEN_W,        0, 0,
+			SCREEN_W, SCREEN_H, 0,
+			       0, SCREEN_H, 0
+		};
+		float splash_texcoords[] = {
+			0, 0, 1, 0, 1, 1, 0, 1
+		};
+		glVertexPointer(3, GL_FLOAT, 0, splash_vertices);
+		glTexCoordPointer(2, GL_FLOAT, 0, splash_texcoords);
+		glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
+		glDisableClientState(GL_VERTEX_ARRAY);
+		glDisableClientState(GL_TEXTURE_COORD_ARRAY);
 		vglSwapBuffers(GL_FALSE);
 		glDeleteTextures(1, &bg_image);
 	}
