@@ -880,6 +880,32 @@ int64_t timegm64(const struct tm *date) {
 	return seconds;
 }
 
+int is_prime(int n) {
+	if (n <= 3)
+		return 1;
+	
+	if (n % 2 == 0 || n % 3 == 0)
+		return 0;
+	
+	for (int i = 5; i * i <= n; i = i + 6) {
+		if (n % i == 0 || n % (i + 2) == 0)
+			return 0;
+	}
+	
+	return 1;
+}
+
+int _ZNSt6__ndk112__next_primeEj(void *this, int n) {
+	if (n <= 1)
+		return 2;
+	
+	while (!is_prime(n)) {
+		n++;
+	}
+	
+	return n;
+}
+
 static so_default_dynlib default_dynlib[] = {
 	{ "AAssetManager_open", (uintptr_t)&AAssetManager_open},
 	{ "AAsset_close", (uintptr_t)&AAsset_close},
@@ -898,6 +924,7 @@ static so_default_dynlib default_dynlib[] = {
 	{ "_ZNSt12length_errorD1Ev", (uintptr_t)&_ZNSt12length_errorD1Ev},
 	{ "_ZNSt13runtime_errorD1Ev", (uintptr_t)&_ZNSt13runtime_errorD1Ev},
 	{ "_ZTVSt12length_error", (uintptr_t)&_ZTVSt12length_error},
+	{ "_ZNSt6__ndk112__next_primeEj", &_ZNSt6__ndk112__next_primeEj},
 	{ "__aeabi_f2d", (uintptr_t)&__aeabi_f2d },
 	{ "__aeabi_l2d", (uintptr_t)&__aeabi_l2d },
 	{ "__aeabi_l2f", (uintptr_t)&__aeabi_l2f },
