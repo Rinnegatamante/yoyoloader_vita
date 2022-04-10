@@ -138,8 +138,10 @@ void fatal_error(const char *fmt, ...) {
 
   init_msg_dialog(string);
 
-  while (!get_msg_dialog_result())
+  while (!get_msg_dialog_result()) {
+    glClear(GL_COLOR_BUFFER_BIT);
     vglSwapBuffers(GL_TRUE);
+  }
 
   sceKernelExitProcess(0);
   while (1);
