@@ -29,6 +29,7 @@ add_executable(YoYoLoader
   loader/ioapi.c
   loader/unzip.c
   loader/zip.c
+  loader/dialog.c
 )
 
 add_dependencies(YoYoLoader loader.bin)

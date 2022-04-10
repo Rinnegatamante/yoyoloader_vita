@@ -17,6 +17,10 @@
 #define stringify(x) FUNC_TO_NAME(x)
 #define MIN(x, y) (x) < (y) ? (x) : (y)
 
+extern "C" {
+	void fatal_error(const char *fmt, ...);
+};
+
 void DrawDownloaderDialog(int index, float downloaded_bytes, float total_bytes, char *text, int passes);
 void DrawExtractorDialog(int index, float file_extracted_bytes, float extracted_bytes, float file_total_bytes, float total_bytes, char *filename, int num_files);
 void DrawChangeListDialog(FILE *f);
@@ -337,8 +341,16 @@ void extract_file(char *file, char *dir) {
 	ImGui::GetIO().MouseDrawCursor = true;
 }
 
+int file_exists(const char *path) {
+	SceIoStat stat;
+	return sceIoGetstat(path, &stat) >= 0;
+}
+
 int main(int argc, char *argv[]) {
 	sceIoMkdir("ux0:data/gms", 0777);
+	
+	if (!file_exists("ur0:/data/libshacccg.suprx") && !file_exists("ur0:/data/external/libshacccg.suprx"))
+		fatal_error("Error libshacccg.suprx is not installed.");
 	
 	GameSelection *hovered = nullptr;
 	vglInitExtended(0, 960, 544, 0x1800000, SCE_GXM_MULTISAMPLE_4X);
