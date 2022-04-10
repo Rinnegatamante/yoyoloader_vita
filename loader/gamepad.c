@@ -95,9 +95,14 @@ void gamepad_get_device_count(retval_t *ret, void *self, void *other, int argc, 
 
 void gamepad_is_connected(retval_t *ret, void *self, void *other, int argc, retval_t *args) {
 	ret->kind = VALUE_REAL;
-
 	int id = (int)args[0].rvalue.val;
-	ret->rvalue.val = (id == 0) ? 1.0f : 0.0f;
+	
+	if (!IS_CONTROLLER_BOUNDS) {
+		ret->rvalue.val = 0.0f;
+		return;
+	}
+	
+	ret->rvalue.val = (yoyo_gamepads[id].is_available) ? 1.0f : 0.0f;
 }
 
 void gamepad_get_description(retval_t *ret, void *self, void *other, int argc, retval_t *args) {
@@ -234,7 +239,7 @@ void GamePadRestart() {
 	for (int i = 0; i < 4; i++) {
 		if (yoyo_gamepads[i].is_available) {
 			int dsMap = CreateDsMap(2, "event_type", 0, 0, "gamepad discovered", "pad_index", (double)i, 0);
-			CreateAsynEventWithDSMap(dsMap, 0x4b);
+			CreateAsynEventWithDSMap(dsMap, 0x4B);
 		}
 	}
 }
@@ -297,16 +302,18 @@ void GamePadUpdate() {
 	}
 	
 	for (int j = 0; j < 16; j++) {
-		yoyo_gamepads[0].buttons[j] = (double)update_button(new_states[j], (int)yoyo_gamepads[0].buttons[j]);
+		yoyo_gamepads[forceWinMode ? 0 : 1].buttons[j] = (double)update_button(new_states[j], (int)yoyo_gamepads[forceWinMode ? 0 : 1].buttons[j]);
 	}
 	
-	yoyo_gamepads[0].axis[0] = (double)((int)pad.lx - 127) / 127.0f;
-	yoyo_gamepads[0].axis[1] = (double)((int)pad.ly - 127) / 127.0f;
-	yoyo_gamepads[0].axis[2] = (double)((int)pad.rx - 127)	/ 127.0f;
-	yoyo_gamepads[0].axis[3] = (double)((int)pad.ry - 127) / 127.0f;
+	yoyo_gamepads[forceWinMode ? 0 : 1].axis[0] = (double)((int)pad.lx - 127) / 127.0f;
+	yoyo_gamepads[forceWinMode ? 0 : 1].axis[1] = (double)((int)pad.ly - 127) / 127.0f;
+	yoyo_gamepads[forceWinMode ? 0 : 1].axis[2] = (double)((int)pad.rx - 127)	/ 127.0f;
+	yoyo_gamepads[forceWinMode ? 0 : 1].axis[3] = (double)((int)pad.ry - 127) / 127.0f;
 }
 
 void patch_gamepad() {
+	yoyo_gamepads[forceWinMode ? 0 : 1].is_available = 1;
+	
 	void (*Function_Add)(const char *name, intptr_t func, int argc, char ret) = (void *)so_symbol(&yoyoloader_mod, "_Z12Function_AddPKcPFvR6RValueP9CInstanceS4_iPS1_Eib");
 	if (Function_Add == NULL)
 		Function_Add = (void *)so_symbol(&yoyoloader_mod, "_Z12Function_AddPcPFvR6RValueP9CInstanceS3_iPS0_Eib");
