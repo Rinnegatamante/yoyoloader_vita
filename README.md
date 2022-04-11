@@ -65,4 +65,4 @@ cmake .. && make
 
 - TheFloW for the original .so loader.
 - JohnnyonFlame for GMSLoader used as reference for some implementations and for generic advices.
-- Once13One for the Livearea assets.
+- Once13One for the Livearea assets and the README showcase image.

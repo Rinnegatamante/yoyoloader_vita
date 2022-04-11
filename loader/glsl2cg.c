@@ -23,14 +23,15 @@ char *perform_static_analysis(const char *string, int size) {
 	debugPrintf("glsl2cg: Static analysis pass started...\n");
 	char *p = string;
 	char *new_src = (char *)malloc(0x8000);
-	char *p2 = new_src;
+	strcpy(new_src, "#define saturate(a) __saturate(a)\n");
+	char *p2 = &new_src[34];
 	char *lowp = strstr(p, "lowp");
 	char *mediump = strstr(p, "mediump");
 	char *highp = strstr(p, "highp");
 	char *precision = strstr(p, "precision");
 	char *texture2d = strstr(p, "texture2D");
-	char *fract = strstr(p, "fract");
-	char *mix = strstr(p, "mix");
+	char *fract = strstr(p, "fract(");
+	char *mix = strstr(p, "mix(");
 	char *vec2 = strstr(p, "vec2");
 	char *vec3 = strstr(p, "vec3");
 	char *vec4 = strstr(p, "vec4");
@@ -38,7 +39,7 @@ char *perform_static_analysis(const char *string, int size) {
 	char *mat3 = strstr(p, "mat3");
 	char *mat4 = strstr(p, "mat4");
 	char *modu = strstr(p, "mod(");
-	char *atan = strstr(p, "atan");
+	char *atan = strstr(p, "atan(");
 	char *cons = strstr(p, "const ");
 	for (;;) {
 		// Updating any symbol that requires such
@@ -47,8 +48,8 @@ char *perform_static_analysis(const char *string, int size) {
 		highp = (highp != NULL && highp < p) ? strstr(p, "highp") : highp;
 		precision = (precision != NULL && precision < p) ? strstr(p, "precision") : precision;
 		texture2d = (texture2d != NULL && texture2d < p) ? strstr(p, "texture2D") : texture2d;
-		fract = (fract != NULL && fract < p) ? strstr(p, "fract") : fract;
-		mix = (mix != NULL && mix < p) ? strstr(p, "mix") : mix;
+		fract = (fract != NULL && fract < p) ? strstr(p, "fract(") : fract;
+		mix = (mix != NULL && mix < p) ? strstr(p, "mix(") : mix;
 		vec2 = (vec2 != NULL && vec2 < p) ? strstr(p, "vec2") : vec2;
 		vec3 = (vec3 != NULL && vec3 < p) ? strstr(p, "vec3") : vec3;
 		vec4 = (vec4 != NULL && vec4 < p) ? strstr(p, "vec4") : vec4;
@@ -56,7 +57,7 @@ char *perform_static_analysis(const char *string, int size) {
 		mat3 = (mat3 != NULL && mat3 < p) ? strstr(p, "mat3") : mat3;
 		mat4 = (mat4 != NULL && mat4 < p) ? strstr(p, "mat4") : mat4;
 		modu = (modu != NULL && modu < p) ? strstr(p, "mod(") : modu;
-		atan = (atan != NULL && atan < p) ? strstr(p, "atan") : atan;
+		atan = (atan != NULL && atan < p) ? strstr(p, "atan(") : atan;
 		cons = (cons != NULL && cons < p) ? strstr(p, "const ") : cons;
 		
 		// Detecting closest symbol
@@ -239,6 +240,8 @@ char *translate_frag_shader(const char *string, int size) {
 	debugPrintf("glsl2cg: Locating main function...\n");
 	char *p = new_src;
 	char *main_f = strstr(p, "void main()");
+	if (!main_f)
+		main_f = strstr(p, "void main(void)");
 	char varyings[32][32];
 	int varyings_type[32];
 	int num_varyings = 0;
@@ -314,6 +317,8 @@ char *translate_frag_shader(const char *string, int size) {
 		memcpy(p3, var, strlen(var));
 		p3 += strlen(var);
 	}
+	if (main_f[10] == 'v')
+		main_f += 4;
 	memcpy(p3, main_f + 10, strlen(new_src) - ((main_f + 10) - new_src));
 	p3 += strlen(new_src) - ((main_f + 10) - new_src);
 	p3[0] = 0;
@@ -333,6 +338,8 @@ char *translate_vert_shader(char *string, int size) {
 	debugPrintf("glsl2cg: Locating main function...\n");
 	char *p = new_src;
 	char *main_f = strstr(p, "void main()");
+	if (!main_f)
+		main_f = strstr(p, "void main(void)");
 	char varyings[32][32];
 	char attributes[32][32];
 	int varyings_type[32];
@@ -437,6 +444,8 @@ char *translate_vert_shader(char *string, int size) {
 		memcpy(p3, var, strlen(var));
 		p3 += strlen(var);
 	}
+	if (main_f[10] == 'v')
+		main_f += 4;
 	memcpy(p3, main_f + 10, strlen(new_src) - ((main_f + 10) - new_src));
 	p3 += strlen(new_src) - ((main_f + 10) - new_src);
 	p3[0] = 0;
