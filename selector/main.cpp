@@ -54,6 +54,7 @@ struct GameSelection {
 	bool debug_mode;
 	bool debug_shaders;
 	bool mem_extended;
+	bool newlib_extended;
 	GameSelection *next;
 };
 
@@ -132,6 +133,7 @@ void loadConfig(GameSelection *g) {
 			else if (strcmp("debugMode", buffer) == 0) g->debug_mode = (bool)value;
 			else if (strcmp("noSplash", buffer) == 0) g->skip_splash = (bool)value;
 			else if (strcmp("maximizeMem", buffer) == 0) g->mem_extended = (bool)value;
+			else if (strcmp("maximizeNewlib", buffer) == 0) g->newlib_extended = (bool)value;
 		}
 		fclose(config);
 	} else {
@@ -148,7 +150,8 @@ enum {
 	DEBUG_MODE,
 	DISABLE_SPLASH,
 	EXTRA_MEM_MODE,
-	OPTIMIZE_APK
+	OPTIMIZE_APK,
+	EXTEND_NEWLIB
 };
 
 const char *options_descs[] = {
@@ -161,6 +164,7 @@ const char *options_descs[] = {
 	"Disables splashscreen rendering at game boot.",
 	"Allows the Runner to use approximately extra 12 MBs of memory. May break some debugging tools.",
 	"Reduces apk size by removing unnecessary data inside it and improves performances by recompressing files one by one depending on their expected use.",
+	"Increases the size of the memory pool available for the Runner. May solve some crashes.",
 };
 
 char *launch_item = nullptr;
@@ -497,6 +501,9 @@ int main(int argc, char *argv[]) {
 			ImGui::Checkbox("Run with Extended Mem Mode", &hovered->mem_extended);
 			if (ImGui::IsItemHovered())
 				desc = options_descs[EXTRA_MEM_MODE];
+			ImGui::Checkbox("Run with Extended Runner Pool", &hovered->newlib_extended);
+			if (ImGui::IsItemHovered())
+				desc = options_descs[EXTEND_NEWLIB];
 			ImGui::Separator();
 			ImGui::Checkbox("Force Bilinear Filtering", &hovered->bilinear);
 			if (ImGui::IsItemHovered())
@@ -550,6 +557,7 @@ int main(int argc, char *argv[]) {
 			ImGui::Text("Force Runner on Main Thread: %s", hovered->single_thread ? "Yes" : "No");
 			ImGui::Text("Fake Windows as Platform: %s", hovered->fake_win_mode ? "Yes" : "No");
 			ImGui::Text("Run with Extended Mem Mode: %s", hovered->mem_extended ? "Yes" : "No");
+			ImGui::Text("Run with Extended Runner Pool: %s", hovered->newlib_extended ? "Yes" : "No");
 			ImGui::Separator();
 			ImGui::Text("Force Bilinear Filtering: %s", hovered->fake_win_mode ? "Yes" : "No");
 			ImGui::Separator();
@@ -583,7 +591,14 @@ int main(int argc, char *argv[]) {
 	fprintf(f, "%s=%d\n", "debugShaders", (int)hovered->debug_shaders);
 	fprintf(f, "%s=%d\n", "singleThreaded", (int)hovered->single_thread);
 	fprintf(f, "%s=%d\n", "maximizeMem", (int)hovered->mem_extended);
+	fprintf(f, "%s=%d\n", "maximizeNewlib", (int)hovered->newlib_extended);
 	fclose(f);
+	
+	if (hovered->newlib_extended) {
+		f = fopen("ux0:data/gms/newlib.cfg", "w+");
+		fprintf(f, "1");
+		fclose(f);
+	}
 
 	sceAppMgrLoadExec("app0:/loader.bin", NULL, NULL);
 	return 0;

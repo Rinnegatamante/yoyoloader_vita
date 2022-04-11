@@ -307,7 +307,7 @@ void GamePadUpdate() {
 	
 	yoyo_gamepads[forceWinMode ? 0 : 1].axis[0] = (double)((int)pad.lx - 127) / 127.0f;
 	yoyo_gamepads[forceWinMode ? 0 : 1].axis[1] = (double)((int)pad.ly - 127) / 127.0f;
-	yoyo_gamepads[forceWinMode ? 0 : 1].axis[2] = (double)((int)pad.rx - 127)	/ 127.0f;
+	yoyo_gamepads[forceWinMode ? 0 : 1].axis[2] = (double)((int)pad.rx - 127) / 127.0f;
 	yoyo_gamepads[forceWinMode ? 0 : 1].axis[3] = (double)((int)pad.ry - 127) / 127.0f;
 }
 

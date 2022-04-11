@@ -99,8 +99,6 @@ ALvoid *ALContext;
 static char fake_vm[0x1000];
 static char fake_env[0x1000];
 
-int _newlib_heap_size_user = MEMORY_NEWLIB_MB * 1024 * 1024;
-
 unsigned int _pthread_stack_default_user = 1 * 1024 * 1024;
 
 so_module yoyoloader_mod;

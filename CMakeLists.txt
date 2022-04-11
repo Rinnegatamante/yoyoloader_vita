@@ -74,6 +74,7 @@ add_executable(loader
   loader/unzip.c
   loader/zip.c
   loader/ctype_patch.c
+  loader/sbrk.c
 )
 
 target_link_libraries(loader
