@@ -18,6 +18,7 @@
 #define MIN(x, y) (x) < (y) ? (x) : (y)
 
 extern "C" {
+	int debugPrintf(const char *fmt, ...) {return 0;}
 	void fatal_error(const char *fmt, ...);
 };
 

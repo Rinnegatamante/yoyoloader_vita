@@ -23,6 +23,7 @@ static uint16_t ime_initial_text_utf16[SCE_IME_DIALOG_MAX_TEXT_LENGTH];
 static uint16_t ime_input_text_utf16[SCE_IME_DIALOG_MAX_TEXT_LENGTH + 1];
 static uint8_t ime_input_text_utf8[SCE_IME_DIALOG_MAX_TEXT_LENGTH + 1];
 uint8_t vgl_booted = 0;
+int maximizeMem = 0;
 
 void utf16_to_utf8(const uint16_t *src, uint8_t *dst) {
   for (int i = 0; src[i]; i++) {
@@ -135,12 +136,17 @@ void fatal_error(const char *fmt, ...) {
   
   if (!vgl_booted)
     vglInit(0);
+  
+  debugPrintf(string);
+  
+  // We don't throw a message dialog with maximizeMem on since common dialog is broken
+  if (!maximizeMem) {
+    init_msg_dialog(string);
 
-  init_msg_dialog(string);
-
-  while (!get_msg_dialog_result()) {
-    glClear(GL_COLOR_BUFFER_BIT);
-    vglSwapBuffers(GL_TRUE);
+    while (!get_msg_dialog_result()) {
+      glClear(GL_COLOR_BUFFER_BIT);
+      vglSwapBuffers(GL_TRUE);
+    }
   }
 
   sceKernelExitProcess(0);

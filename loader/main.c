@@ -55,7 +55,7 @@ int forceSplashSkip = 0;
 int forceMainThread = 0;
 int forceWinMode = 0;
 int forceBilinear = 0;
-int maximizeMem = 0;
+extern int maximizeMem;
 int debugShaders = 0;
 int debugMode = 0;
 
@@ -584,7 +584,7 @@ extern void *__cxa_guard_acquire;
 extern void *__cxa_guard_release;
 extern void *__cxa_pure_virtual;
 extern void *__cxa_allocate_exception;
-extern void __cxa_throw (void *thrown_exception, void *tinfo, void (*dest) (void *) );
+extern void __cxa_throw(void *thrown_exception, void *tinfo, void (*dest)(void *));
 extern void *__gnu_unwind_frame;
 extern void *__stack_chk_fail;
 
@@ -908,7 +908,7 @@ int _ZNSt6__ndk112__next_primeEj(void *this, int n) {
 	return n;
 }
 
-void __cxa_throw_hook (void *thrown_exception, void *tinfo, void (*dest) (void *) ) {
+void __cxa_throw_hook(void *thrown_exception, void *tinfo, void (*dest)(void *)) {
 	if (tinfo == so_symbol(&yoyoloader_mod, "_ZTI14YYGMLException")) {
 		void (* YYCatchGMLException)(void *exception) = so_symbol(&yoyoloader_mod, "_Z19YYCatchGMLExceptionRK14YYGMLException");
 		YYCatchGMLException(thrown_exception);
