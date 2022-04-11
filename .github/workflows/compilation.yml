@@ -28,6 +28,12 @@ jobs:
         cd build
         cmake ..
         make -j$(nproc)
+        cd ../launcher
+        make -j$(nproc)
+        cp ../livearea/bg0.png builder/assets/bg.png
+        cp ../livearea/icon0.png builder/assets/icon0.png
+        cp ../livearea/default_gate.png builder/assets/startup.png
+        zip -9 -r builder.zip builder
     - name: Get current date
       id: date
       run: echo "::set-output name=date::$(date +'%Y-%m-%d')"
@@ -47,5 +53,11 @@ jobs:
       with:
         repo_token: ${{ secrets.GITHUB_TOKEN }}
         file: build/YoYoLoader.vpk
+        overwrite: true
+        tag: Nightly
+    - uses: svenstaro/upload-release-action@v2
+      with:
+        repo_token: ${{ secrets.GITHUB_TOKEN }}
+        file: launcher/builder.zip
         overwrite: true
         tag: Nightly

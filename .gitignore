@@ -1,1 +1,5 @@
 build/*
+*.o
+*.elf
+*.velf
+*.bin
