@@ -24,7 +24,7 @@ char *perform_static_analysis(const char *string, int size) {
 	char *p = string;
 	char *new_src = (char *)malloc(0x8000);
 	strcpy(new_src, "#define saturate(a) __saturate(a)\n#define texture __texture\n");
-	char *p2 = &new_src[59];
+	char *p2 = &new_src[60];
 	char *lowp = strstr(p, "lowp");
 	char *mediump = strstr(p, "mediump");
 	char *highp = strstr(p, "highp");
