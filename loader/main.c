@@ -513,11 +513,13 @@ void patch_runner(void) {
 	hook_addr(so_symbol(&yoyoloader_mod, "_Z20GET_YoYo_GetPlatformP9CInstanceiP6RValue"), (uintptr_t)&GetPlatformInstance);
 
 	so_symbol_fix_ldmia(&yoyoloader_mod, "_Z11Shader_LoadPhjS_");
+	so_symbol_fix_ldmia(&yoyoloader_mod, "_Z10YYGetInt32PK6RValuei");
 
 	// Debug
 	if (debugMode) {
 		hook_addr(so_symbol(&yoyoloader_mod, "_ZN11TRelConsole6OutputEPKcz"), (uintptr_t)&DebugPrintf);
 		hook_addr(so_symbol(&yoyoloader_mod, "_ZN17TErrStreamConsole6OutputEPKcz"), (uintptr_t)&DebugPrintf);
+		hook_addr(so_symbol(&yoyoloader_mod, "_Z7YYErrorPKcz"), (uintptr_t)&debugPrintf);
 	}
 }
 
@@ -582,7 +584,7 @@ extern void *__cxa_guard_acquire;
 extern void *__cxa_guard_release;
 extern void *__cxa_pure_virtual;
 extern void *__cxa_allocate_exception;
-extern void *__cxa_throw;
+extern void __cxa_throw (void *thrown_exception, void *tinfo, void (*dest) (void *) );
 extern void *__gnu_unwind_frame;
 extern void *__stack_chk_fail;
 
@@ -906,6 +908,16 @@ int _ZNSt6__ndk112__next_primeEj(void *this, int n) {
 	return n;
 }
 
+void __cxa_throw_hook (void *thrown_exception, void *tinfo, void (*dest) (void *) ) {
+	if (tinfo == so_symbol(&yoyoloader_mod, "_ZTI14YYGMLException")) {
+		void (* YYCatchGMLException)(void *exception) = so_symbol(&yoyoloader_mod, "_Z19YYCatchGMLExceptionRK14YYGMLException");
+		YYCatchGMLException(thrown_exception);
+		if (dest)
+			dest(thrown_exception);
+	} else
+		__cxa_throw(thrown_exception, tinfo, dest);
+}
+
 static so_default_dynlib default_dynlib[] = {
 	{ "AAssetManager_open", (uintptr_t)&AAssetManager_open},
 	{ "AAsset_close", (uintptr_t)&AAsset_close},
@@ -968,7 +980,7 @@ static so_default_dynlib default_dynlib[] = {
 	{ "__cxa_guard_acquire", (uintptr_t)&__cxa_guard_acquire },
 	{ "__cxa_guard_release", (uintptr_t)&__cxa_guard_release },
 	{ "__cxa_pure_virtual", (uintptr_t)&__cxa_pure_virtual },
-	{ "__cxa_throw", (uintptr_t)&__cxa_throw },
+	{ "__cxa_throw", (uintptr_t)&__cxa_throw_hook },
 	{ "__errno", (uintptr_t)&__errno },
 	{ "__gnu_unwind_frame", (uintptr_t)&__gnu_unwind_frame },
 	{ "__gnu_Unwind_Find_exidx", (uintptr_t)&ret0 },
