@@ -16,6 +16,10 @@ jobs:
         fetch-depth: '10'
     - name: Install dependencies
       run: |
+        git clone -b vita-1.19.1 --single-branch https://github.com/isage/openal-soft.git
+        cd openal-soft/build
+        cmake -DCMAKE_TOOLCHAIN_FILE=${VITASDK}/share/vita.toolchain.cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_FLAGS=-mfloat-abi=softfp .. && make -j$(nproc) install
+        cd ../..
         git clone https://github.com/Rinnegatamante/vitaGL.git
         make -C vitaGL SOFTFP_ABI=1 NO_DEBUG=1 SAMPLER_UNIFORMS=1 -j$(nproc) install
     - name: Compile project

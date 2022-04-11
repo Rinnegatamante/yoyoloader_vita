@@ -1,4 +1,4 @@
-/* main.c -- GMS Loader based on .so loader
+/* main.c -- YoYo Loader based on .so loader
  *
  * Copyright (C) 2021 Andy Nguyen
  * Copyright (C) 2022 Rinnegatamante
@@ -448,8 +448,6 @@ enum {
 	TOUCH_MOVE
 };
 
-
-
 void main_loop() {
 	int (*Java_com_yoyogames_runner_RunnerJNILib_Process) (void *env, int a2, int w, int h, float accel_x, float accel_y, float accel_z, int keypad_open, int orientation, float refresh_rate) = (void *)so_symbol(&yoyoloader_mod, "Java_com_yoyogames_runner_RunnerJNILib_Process");
 	int (*Java_com_yoyogames_runner_RunnerJNILib_TouchEvent) (void *env, int a2, int type, int id, float x, float y) = (void *)so_symbol(&yoyoloader_mod, "Java_com_yoyogames_runner_RunnerJNILib_TouchEvent");
@@ -762,11 +760,9 @@ void *retJNI(int dummy) {
 const char *gl_ret0[] = {
 	"glPixelStorei",
 	"glDiscardFramebufferEXT",
-	"glGetFramebufferAttachmentParameteriv",
 	"glMaterialx",
 	"glNormalPointer",
 	"glLightf",
-	"glGetFramebufferAttachmentParameterivOES",
 	"glCompileShader",
 	"glGenRenderbuffer",
 	"glDeleteRenderbuffers",
@@ -816,9 +812,6 @@ int nanosleep(const struct timespec *req, struct timespec *rem) {
 	const uint32_t usec = req->tv_sec * 1000 * 1000 + req->tv_nsec / 1000;
 	return sceKernelDelayThreadCB(usec);
 }
-
-ALCcontext *alcCreateContextHook(ALCdevice *dev, const ALCint *unused);
-ALCdevice *alcOpenDeviceHook(void *unused);
 
 #define IS_LEAP(n) ((!(((n) + 1900) % 400) || (!(((n) + 1900) % 4) && (((n) + 1900) % 100))) != 0)
 #define days_in_gregorian_cycle ((365 * 400) + 100 - 4 + 1)
@@ -1019,14 +1012,14 @@ static so_default_dynlib default_dynlib[] = {
 	{ "alcCaptureStop", (uintptr_t)&alcCaptureStop },
 	{ "alcCaptureOpenDevice", (uintptr_t)&alcCaptureOpenDevice },
 	{ "alcCloseDevice", (uintptr_t)&alcCloseDevice },
-	{ "alcCreateContext", (uintptr_t)&alcCreateContextHook },
+	{ "alcCreateContext", (uintptr_t)&alcCreateContext },
 	{ "alcGetContextsDevice", (uintptr_t)&alcGetContextsDevice },
 	{ "alcGetError", (uintptr_t)&alcGetError },
 	{ "alcGetIntegerv", (uintptr_t)&alcGetIntegerv },
 	{ "alcGetString", (uintptr_t)&alcGetString },
 	{ "alcMakeContextCurrent", (uintptr_t)&alcMakeContextCurrent },
 	{ "alcDestroyContext", (uintptr_t)&alcDestroyContext },
-	{ "alcOpenDevice", (uintptr_t)&alcOpenDeviceHook },
+	{ "alcOpenDevice", (uintptr_t)&alcOpenDevice },
 	{ "alcProcessContext", (uintptr_t)&alcProcessContext },
 	{ "alcPauseCurrentDevice", (uintptr_t)&ret0 },
 	{ "alcResumeCurrentDevice", (uintptr_t)&ret0 },
@@ -1599,10 +1592,10 @@ void *gms_main(void *argv) {
 		glEnable(GL_TEXTURE_2D);
 		glEnableClientState(GL_VERTEX_ARRAY);
 		glEnableClientState(GL_TEXTURE_COORD_ARRAY);
-		glViewport(0, 0, 960, 544);
+		glViewport(0, 0, SCREEN_W, SCREEN_H);
 		glMatrixMode(GL_PROJECTION);
 		glLoadIdentity();
-		glOrtho(0, 960, 544, 0, -1, 1);
+		glOrtho(0, SCREEN_W, SCREEN_H, 0, -1, 1);
 		glMatrixMode(GL_MODELVIEW);
 		glLoadIdentity();
 		float splash_vertices[] = {
@@ -1639,21 +1632,6 @@ int main(int argc, char **argv)
 #if 0
 	sceSysmoduleLoadModule(9); // Razor Capture
 #endif
-	ALCint attrlist[6];
-	attrlist[0] = ALC_FREQUENCY;
-	attrlist[1] = 44100;
-	attrlist[2] = ALC_SYNC;
-	attrlist[3] = AL_FALSE;
-	attrlist[4] = 0;
-
-	ALDevice = alcOpenDevice(NULL);
-	if (ALDevice == NULL)
-		debugPrintf("Error while opening AL device\n");
-	ALContext = alcCreateContext(ALDevice, attrlist);
-	if (ALContext == NULL)
-		debugPrintf("Error while creating AL context\n");
-	if (!alcMakeContextCurrent(ALContext))
-		debugPrintf("Error while making AL context current\n");
 	
 	if (forceMainThread) {
 		gms_main(NULL);

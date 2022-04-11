@@ -48,6 +48,13 @@ You can find a precompiled version here: https://github.com/vitasdk/buildscripts
 Additionally, you'll need some libraries normally included in vdpm compiled with softfp. You can get most of the required ones here: https://github.com/Rinnegatamante/vitasdk-packages-softfp/releases.
 Finally, you'll need to recompile the few missing ones on your own:
 
+- [openal-soft](https://github.com/isage/openal-soft/tree/vita-1.19.1)
+
+    ```bash
+    cd build
+    cmake -DCMAKE_TOOLCHAIN_FILE=${VITASDK}/share/vita.toolchain.cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_FLAGS=-mfloat-abi=softfp .. && make install
+    ```
+
 - [vitaGL](https://github.com/Rinnegatamante/vitaGL)
 
     ````bash

@@ -18,17 +18,6 @@
 
 extern so_module yoyoloader_mod;
 
-extern ALCdevice *ALDevice;
-extern ALvoid *ALContext;
-
-ALCdevice *alcOpenDeviceHook(void *unused) {
-  return ALDevice;
-}
-
-ALCcontext *alcCreateContextHook(ALCdevice *dev, const ALCint *unused) {
-  return ALContext;
-}
-
 void patch_openal(void) {
   hook_addr(so_symbol(&yoyoloader_mod, "alAuxiliaryEffectSlotf"), (uintptr_t)alAuxiliaryEffectSlotf);
   hook_addr(so_symbol(&yoyoloader_mod, "alAuxiliaryEffectSlotfv"), (uintptr_t)alAuxiliaryEffectSlotfv);
@@ -161,7 +150,7 @@ void patch_openal(void) {
   hook_addr(so_symbol(&yoyoloader_mod, "alcCaptureStart"), (uintptr_t)alcCaptureStart);
   hook_addr(so_symbol(&yoyoloader_mod, "alcCaptureStop"), (uintptr_t)alcCaptureStop);
   hook_addr(so_symbol(&yoyoloader_mod, "alcCloseDevice"), (uintptr_t)alcCloseDevice);
-  hook_addr(so_symbol(&yoyoloader_mod, "alcCreateContext"), (uintptr_t)alcCreateContextHook);
+  hook_addr(so_symbol(&yoyoloader_mod, "alcCreateContext"), (uintptr_t)alcCreateContext);
   hook_addr(so_symbol(&yoyoloader_mod, "alcDestroyContext"), (uintptr_t)alcDestroyContext);
   hook_addr(so_symbol(&yoyoloader_mod, "alcDeviceEnableHrtfMOB"), (uintptr_t)ret0);
   hook_addr(so_symbol(&yoyoloader_mod, "alcGetContextsDevice"), (uintptr_t)alcGetContextsDevice);
@@ -176,7 +165,7 @@ void patch_openal(void) {
   hook_addr(so_symbol(&yoyoloader_mod, "alcIsRenderFormatSupportedSOFT"), (uintptr_t)alcIsRenderFormatSupportedSOFT);
   hook_addr(so_symbol(&yoyoloader_mod, "alcLoopbackOpenDeviceSOFT"), (uintptr_t)alcLoopbackOpenDeviceSOFT);
   hook_addr(so_symbol(&yoyoloader_mod, "alcMakeContextCurrent"), (uintptr_t)alcMakeContextCurrent);
-  hook_addr(so_symbol(&yoyoloader_mod, "alcOpenDevice"), (uintptr_t)alcOpenDeviceHook);
+  hook_addr(so_symbol(&yoyoloader_mod, "alcOpenDevice"), (uintptr_t)alcOpenDevice);
   hook_addr(so_symbol(&yoyoloader_mod, "alcProcessContext"), (uintptr_t)alcProcessContext);
   hook_addr(so_symbol(&yoyoloader_mod, "alcRenderSamplesSOFT"), (uintptr_t)alcRenderSamplesSOFT);
   hook_addr(so_symbol(&yoyoloader_mod, "alcSetThreadContext"), (uintptr_t)alcSetThreadContext);
