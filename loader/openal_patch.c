@@ -181,4 +181,5 @@ void patch_openal(void) {
   hook_addr(so_symbol(&yoyoloader_mod, "alcRenderSamplesSOFT"), (uintptr_t)alcRenderSamplesSOFT);
   hook_addr(so_symbol(&yoyoloader_mod, "alcSetThreadContext"), (uintptr_t)alcSetThreadContext);
   hook_addr(so_symbol(&yoyoloader_mod, "alcSuspendContext"), (uintptr_t)alcSuspendContext);
+  hook_addr(so_symbol(&yoyoloader_mod, "alBufferMarkNeedsFreed"), (uintptr_t)ret0);
 }
