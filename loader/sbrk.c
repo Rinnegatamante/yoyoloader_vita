@@ -36,6 +36,9 @@ void _init_vita_heap(void)
 		goto failure;
 	}
 	
+#if 0 // Devkit mode
+	_newlib_heap_size = 590 * 1024 * 1024;
+#else
 	SceIoStat stat;
 	if (sceIoGetstat("ux0:data/gms/newlib.cfg", &stat) >= 0)
 	{
@@ -46,6 +49,7 @@ void _init_vita_heap(void)
 	{
 		_newlib_heap_size = 240 * 1024 * 1024;
 	}
+#endif
 	_newlib_heap_memblock = sceKernelAllocMemBlock("Newlib heap", 0x0c20d060, _newlib_heap_size, 0);
 	if (_newlib_heap_memblock < 0)
 	{

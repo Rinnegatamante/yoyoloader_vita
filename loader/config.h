@@ -3,7 +3,11 @@
 
 #define DEBUG
 
+#if 0 // Devkit mode
+#define LOAD_ADDRESS 0xA8000000
+#else
 #define LOAD_ADDRESS 0x98000000
+#endif
 
 #define MEMORY_VITAGL_THRESHOLD_MB 12
 
