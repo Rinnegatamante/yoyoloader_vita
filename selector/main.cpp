@@ -168,6 +168,58 @@ const char *options_descs[] = {
 	"Increases the size of the memory pool available for the Runner. May solve some crashes.",
 };
 
+const char *sort_modes_str[] = {
+	"Name (Ascending)",
+	"Name (Descending)"
+};
+int sort_idx = 0;
+int old_sort_idx = -1;
+
+void swap_games(GameSelection *a, GameSelection *b) {
+	GameSelection tmp;
+	
+	// Swapping everything except next leaf pointer
+	sceClibMemcpy(&tmp, a, sizeof(GameSelection) - 4);
+	sceClibMemcpy(a, b, sizeof(GameSelection) - 4);
+	sceClibMemcpy(b, &tmp, sizeof(GameSelection) - 4);
+}
+
+void sort_gamelist(GameSelection *start) { 
+	// Checking for empty list
+	if (start == NULL) 
+		return; 
+	
+	int swapped; 
+	GameSelection *ptr1; 
+	GameSelection *lptr = NULL; 
+  
+	do { 
+		swapped = 0; 
+		ptr1 = start; 
+  
+		while (ptr1->next != lptr && ptr1->next) {
+			switch (sort_idx) {
+			case 0:
+				if (strcasecmp(ptr1->name,ptr1->next->name) < 0) {
+					swap_games(ptr1, ptr1->next); 
+					swapped = 1; 
+				}
+				break;
+			case 1:
+				if (strcasecmp(ptr1->name,ptr1->next->name) > 0) {
+					swap_games(ptr1, ptr1->next); 
+					swapped = 1; 
+				}
+				break;
+			default:
+				break;
+			}
+			ptr1 = ptr1->next; 
+		} 
+		lptr = ptr1; 
+	} while (swapped); 
+}
+
 char *launch_item = nullptr;
 
 GameSelection *games = nullptr;
@@ -443,6 +495,11 @@ int main(int argc, char *argv[]) {
 	sceIoDclose(fd);
 	
 	while (!launch_item) {
+		if (old_sort_idx != sort_idx) {
+			old_sort_idx = sort_idx;
+			sort_gamelist(games);
+		}
+		
 		ImGui_ImplVitaGL_NewFrame();
 		
 		if (ImGui::BeginMainMenuBar()) {
@@ -481,6 +538,12 @@ int main(int argc, char *argv[]) {
 			is_config_invoked = !is_config_invoked;
 			sprintf(settings_str, "%s - Settings", hovered->name);
 			saved_size = -1.0f;
+		} else if (pad.buttons & SCE_CTRL_LTRIGGER && !(oldpad & SCE_CTRL_LTRIGGER) && !is_config_invoked) {
+			sort_idx -= 1;
+			if (sort_idx < 0)
+				sort_idx = (sizeof(sort_modes_str) / sizeof(sort_modes_str[0])) - 1;
+		} else if (pad.buttons & SCE_CTRL_RTRIGGER && !(oldpad & SCE_CTRL_RTRIGGER) && !is_config_invoked) {
+			sort_idx = (sort_idx + 1) % (sizeof(sort_modes_str) / sizeof(sort_modes_str[0]));
 		}
 		oldpad = pad.buttons;
 		
@@ -566,9 +629,11 @@ int main(int argc, char *argv[]) {
 			ImGui::Separator();
 			ImGui::Text("Run with Debug Mode: %s", hovered->debug_mode ? "Yes" : "No");
 			ImGui::Text("Run with Shaders Debug Mode: %s", hovered->debug_shaders ? "Yes" : "No");
-			ImGui::Text(" ");
 			ImGui::TextColored(ImVec4(1.0f,1.0f,0.0f,1.0f), "Press Triangle to change settings");
 		}
+		ImGui::SetCursorPosY(480);
+		ImGui::Text("Sort Mode: %s", sort_modes_str[sort_idx]);
+		ImGui::TextColored(ImVec4(1.0f,1.0f,0.0f,1.0f), "Press L/R to change sorting mode");
 		ImGui::End();
 		
 		glViewport(0, 0, static_cast<int>(ImGui::GetIO().DisplaySize.x), static_cast<int>(ImGui::GetIO().DisplaySize.y));
