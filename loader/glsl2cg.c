@@ -249,41 +249,45 @@ char *translate_frag_shader(const char *string, int size) {
 	char *p3 = new_src2;
 	char *last_end = NULL;
 	char *p2 = strstr(p, "varying");
-	memcpy(p3, p, p2 - p);
-	p3 += p2 - p;
+	if (p2) {
+		memcpy(p3, p, p2 - p);
+		p3 += p2 - p;
 	
-	// Analyzing varyings
-	debugPrintf("glsl2cg: Analyzing varyings...\n");
-	for (;;) {
-		p2 = strstr(p, "varying");
-		if (p2) {
-			char *end = strstr(p2, ";");
-			last_end = end;
-			char *s = strstr(p2, " ") + 1;
-			for (;;) {
-				if (!strncmp(s, "float2", 6)) {
-					varyings_type[num_varyings] = VARYING_TEXCOORD;
-				} else if (!strncmp(s, "float3", 6)) {
-					varyings_type[num_varyings] = VARYING_TEXCOORD3;
-				} else if (!strncmp(s, "float4", 6)) {
-					varyings_type[num_varyings] = VARYING_COLOR;
-				} else if (!strncmp(s, "float", 5)) {
-					varyings_type[num_varyings] = VARYING_FOG;
+		// Analyzing varyings
+		debugPrintf("glsl2cg: Analyzing varyings...\n");
+		for (;;) {
+			p2 = strstr(p, "varying");
+			if (p2) {
+				char *end = strstr(p2, ";");
+				last_end = end;
+				char *s = strstr(p2, " ") + 1;
+				for (;;) {
+					if (!strncmp(s, "float2", 6)) {
+						varyings_type[num_varyings] = VARYING_TEXCOORD;
+					} else if (!strncmp(s, "float3", 6)) {
+						varyings_type[num_varyings] = VARYING_TEXCOORD3;
+					} else if (!strncmp(s, "float4", 6)) {
+						varyings_type[num_varyings] = VARYING_COLOR;
+					} else if (!strncmp(s, "float", 5)) {
+						varyings_type[num_varyings] = VARYING_FOG;
+					}
+					char *space = strstr(s, " ");
+					if (space > end) {
+						memcpy(varyings[num_varyings], s, end - s);
+						varyings[num_varyings][end - s] = 0;
+						break;
+					} else {
+						s = space + 1;
+					}
 				}
-				char *space = strstr(s, " ");
-				if (space > end) {
-					memcpy(varyings[num_varyings], s, end - s);
-					varyings[num_varyings][end - s] = 0;
-					break;
-				} else {
-					s = space + 1;
-				}
+				num_varyings++;
+				p = p2 + 1;
+			} else {
+				break;
 			}
-			num_varyings++;
-			p = p2 + 1;
-		} else {
-			break;
 		}
+	} else {
+		last_end = p - 1;
 	}
 	
 	// Rewriting main function
@@ -369,41 +373,43 @@ char *translate_vert_shader(char *string, int size) {
 		}
 	}
 	p2 = strstr(p, "varying");
-	last_end++;
-	memcpy(p3, last_end, p2 - last_end);
-	p3 += p2 - last_end;
+	if (p2) {
+		last_end++;
+		memcpy(p3, last_end, p2 - last_end);
+		p3 += p2 - last_end;
 	
-	// Analyzing attributes
-	debugPrintf("glsl2cg: Analyzing varyings...\n");
-	for (;;) {
-		p2 = strstr(p, "varying");
-		if (p2) {
-			char *end = strstr(p2, ";");
-			last_end = end;
-			char *s = strstr(p2, " ") + 1;
-			for (;;) {
-				if (!strncmp(s, "float2", 6)) {
-					varyings_type[num_varyings] = VARYING_TEXCOORD;
-				} else if (!strncmp(s, "float3", 6)) {
-					varyings_type[num_varyings] = VARYING_TEXCOORD3;
-				} else if (!strncmp(s, "float4", 6)) {
-					varyings_type[num_varyings] = VARYING_COLOR;
-				} else if (!strncmp(s, "float", 5)) {
-					varyings_type[num_varyings] = VARYING_FOG;
+		// Analyzing attributes
+		debugPrintf("glsl2cg: Analyzing varyings...\n");
+		for (;;) {
+			p2 = strstr(p, "varying");
+			if (p2) {
+				char *end = strstr(p2, ";");
+				last_end = end;
+				char *s = strstr(p2, " ") + 1;
+				for (;;) {
+					if (!strncmp(s, "float2", 6)) {
+						varyings_type[num_varyings] = VARYING_TEXCOORD;
+					} else if (!strncmp(s, "float3", 6)) {
+						varyings_type[num_varyings] = VARYING_TEXCOORD3;
+					} else if (!strncmp(s, "float4", 6)) {
+						varyings_type[num_varyings] = VARYING_COLOR;
+					} else if (!strncmp(s, "float", 5)) {
+						varyings_type[num_varyings] = VARYING_FOG;
+					}
+					char *space = strstr(s, " ");
+					if (space > end) {
+						memcpy(varyings[num_varyings], s, end - s);
+						varyings[num_varyings][end - s] = 0;
+						break;
+					} else {
+						s = space + 1;
+					}
 				}
-				char *space = strstr(s, " ");
-				if (space > end) {
-					memcpy(varyings[num_varyings], s, end - s);
-					varyings[num_varyings][end - s] = 0;
-					break;
-				} else {
-					s = space + 1;
-				}
+				num_varyings++;
+				p = p2 + 1;
+			} else {
+				break;
 			}
-			num_varyings++;
-			p = p2 + 1;
-		} else {
-			break;
 		}
 	}
 	
