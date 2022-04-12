@@ -604,16 +604,6 @@ int stat_hook(const char *pathname, void *statbuf) {
 	return res;
 }
 
-void *mmap(void *addr, size_t length, int prot, int flags, int fd,
-					 off_t offset) {
-	return malloc(length);
-}
-
-int munmap(void *addr, size_t length) {
-	free(addr);
-	return 0;
-}
-
 void *AAssetManager_open(void *mgr, const char *filename, int mode) {
 	return NULL;
 }
@@ -1137,8 +1127,6 @@ static so_default_dynlib default_dynlib[] = {
 	{ "mkdir", (uintptr_t)&mkdir },
 	{ "mktime", (uintptr_t)&mktime },
 	{ "mktime64", (uintptr_t)&mktime64 },
-	{ "mmap", (uintptr_t)&mmap},
-	{ "munmap", (uintptr_t)&munmap},
 	{ "modf", (uintptr_t)&modf },
 	{ "modff", (uintptr_t)&modff },
 	{ "nanosleep", (uintptr_t)&nanosleep },
@@ -1327,6 +1315,10 @@ void *NewObjectV(void *env, void *clazz, int methodID, uintptr_t args) {
 
 void *GetObjectClass(void *env, void *obj) {
 	return (void *)0x44444444;
+}
+
+char *NewString(void *env, char *bytes) {
+	return bytes;
 }
 
 char *NewStringUTF(void *env, char *bytes) {
@@ -1566,6 +1558,7 @@ void *gms_main(void *argv) {
 	*(uintptr_t *)(fake_env + 0x238) = (uintptr_t)CallStaticVoidMethodV;
 	*(uintptr_t *)(fake_env + 0x240) = (uintptr_t)GetStaticFieldID;
 	*(uintptr_t *)(fake_env + 0x244) = (uintptr_t)GetStaticObjectField;
+	*(uintptr_t *)(fake_env + 0x28C) = (uintptr_t)NewString;
 	*(uintptr_t *)(fake_env + 0x29C) = (uintptr_t)NewStringUTF;
 	*(uintptr_t *)(fake_env + 0x2A4) = (uintptr_t)GetStringUTFChars;
 	*(uintptr_t *)(fake_env + 0x2A8) = (uintptr_t)ret0; // ReleaseStringUTFChars
