@@ -5,8 +5,8 @@
  * This software may be modified and distributed under the terms
  * of the MIT license.  See the LICENSE file for details.
  */
-
 #include <vitasdk.h>
+#include <vitaGL.h>
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -240,8 +240,11 @@ char *translate_frag_shader(const char *string, int size) {
 	debugPrintf("glsl2cg: Locating main function...\n");
 	char *p = new_src;
 	char *main_f = strstr(p, "void main()");
-	if (!main_f)
+	if (!main_f) {
 		main_f = strstr(p, "void main(void)");
+		if (!main_f)
+			main_f = strstr(p, "void main( void )");
+	}
 	char varyings[32][32];
 	int varyings_type[32];
 	int num_varyings = 0;
@@ -323,6 +326,8 @@ char *translate_frag_shader(const char *string, int size) {
 	}
 	if (main_f[10] == 'v')
 		main_f += 4;
+	else if (main_f[10] == ' ')
+		main_f += 5;
 	memcpy(p3, main_f + 10, strlen(new_src) - ((main_f + 10) - new_src));
 	p3 += strlen(new_src) - ((main_f + 10) - new_src);
 	p3[0] = 0;
@@ -342,8 +347,11 @@ char *translate_vert_shader(char *string, int size) {
 	debugPrintf("glsl2cg: Locating main function...\n");
 	char *p = new_src;
 	char *main_f = strstr(p, "void main()");
-	if (!main_f)
+	if (!main_f) {
 		main_f = strstr(p, "void main(void)");
+		if (!main_f)
+			main_f = strstr(p, "void main( void )");
+	}
 	char varyings[32][32];
 	char attributes[32][32];
 	int varyings_type[32];
@@ -452,6 +460,8 @@ char *translate_vert_shader(char *string, int size) {
 	}
 	if (main_f[10] == 'v')
 		main_f += 4;
+	else if (main_f[10] == ' ')
+		main_f += 5;
 	memcpy(p3, main_f + 10, strlen(new_src) - ((main_f + 10) - new_src));
 	p3 += strlen(new_src) - ((main_f + 10) - new_src);
 	p3[0] = 0;
