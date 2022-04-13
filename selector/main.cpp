@@ -616,7 +616,7 @@ int main(int argc, char *argv[]) {
 			ImGui::Text("Run with Extended Mem Mode: %s", hovered->mem_extended ? "Yes" : "No");
 			ImGui::Text("Run with Extended Runner Pool: %s", hovered->newlib_extended ? "Yes" : "No");
 			ImGui::Separator();
-			ImGui::Text("Force Bilinear Filtering: %s", hovered->fake_win_mode ? "Yes" : "No");
+			ImGui::Text("Force Bilinear Filtering: %s", hovered->bilinear ? "Yes" : "No");
 			ImGui::Separator();
 			ImGui::Text("Skip Splashscreen at Boot: %s", hovered->skip_splash ? "Yes" : "No");
 			ImGui::Separator();
