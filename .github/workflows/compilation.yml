@@ -58,6 +58,12 @@ jobs:
     - uses: svenstaro/upload-release-action@v2
       with:
         repo_token: ${{ secrets.GITHUB_TOKEN }}
+        file: build/loader
+        overwrite: true
+        tag: Nightly
+    - uses: svenstaro/upload-release-action@v2
+      with:
+        repo_token: ${{ secrets.GITHUB_TOKEN }}
         file: launcher/builder.zip
         overwrite: true
         tag: Nightly
