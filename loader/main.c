@@ -659,7 +659,17 @@ void glShaderSourceHook(GLuint shader, GLsizei count, const GLchar **string, con
 	FILE *file = fopen(gxp_path, "rb");
 	if (!file) {
 		debugPrintf("Could not find %s\n", gxp_path);
-	
+		
+		// Dump GLSL shader earlier if debugging shaders to solve possible translation phase crashes
+		if (debugShaders) {
+			snprintf(glsl_path, sizeof(glsl_path), "%s/%s.glsl", GLSL_PATH, sha_name);
+			file = fopen(glsl_path, "w");
+			if (file) {
+				fwrite(*string, 1, size, file);
+				fclose(file);
+			}
+		}
+		
 		char *cg_shader;
 		int type;
 		glGetShaderiv(shader, GL_SHADER_TYPE, &type);
@@ -684,27 +694,29 @@ void glShaderSourceHook(GLuint shader, GLsizei count, const GLchar **string, con
 				fclose(file);
 			}
 		}
-		free(cg_shader);
+		vglFree(cg_shader);
 
 		if (!compiled) {
 			debugPrintf("Translated shader has errors... Falling back to default shader!\n");
-			snprintf(glsl_path, sizeof(glsl_path), "%s/%s.glsl", GLSL_PATH, sha_name);
-			file = fopen(glsl_path, "w");
-			if (file) {
-				fwrite(*string, 1, size, file);
-				fclose(file);
+			if (!debugShaders) {
+				snprintf(glsl_path, sizeof(glsl_path), "%s/%s.glsl", GLSL_PATH, sha_name);
+				file = fopen(glsl_path, "w");
+				if (file) {
+					fwrite(*string, 1, size, file);
+					fclose(file);
+				}
 			}
 			snprintf(gxp_path, sizeof(gxp_path), "%s/%s.gxp", GXP_PATH, type == GL_FRAGMENT_SHADER ? "bb4a9846ba51f476c322f32ddabf6461bc63cc5e" : "eb3eaf87949a211f2cec6acdae6f5d94ba13301e");
 			file = fopen(gxp_path, "rb");
 		} else {
 			debugPrintf("Translated shader successfully compiled!\n");
-			void *bin = malloc(0x8000);
+			void *bin = vglMalloc(0x8000);
 			int bin_len;
 			vglGetShaderBinary(shader, 0x8000, &bin_len, bin);
 			file = fopen(gxp_path, "wb");
 			fwrite(bin, 1, bin_len, file);
 			fclose(file);
-			free(bin);
+			vglFree(bin);
 			return;		
 		}
 	}

@@ -22,7 +22,7 @@ enum {
 char *perform_static_analysis(const char *string, int size) {
 	debugPrintf("glsl2cg: Static analysis pass started...\n");
 	char *p = string;
-	char *new_src = (char *)malloc(0x8000);
+	char *new_src = (char *)vglMalloc(0x8000);
 	strcpy(new_src, "#define saturate(a) __saturate(a)\n#define texture __texture\n");
 	char *p2 = &new_src[60];
 	char *lowp = strstr(p, "lowp");
@@ -245,7 +245,7 @@ char *translate_frag_shader(const char *string, int size) {
 	char varyings[32][32];
 	int varyings_type[32];
 	int num_varyings = 0;
-	char *new_src2 = (char *)malloc(0x8000);
+	char *new_src2 = (char *)vglMalloc(0x8000);
 	char *p3 = new_src2;
 	char *last_end = NULL;
 	char *p2 = strstr(p, "varying");
@@ -328,7 +328,7 @@ char *translate_frag_shader(const char *string, int size) {
 	p3[0] = 0;
 	
 	debugPrintf("glsl2cg: Translation process completed!\n");
-	free(new_src);
+	vglFree(new_src);
 	return new_src2;
 }
 
@@ -349,7 +349,7 @@ char *translate_vert_shader(char *string, int size) {
 	int varyings_type[32];
 	int num_varyings = 0;
 	int num_attributes = 0;
-	char *new_src2 = (char *)malloc(0x8000);
+	char *new_src2 = (char *)vglMalloc(0x8000);
 	char *p3 = new_src2;
 	char *last_end = NULL;
 	char *p2 = strstr(p, "attribute");
@@ -455,7 +455,7 @@ char *translate_vert_shader(char *string, int size) {
 	memcpy(p3, main_f + 10, strlen(new_src) - ((main_f + 10) - new_src));
 	p3 += strlen(new_src) - ((main_f + 10) - new_src);
 	p3[0] = 0;
-	free(new_src);
+	vglFree(new_src);
 	
 	// Handling matrices multiplications
 	p = new_src2;
@@ -465,7 +465,7 @@ char *translate_vert_shader(char *string, int size) {
 		return new_src2;
 	}
 	debugPrintf("glsl2cg: Patching matrices operations...\n");
-	new_src = (char *)malloc(0x8000);
+	new_src = (char *)vglMalloc(0x8000);
 	char *p5 = new_src;
 	for (;;) {
 		p2 = strstr(p2, "gm_Matrices");
@@ -505,6 +505,6 @@ char *translate_vert_shader(char *string, int size) {
 	p5 += strlen(new_src2) - (p - new_src2);
 	p5[0] = 0;
 	debugPrintf("glsl2cg: Translation process completed!\n");
-	free(new_src2);
+	vglFree(new_src2);
 	return new_src;
 }
