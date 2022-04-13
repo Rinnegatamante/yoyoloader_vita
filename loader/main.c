@@ -54,6 +54,7 @@ int forceGL1 = 0;
 int forceSplashSkip = 0;
 int forceWinMode = 0;
 int forceBilinear = 0;
+int compressTextures = 0;
 extern int maximizeMem;
 int debugShaders = 0;
 int debugMode = 0;
@@ -80,6 +81,7 @@ void loadConfig(const char *game) {
 			else if (strcmp("forceBilinear", buffer) == 0) forceBilinear = value;
 			else if (strcmp("winMode", buffer) == 0) forceWinMode = value;
 			else if (strcmp("debugShaders", buffer) == 0) debugShaders = value;
+			else if (strcmp("compressTextures", buffer) == 0) compressTextures = value;
 			else if (strcmp("debugMode", buffer) == 0) debugMode = value;
 			else if (strcmp("noSplash", buffer) == 0) forceSplashSkip = value;
 			else if (strcmp("maximizeMem", buffer) == 0) maximizeMem = value;
@@ -753,6 +755,13 @@ void glTexParameterfHook(GLenum target, GLenum pname, GLfloat param) {
 	glTexParameteri(target, pname, param);
 }
 
+void glTexImage2DHook(GLenum target, GLint level, GLint internalformat, GLsizei width, GLsizei height, GLint border, GLenum format, GLenum type, const void * data) {
+	if (compressTextures && data && width >= 1024 && height >= 1024) // Compress just big spritesets since smaller ones get updated vita glTexSubImage2D
+		glTexImage2D(target, level, GL_COMPRESSED_RGBA_S3TC_DXT5_EXT, width, height, border, format, type, data);
+	else
+		glTexImage2D(target, level, internalformat, width, height, border, format, type, data);
+}
+
 void *retJNI(int dummy) {
 	return fake_env;
 }
@@ -776,6 +785,7 @@ static so_default_dynlib gl_hook[] = {
 	{"glShaderSource", (uintptr_t)&glShaderSourceHook},
 	{"glTexParameteri", (uintptr_t)&glTexParameteriHook},
 	{"glTexParameterf", (uintptr_t)&glTexParameterfHook},
+	{"glTexImage2D", (uintptr_t)&glTexImage2DHook},
 };
 static size_t gl_numhook = sizeof(gl_hook) / sizeof(*gl_hook);
 

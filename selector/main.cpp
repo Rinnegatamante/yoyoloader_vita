@@ -50,7 +50,7 @@ struct GameSelection {
 	bool bilinear;
 	bool gles1;
 	bool skip_splash;
-	bool single_thread;
+	bool compress_textures;
 	bool fake_win_mode;
 	bool debug_mode;
 	bool debug_shaders;
@@ -130,6 +130,7 @@ void loadConfig(GameSelection *g) {
 			else if (strcmp("forceBilinear", buffer) == 0) g->bilinear = (bool)value;
 			else if (strcmp("winMode", buffer) == 0) g->fake_win_mode = (bool)value;
 			else if (strcmp("debugShaders", buffer) == 0) g->debug_shaders = (bool)value;
+			else if (strcmp("compressTextures", buffer) == 0) g->compress_textures = (bool)value;
 			else if (strcmp("debugMode", buffer) == 0) g->debug_mode = (bool)value;
 			else if (strcmp("noSplash", buffer) == 0) g->skip_splash = (bool)value;
 			else if (strcmp("maximizeMem", buffer) == 0) g->mem_extended = (bool)value;
@@ -150,7 +151,8 @@ enum {
 	DISABLE_SPLASH,
 	EXTRA_MEM_MODE,
 	OPTIMIZE_APK,
-	EXTEND_NEWLIB
+	EXTEND_NEWLIB,
+	COMPRESS_TEXTURES
 };
 
 const char *options_descs[] = {
@@ -163,6 +165,7 @@ const char *options_descs[] = {
 	"Allows the Runner to use approximately extra 12 MBs of memory. May break some debugging tools.",
 	"Reduces apk size by removing unnecessary data inside it and improves performances by recompressing files one by one depending on their expected use.",
 	"Increases the size of the memory pool available for the Runner. May solve some crashes.",
+	"Makes the Loader compress any spriteset used by the game at runtime. Reduces memory usage but may cause stuttering and longer loading times."
 };
 
 const char *sort_modes_str[] = {
@@ -566,6 +569,9 @@ int main(int argc, char *argv[]) {
 			ImGui::Checkbox("Force Bilinear Filtering", &hovered->bilinear);
 			if (ImGui::IsItemHovered())
 				desc = options_descs[BILINEAR_FILTER];
+			ImGui::Checkbox("Compress Textures", &hovered->compress_textures);
+			if (ImGui::IsItemHovered())
+				desc = options_descs[COMPRESS_TEXTURES];
 			ImGui::Separator();
 			ImGui::Checkbox("Skip Splashscreen at Boot", &hovered->skip_splash);
 			if (ImGui::IsItemHovered())
@@ -617,6 +623,7 @@ int main(int argc, char *argv[]) {
 			ImGui::Text("Run with Extended Runner Pool: %s", hovered->newlib_extended ? "Yes" : "No");
 			ImGui::Separator();
 			ImGui::Text("Force Bilinear Filtering: %s", hovered->bilinear ? "Yes" : "No");
+			ImGui::Text("Compress Textures: %s", hovered->compress_textures ? "Yes" : "No");
 			ImGui::Separator();
 			ImGui::Text("Skip Splashscreen at Boot: %s", hovered->skip_splash ? "Yes" : "No");
 			ImGui::Separator();
@@ -646,6 +653,7 @@ int main(int argc, char *argv[]) {
 	fprintf(f, "%s=%d\n", "noSplash", (int)hovered->skip_splash);
 	fprintf(f, "%s=%d\n", "forceBilinear", (int)hovered->bilinear);
 	fprintf(f, "%s=%d\n", "winMode", (int)hovered->fake_win_mode);
+	fprintf(f, "%s=%d\n", "compressTextures", (int)hovered->compress_textures);
 	fprintf(f, "%s=%d\n", "debugMode", (int)hovered->debug_mode);
 	fprintf(f, "%s=%d\n", "debugShaders", (int)hovered->debug_shaders);
 	fprintf(f, "%s=%d\n", "maximizeMem", (int)hovered->mem_extended);
