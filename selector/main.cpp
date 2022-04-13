@@ -129,7 +129,6 @@ void loadConfig(GameSelection *g) {
 			if (strcmp("forceGLES1", buffer) == 0) g->gles1 = (bool)value;
 			else if (strcmp("forceBilinear", buffer) == 0) g->bilinear = (bool)value;
 			else if (strcmp("winMode", buffer) == 0) g->fake_win_mode = (bool)value;
-			else if (strcmp("singleThreaded", buffer) == 0) g->single_thread = (bool)value;
 			else if (strcmp("debugShaders", buffer) == 0) g->debug_shaders = (bool)value;
 			else if (strcmp("debugMode", buffer) == 0) g->debug_mode = (bool)value;
 			else if (strcmp("noSplash", buffer) == 0) g->skip_splash = (bool)value;
@@ -146,7 +145,6 @@ enum {
 	FORCE_GLES1,
 	BILINEAR_FILTER,
 	FAKE_WIN_MODE,
-	SINGLE_THREAD,
 	DEBUG_SHADERS,
 	DEBUG_MODE,
 	DISABLE_SPLASH,
@@ -159,7 +157,6 @@ const char *options_descs[] = {
 	"Enforces GLES1 as rendering backend mode. May improve performances or make a game go further when crashing.",
 	"Enforces bilinear filtering on textures.",
 	"Fakes the reported target mode to the Runner as Windows. Some games require it to properly handle inputs.",
-	"Forces runner thread to be the main one. May solve some crash instances.",
 	"Enables dumping of attempted shader translations by the built-in GLSL to CG shader translator in ux0:data/gms/shared/glsl.",
 	"Enables debug logging in ux0:data/gms/shared/yyl.log.",
 	"Disables splashscreen rendering at game boot.",
@@ -556,9 +553,6 @@ int main(int argc, char *argv[]) {
 			ImGui::Checkbox("Force GLES1 Mode", &hovered->gles1);
 			if (ImGui::IsItemHovered())
 				desc = options_descs[FORCE_GLES1];
-			ImGui::Checkbox("Force Runner on Main Thread", &hovered->single_thread);
-			if (ImGui::IsItemHovered())
-				desc = options_descs[SINGLE_THREAD];
 			ImGui::Checkbox("Fake Windows as Platform", &hovered->fake_win_mode);
 			if (ImGui::IsItemHovered())
 				desc = options_descs[FAKE_WIN_MODE];
@@ -618,7 +612,6 @@ int main(int argc, char *argv[]) {
 			ImGui::Text("APK Size: %.2f MBs", hovered->size);
 			ImGui::Separator();
 			ImGui::Text("Force GLES1 Mode: %s", hovered->gles1 ? "Yes" : "No");
-			ImGui::Text("Force Runner on Main Thread: %s", hovered->single_thread ? "Yes" : "No");
 			ImGui::Text("Fake Windows as Platform: %s", hovered->fake_win_mode ? "Yes" : "No");
 			ImGui::Text("Run with Extended Mem Mode: %s", hovered->mem_extended ? "Yes" : "No");
 			ImGui::Text("Run with Extended Runner Pool: %s", hovered->newlib_extended ? "Yes" : "No");
@@ -655,7 +648,6 @@ int main(int argc, char *argv[]) {
 	fprintf(f, "%s=%d\n", "winMode", (int)hovered->fake_win_mode);
 	fprintf(f, "%s=%d\n", "debugMode", (int)hovered->debug_mode);
 	fprintf(f, "%s=%d\n", "debugShaders", (int)hovered->debug_shaders);
-	fprintf(f, "%s=%d\n", "singleThreaded", (int)hovered->single_thread);
 	fprintf(f, "%s=%d\n", "maximizeMem", (int)hovered->mem_extended);
 	fprintf(f, "%s=%d\n", "maximizeNewlib", (int)hovered->newlib_extended);
 	fclose(f);

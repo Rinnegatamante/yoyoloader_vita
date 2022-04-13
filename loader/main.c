@@ -52,7 +52,6 @@
 
 int forceGL1 = 0;
 int forceSplashSkip = 0;
-int forceMainThread = 0;
 int forceWinMode = 0;
 int forceBilinear = 0;
 extern int maximizeMem;
@@ -80,7 +79,6 @@ void loadConfig(const char *game) {
 			if (strcmp("forceGLES1", buffer) == 0) forceGL1 = value;
 			else if (strcmp("forceBilinear", buffer) == 0) forceBilinear = value;
 			else if (strcmp("winMode", buffer) == 0) forceWinMode = value;
-			else if (strcmp("singleThreaded", buffer) == 0) forceMainThread = value;
 			else if (strcmp("debugShaders", buffer) == 0) debugShaders = value;
 			else if (strcmp("debugMode", buffer) == 0) debugMode = value;
 			else if (strcmp("noSplash", buffer) == 0) forceSplashSkip = value;
@@ -1472,7 +1470,13 @@ void SetObjectArrayElement(void *env, void *array, int size, void *val) {
 
 int GetIntField(void *env, void *obj, int fieldID) { return 0; }
 
-void *gms_main(void *argv) {
+int main(int argc, char **argv)
+{
+#if 0
+	// Debug
+	sceSysmoduleLoadModule(9); // Razor Capture
+#endif
+	
 	// Checking requested game launch
 	char game_name[0x200];
 	FILE *f = fopen(LAUNCH_FILE_PATH, "r");
@@ -1549,7 +1553,7 @@ void *gms_main(void *argv) {
 	so_resolve(&yoyoloader_mod, default_dynlib, sizeof(default_dynlib), 0);
 	patch_openal();
 	patch_runner();
-	patch_video_player();
+	//patch_video_player();
 	so_flush_caches(&yoyoloader_mod);
 	so_initialize(&yoyoloader_mod);
 	patch_runner_post_init();
@@ -1655,27 +1659,6 @@ void *gms_main(void *argv) {
 	// Entering main loop
 	debugPrintf("Startup ended\n");
 	main_loop();
-
-	return NULL;
-}
-
-int main(int argc, char **argv)
-{
-	// Debug
-#if 0
-	sceSysmoduleLoadModule(9); // Razor Capture
-#endif
-	
-	if (forceMainThread) {
-		gms_main(NULL);
-	} else {
-		pthread_t t;
-		pthread_attr_t attr;
-		pthread_attr_init(&attr);
-		pthread_attr_setstacksize(&attr, 0x800000);
-		pthread_create(&t, &attr, gms_main, NULL);
-		pthread_join(t, NULL);
-	}
 	
 	return 0;
 }
