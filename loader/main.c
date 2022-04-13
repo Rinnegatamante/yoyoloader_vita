@@ -1283,18 +1283,30 @@ int GetStaticMethodID(void *env, void *class, const char *name, const char *sig)
 }
 
 void CallStaticVoidMethodV(void *env, void *obj, int methodID, uintptr_t *args) {
+	switch (methodID) {
+	default:
+		if (methodID != UNKNOWN)
+			debugPrintf("CallStaticVoidMethodV(%d)\n", methodID);
+		break;
+	}
 }
 
 int CallStaticBooleanMethodV(void *env, void *obj, int methodID, uintptr_t *args) {
+	if (methodID != UNKNOWN)
+		debugPrintf("CallStaticBooleanMethodV(%d)\n", methodID);
 	return 0;
 }
 
 int CallStaticByteMethod(void *env, void *obj, int methodID, uintptr_t *args) {
+	if (methodID != UNKNOWN)
+		debugPrintf("CallStaticByteMethodV(%d)\n", methodID);
 	return 0;
 }
 
 
 uint64_t CallLongMethodV(void *env, void *obj, int methodID, uintptr_t *args) {
+	if (methodID != UNKNOWN)
+		debugPrintf("CallLongMethodV(%d)\n", methodID);
 	return 0;
 }
 
@@ -1303,6 +1315,10 @@ void *FindClass(void) {
 }
 
 void *NewGlobalRef(void *env, char *str) {
+	return (void *)0x42424242;
+}
+
+void *NewWeakGlobalRef(void *env, char *str) {
 	return (void *)0x42424242;
 }
 
@@ -1369,6 +1385,8 @@ int GetBooleanField(void *env, void *obj, int fieldID) {
 }
 
 void *CallObjectMethodV(void *env, void *obj, int methodID, uintptr_t *args) {
+	if (methodID != UNKNOWN)
+		debugPrintf("CallObjectMethodV(%d)\n", methodID);
 	return NULL;
 }
 
@@ -1381,6 +1399,8 @@ void *CallStaticObjectMethodV(void *env, void *obj, int methodID, uintptr_t *arg
 		strcpy(r, "1234");
 		return r;
 	default:
+		if (methodID != UNKNOWN)
+			debugPrintf("CallStaticObjectMethodV(%d)\n", methodID);
 		return NULL;
 	}
 }
@@ -1388,6 +1408,17 @@ void *CallStaticObjectMethodV(void *env, void *obj, int methodID, uintptr_t *arg
 int CallStaticIntMethodV(void *env, void *obj, int methodID, uintptr_t *args) {
 	switch (methodID) {
 	default:
+		if (methodID != UNKNOWN)
+			debugPrintf("CallStaticIntMethodV(%d)\n", methodID);
+		return 0;
+	}
+}
+
+double CallStaticDoubleMethodV(void *env, void *obj, int methodID, uintptr_t *args) {
+	switch (methodID) {
+	default:
+		if (methodID != UNKNOWN)
+			debugPrintf("CallStaticDoubleMethodV(%d)\n", methodID);
 		return 0;
 	}
 }
@@ -1395,17 +1426,23 @@ int CallStaticIntMethodV(void *env, void *obj, int methodID, uintptr_t *args) {
 int CallBooleanMethodV(void *env, void *obj, int methodID, uintptr_t *args) {
 	switch (methodID) {
 	default:
+		if (methodID != UNKNOWN)
+			debugPrintf("CallBooleanMethodV(%d)\n", methodID);
 		return 0;
 	}
 }
 
 double CallDoubleMethodV(void *env, void *obj, int methodID, uintptr_t *args) {
+	if (methodID != UNKNOWN)
+		debugPrintf("CallDoubleMethodV(%d)\n", methodID);
 	return 0.0;
 }
 
 void CallVoidMethodV(void *env, void *obj, int methodID, uintptr_t *args) {
 	switch (methodID) {
 	default:
+		if (methodID != UNKNOWN)
+			debugPrintf("CallVoidMethodV(%d)\n", methodID);
 		break;
 	}
 }
@@ -1512,6 +1549,7 @@ void *gms_main(void *argv) {
 	so_resolve(&yoyoloader_mod, default_dynlib, sizeof(default_dynlib), 0);
 	patch_openal();
 	patch_runner();
+	patch_video_player();
 	so_flush_caches(&yoyoloader_mod);
 	so_initialize(&yoyoloader_mod);
 	patch_runner_post_init();
@@ -1521,9 +1559,9 @@ void *gms_main(void *argv) {
 	// Initializing vitaGL
 	vglSetupGarbageCollector(127, 0x20000);
 	if (maximizeMem)
-		vglInitWithCustomThreshold(0, SCREEN_W, SCREEN_H, MEMORY_VITAGL_THRESHOLD_MB * 1024 * 1024, 0, 0, 0, SCE_GXM_MULTISAMPLE_4X);
+		vglInitWithCustomThreshold(0, SCREEN_W, SCREEN_H, MEMORY_VITAGL_THRESHOLD_MB * 1024 * 1024, 0, 0, 0, SCE_GXM_MULTISAMPLE_NONE);
 	else
-		vglInitExtended(0, SCREEN_W, SCREEN_H, MEMORY_VITAGL_THRESHOLD_MB * 1024 * 1024, SCE_GXM_MULTISAMPLE_4X);
+		vglInitExtended(0, SCREEN_W, SCREEN_H, MEMORY_VITAGL_THRESHOLD_MB * 1024 * 1024, SCE_GXM_MULTISAMPLE_NONE);
 	vgl_booted = 1;
 
 	// Initializing Java VM and JNI Interface
@@ -1555,6 +1593,7 @@ void *gms_main(void *argv) {
 	*(uintptr_t *)(fake_env + 0x1D8) = (uintptr_t)CallStaticBooleanMethodV;
 	*(uintptr_t *)(fake_env + 0x1E0) = (uintptr_t)CallStaticByteMethod;
 	*(uintptr_t *)(fake_env + 0x208) = (uintptr_t)CallStaticIntMethodV;
+	*(uintptr_t *)(fake_env + 0x22C) = (uintptr_t)CallStaticDoubleMethodV;
 	*(uintptr_t *)(fake_env + 0x238) = (uintptr_t)CallStaticVoidMethodV;
 	*(uintptr_t *)(fake_env + 0x240) = (uintptr_t)GetStaticFieldID;
 	*(uintptr_t *)(fake_env + 0x244) = (uintptr_t)GetStaticObjectField;
@@ -1569,6 +1608,7 @@ void *gms_main(void *argv) {
 	*(uintptr_t *)(fake_env + 0x34C) = (uintptr_t)SetIntArrayRegion;
 	*(uintptr_t *)(fake_env + 0x358) = (uintptr_t)SetDoubleArrayRegion;
 	*(uintptr_t *)(fake_env + 0x36C) = (uintptr_t)GetJavaVM;
+	*(uintptr_t *)(fake_env + 0x394) = (uintptr_t)NewWeakGlobalRef;
 	
 	int (*Java_com_yoyogames_runner_RunnerJNILib_Startup) (void *env, int a2, char *apk_path, char *save_dir, char *pkg_dir, int sleep_margin) = (void *)so_symbol(&yoyoloader_mod, "Java_com_yoyogames_runner_RunnerJNILib_Startup");
 	
