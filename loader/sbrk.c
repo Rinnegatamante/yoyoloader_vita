@@ -37,7 +37,7 @@ void _init_vita_heap(void)
 	}
 	
 #if 0 // Devkit mode
-	_newlib_heap_size = 590 * 1024 * 1024;
+	_newlib_heap_size = 570 * 1024 * 1024;
 #else
 	SceIoStat stat;
 	if (sceIoGetstat("ux0:data/gms/newlib.cfg", &stat) >= 0)
