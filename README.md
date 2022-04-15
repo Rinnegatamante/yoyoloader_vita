@@ -65,8 +65,12 @@ After all these requirements are met, you can compile the loader with the follow
 
 ```bash
 mkdir build && cd build
+cmake .. -DVIDEO_LOADER=1 && make
+rm -f CMakeCache.txt
 cmake .. && make
 ```
+
+Note that, in order to make the Video Player implementation work, vitaGL must be compiled with `PHYCONT_ON_DEMAND=1` added flag for the first binary and without for the second one.
 
 ## Credits
 

@@ -60,6 +60,7 @@ int debugShaders = 0;
 int debugMode = 0;
 
 char data_path[256];
+char apk_path[256];
 
 void patch_gamepad();
 void GamePadUpdate();
@@ -756,7 +757,7 @@ void glTexParameterfHook(GLenum target, GLenum pname, GLfloat param) {
 }
 
 void glTexImage2DHook(GLenum target, GLint level, GLint internalformat, GLsizei width, GLsizei height, GLint border, GLenum format, GLenum type, const void * data) {
-	if (compressTextures && data && width >= 1024 && height >= 1024) // Compress just big spritesets since smaller ones get updated vita glTexSubImage2D
+	if (compressTextures && data && width >= 1024 && height >= 1024) // Compress just big spritesets since smaller ones get updated via glTexSubImage2D
 		glTexImage2D(target, level, GL_COMPRESSED_RGBA_S3TC_DXT5_EXT, width, height, border, format, type, data);
 	else
 		glTexImage2D(target, level, internalformat, width, height, border, format, type, data);
@@ -1496,9 +1497,12 @@ int main(int argc, char **argv)
 {
 #if 0
 	// Debug
-	sceSysmoduleLoadModule(9); // Razor Capture
+	sceSysmoduleLoadModule(SCE_SYSMODULE_RAZOR_CAPTURE);
 #endif
-	
+#ifdef HAS_VIDEO_PLAYBACK_SUPPORT
+	sceSysmoduleLoadModule(SCE_SYSMODULE_AVPLAYER);
+#endif
+
 	// Checking requested game launch
 	char game_name[0x200];
 	FILE *f = fopen(LAUNCH_FILE_PATH, "r");
@@ -1524,7 +1528,7 @@ int main(int argc, char **argv)
 	scePowerSetGpuXbarClockFrequency(166);
 	
 	// Populating required strings and creating required folders
-	char apk_path[256], pkg_name[256];
+	char pkg_name[256];
 	sprintf(apk_path, "%s/%s/game.apk", DATA_PATH, game_name);
 	sprintf(data_path, "%s/%s/assets/", DATA_PATH, game_name);
 	
@@ -1575,7 +1579,9 @@ int main(int argc, char **argv)
 	so_resolve(&yoyoloader_mod, default_dynlib, sizeof(default_dynlib), 0);
 	patch_openal();
 	patch_runner();
-	//patch_video_player();
+#ifdef HAS_VIDEO_PLAYBACK_SUPPORT
+	patch_video_player();
+#endif
 	so_flush_caches(&yoyoloader_mod);
 	so_initialize(&yoyoloader_mod);
 	patch_runner_post_init();

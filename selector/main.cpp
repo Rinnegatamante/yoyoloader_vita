@@ -56,6 +56,7 @@ struct GameSelection {
 	bool debug_shaders;
 	bool mem_extended;
 	bool newlib_extended;
+	bool video_support;
 	GameSelection *next;
 };
 
@@ -135,6 +136,7 @@ void loadConfig(GameSelection *g) {
 			else if (strcmp("noSplash", buffer) == 0) g->skip_splash = (bool)value;
 			else if (strcmp("maximizeMem", buffer) == 0) g->mem_extended = (bool)value;
 			else if (strcmp("maximizeNewlib", buffer) == 0) g->newlib_extended = (bool)value;
+			else if (strcmp("videoSupport", buffer) == 0) g->video_support = (bool)value;
 		}
 		fclose(config);
 	} else {
@@ -152,7 +154,8 @@ enum {
 	EXTRA_MEM_MODE,
 	OPTIMIZE_APK,
 	EXTEND_NEWLIB,
-	COMPRESS_TEXTURES
+	COMPRESS_TEXTURES,
+	VIDEO_SUPPORT
 };
 
 const char *options_descs[] = {
@@ -165,7 +168,8 @@ const char *options_descs[] = {
 	"Allows the Runner to use approximately extra 12 MBs of memory. May break some debugging tools.",
 	"Reduces apk size by removing unnecessary data inside it and improves performances by recompressing files one by one depending on their expected use.",
 	"Increases the size of the memory pool available for the Runner. May solve some crashes.",
-	"Makes the Loader compress any spriteset used by the game at runtime. Reduces memory usage but may cause stuttering and longer loading times."
+	"Makes the Loader compress any spriteset used by the game at runtime. Reduces memory usage but may cause stuttering and longer loading times.",
+	"Enables Video Player implementation in the Runner at the cost of potentially reducing the total amount of memory available for the game."
 };
 
 const char *sort_modes_str[] = {
@@ -260,7 +264,7 @@ int optimizer_thread(unsigned int argc, void *argv) {
 			unzOpenCurrentFile(src_file);
 			unzReadCurrentFile(src_file, buffer, file_info.uncompressed_size);
 			unzCloseCurrentFile(src_file);
-			if (strstr(fname, ".ogg")) {
+			if (strstr(fname, ".ogg") || strstr(fname, ".mp4")) {
 				zipOpenNewFileInZip(dst_file, fname, NULL, NULL, 0, NULL, 0, NULL, 0, Z_NO_COMPRESSION);
 			} else {
 				zipOpenNewFileInZip(dst_file, fname, NULL, NULL, 0, NULL, 0, NULL, Z_DEFLATED, Z_DEFAULT_COMPRESSION);
@@ -565,6 +569,9 @@ int main(int argc, char *argv[]) {
 			ImGui::Checkbox("Run with Extended Runner Pool", &hovered->newlib_extended);
 			if (ImGui::IsItemHovered())
 				desc = options_descs[EXTEND_NEWLIB];
+			ImGui::Checkbox("Enable Video Support", &hovered->video_support);
+			if (ImGui::IsItemHovered())
+				desc = options_descs[VIDEO_SUPPORT];
 			ImGui::Separator();
 			ImGui::Checkbox("Force Bilinear Filtering", &hovered->bilinear);
 			if (ImGui::IsItemHovered())
@@ -621,6 +628,7 @@ int main(int argc, char *argv[]) {
 			ImGui::Text("Fake Windows as Platform: %s", hovered->fake_win_mode ? "Yes" : "No");
 			ImGui::Text("Run with Extended Mem Mode: %s", hovered->mem_extended ? "Yes" : "No");
 			ImGui::Text("Run with Extended Runner Pool: %s", hovered->newlib_extended ? "Yes" : "No");
+			ImGui::Text("Enable Video Player: %s", hovered->video_support ? "Yes" : "No");
 			ImGui::Separator();
 			ImGui::Text("Force Bilinear Filtering: %s", hovered->bilinear ? "Yes" : "No");
 			ImGui::Text("Compress Textures: %s", hovered->compress_textures ? "Yes" : "No");
@@ -658,6 +666,7 @@ int main(int argc, char *argv[]) {
 	fprintf(f, "%s=%d\n", "debugShaders", (int)hovered->debug_shaders);
 	fprintf(f, "%s=%d\n", "maximizeMem", (int)hovered->mem_extended);
 	fprintf(f, "%s=%d\n", "maximizeNewlib", (int)hovered->newlib_extended);
+	fprintf(f, "%s=%d\n", "videoSupport", (int)hovered->video_support);
 	fclose(f);
 	
 	if (hovered->newlib_extended) {
@@ -666,6 +675,6 @@ int main(int argc, char *argv[]) {
 		fclose(f);
 	}
 
-	sceAppMgrLoadExec("app0:/loader.bin", NULL, NULL);
+	sceAppMgrLoadExec(hovered->video_support ? "app0:/loader2.bin" : "app0:/loader.bin", NULL, NULL);
 	return 0;
 }

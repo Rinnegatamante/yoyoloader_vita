@@ -21,11 +21,18 @@ jobs:
         cmake -DCMAKE_TOOLCHAIN_FILE=${VITASDK}/share/vita.toolchain.cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_FLAGS=-mfloat-abi=softfp .. && make -j$(nproc) install
         cd ../..
         git clone https://github.com/Rinnegatamante/vitaGL.git
-        make -C vitaGL SOFTFP_ABI=1 NO_DEBUG=1 SAMPLER_UNIFORMS=1 CACHED_MEM=1 -j$(nproc) install
+        make -C vitaGL SOFTFP_ABI=1 NO_DEBUG=1 SAMPLER_UNIFORMS=1 CACHED_MEM=1 PHYCONT_ON_DEMAND=1 -j$(nproc) install
     - name: Compile project
       run: |
         mkdir build
         cd build
+        cmake -DVIDEO_LOADER=1 ..
+        make -j$(nproc)
+        cd ..
+        make -C vitaGL SOFTFP_ABI=1 NO_DEBUG=1 SAMPLER_UNIFORMS=1 CACHED_MEM=1 -j$(nproc) clean
+        make -C vitaGL SOFTFP_ABI=1 NO_DEBUG=1 SAMPLER_UNIFORMS=1 CACHED_MEM=1 -j$(nproc) install
+        cd build
+        rm -f CMakeCache.txt
         cmake ..
         make -j$(nproc)
         cd ../launcher
