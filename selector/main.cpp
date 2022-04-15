@@ -17,6 +17,8 @@
 #define stringify(x) FUNC_TO_NAME(x)
 #define MIN(x, y) (x) < (y) ? (x) : (y)
 
+#define NUM_OPTIONS 10
+
 extern "C" {
 	int debugPrintf(const char *fmt, ...) {return 0;}
 	void fatal_error(const char *fmt, ...);
@@ -140,7 +142,7 @@ void loadConfig(GameSelection *g) {
 		}
 		fclose(config);
 	} else {
-		sceClibMemset(&g->bilinear, 0, sizeof(bool) * 8);
+		sceClibMemset(&g->bilinear, 0, sizeof(bool) * NUM_OPTIONS);
 	}
 }
 
