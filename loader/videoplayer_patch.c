@@ -175,7 +175,7 @@ int YYVideoOpen(const char *path) {
 	glBindAttribLocation(movie_prog, 0, "inPos");
 	glBindAttribLocation(movie_prog, 1, "inTex");
 	glLinkProgram(movie_prog);
-	glUniform1i(glGetUniformLocation(movie_prog, "tex"), 1);
+	glUniform1i(glGetUniformLocation(movie_prog, "tex"), 0);
 	
 	movie_audio_init();
 	
