@@ -1,4 +1,5 @@
 build/*
+standalone/*
 *.o
 *.elf
 *.velf

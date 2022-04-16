@@ -20,9 +20,17 @@ execute_process(COMMAND git describe --abbrev=6 --dirty --always
 	OUTPUT_STRIP_TRAILING_WHITESPACE
 )
 
-if (VIDEO_LOADER)
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -g -Wl,-q,--wrap,memcpy,--wrap,memmove,--wrap,memset -Wno-format-overflow -DHAS_VIDEO_PLAYBACK_SUPPORT -D_GNU_SOURCE -Wall -O3 -mfloat-abi=softfp")
+if (LOADER)
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -g -Wl,-q,--wrap,memcpy,--wrap,memmove,--wrap,memset -Wno-format-overflow -D_GNU_SOURCE -Wall -O3 -mfloat-abi=softfp")
 set(CMAKE_CXX_FLAGS "${CMAKE_C_FLAGS} -Wno-write-strings -DGIT_VERSION=\"${GIT_HASH}\" -std=c++11")
+
+if (VIDEO_SUPPORT)
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DHAS_VIDEO_PLAYBACK_SUPPORT")
+endif(VIDEO_SUPPORT)
+
+if (STANDALONE)
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DSTANDALONE_MODE")
+endif(STANDALONE)
 
 add_executable(YoYoLoader
   loader/main.c

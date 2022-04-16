@@ -65,7 +65,7 @@ After all these requirements are met, you can compile the loader with the follow
 
 ```bash
 mkdir build && cd build
-cmake .. -DVIDEO_LOADER=1 && make
+cmake .. -DVIDEO_SUPPORT=1 -DLOADER=1 && make
 rm -f CMakeCache.txt
 cmake .. && make
 ```

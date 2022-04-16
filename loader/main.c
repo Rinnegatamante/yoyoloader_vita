@@ -72,12 +72,28 @@ void GamePadUpdate();
 char *translate_frag_shader(const char *string, int size);
 char *translate_vert_shader(const char *string, int size);
 
+void recursive_mkdir(char *dir) {
+	char *p = dir;
+	while (p) {
+		char *p2 = strstr(p, "/");
+		if (p2) {
+			p2[0] = 0;
+			sceIoMkdir(dir, 0777);
+			p = p2 + 1;
+			p2[0] = '/';
+		} else break;
+	}
+}
+
 void loadConfig(const char *game) {
 	char configFile[512];
 	char buffer[30];
 	int value;
-	
+#ifdef STANDALONE_MODE
+	sprintf(configFile, "app0:yyl.cfg");
+#else
 	sprintf(configFile, "%s/%s/yyl.cfg", DATA_PATH, game);
+#endif
 	FILE *config = fopen(configFile, "r");
 
 	if (config) {
@@ -1550,6 +1566,7 @@ int main(int argc, char **argv)
 
 	// Checking requested game launch
 	char game_name[0x200];
+#ifndef STANDALONE_MODE
 	FILE *f = fopen(LAUNCH_FILE_PATH, "r");
 	if (f) {
 		size_t size = fread(game_name, 1, 0x200, f);
@@ -1559,7 +1576,10 @@ int main(int argc, char **argv)
 	} else {
 		strcpy(game_name, "AM2R"); // Debug
 	}
-	
+#else
+	sceAppMgrAppParamGetString(0, 12, game_name , 256);
+#endif
+
 	// Enabling analogs and touch sampling
 	sceTouchSetSamplingState(SCE_TOUCH_PORT_FRONT, SCE_TOUCH_SAMPLING_STATE_START);
 	sceTouchSetSamplingState(SCE_TOUCH_PORT_BACK, SCE_TOUCH_SAMPLING_STATE_START);
@@ -1574,8 +1594,13 @@ int main(int argc, char **argv)
 	
 	// Populating required strings and creating required folders
 	char pkg_name[256];
+#ifdef STANDALONE_MODE
+	sprintf(apk_path, "app0:game.apk");
+#else
 	sprintf(apk_path, "%s/%s/game.apk", DATA_PATH, game_name);
+#endif
 	sprintf(data_path, "%s/%s/assets/", DATA_PATH, game_name);
+	recursive_mkdir(data_path);
 	
 	strcpy(pkg_name, "com.rinnegatamante.loader");
 	sceIoMkdir(data_path, 0777);
