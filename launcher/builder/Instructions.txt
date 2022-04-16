@@ -1,0 +1,5 @@
+- Rename either standalone.bin or standalone_video.bin in eboot.bin depending on your needs (standalone.bin is the regular loader vesion whilst standalone_video.bin is the loader with video playback enabled and reduced memory available for the executable).
+- Replace your Livearea assets inside the assets folder (NOTE: Images must be reduced to 8 bit color space. You can use pngquant for it)
+- Place the game.apk file in the same folder of the bat file.
+- Run the bat file and follow on screen instructions.
+- (OPTIONAL) If the game needs some specific loader option, you can add inside the resulting vpk a yyl.cfg file similar to the ones created by Yoyo Loader. You can open the vpk file with your preferred Zip extractor. (eg. WinRar)
