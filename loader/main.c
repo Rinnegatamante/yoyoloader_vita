@@ -508,9 +508,10 @@ void patch_runner(void) {
 	hook_addr(so_symbol(&yoyoloader_mod, "_Z17alBufferDebugNamejPKc"), (uintptr_t)&ret0);
 	hook_addr(so_symbol(&yoyoloader_mod, "_ZN13MemoryManager10DumpMemoryEP7__sFILE"), (uintptr_t)&ret0);
 	hook_addr(so_symbol(&yoyoloader_mod, "_ZN13MemoryManager10DumpMemoryEPvS0_"), (uintptr_t)&ret0);
+
 	hook_addr(so_symbol(&yoyoloader_mod, "_Z23YoYo_GetPlatform_DoWorkv"), (uintptr_t)&GetPlatform);
 	hook_addr(so_symbol(&yoyoloader_mod, "_Z20GET_YoYo_GetPlatformP9CInstanceiP6RValue"), (uintptr_t)&GetPlatformInstance);
-
+	
 	so_symbol_fix_ldmia(&yoyoloader_mod, "_Z11Shader_LoadPhjS_");
 	so_symbol_fix_ldmia(&yoyoloader_mod, "_Z10YYGetInt32PK6RValuei");
 
@@ -588,6 +589,7 @@ extern void *__gnu_unwind_frame;
 extern void *__stack_chk_fail;
 
 char __progname[32] = {0};
+int __page_size = 0;
 
 int open(const char *pathname, int flags);
 
@@ -989,6 +991,7 @@ static so_default_dynlib default_dynlib[] = {
 	{ "__gnu_unwind_frame", (uintptr_t)&__gnu_unwind_frame },
 	{ "__gnu_Unwind_Find_exidx", (uintptr_t)&ret0 },
 	{ "__progname", (uintptr_t)&__progname },
+	{ "__page_size", (uintptr_t)&__page_size },
 	{ "__sF", (uintptr_t)&__sF_fake },
 	{ "__stack_chk_fail", (uintptr_t)&__stack_chk_fail_fake },
 	{ "__stack_chk_guard", (uintptr_t)&__stack_chk_guard_fake },
