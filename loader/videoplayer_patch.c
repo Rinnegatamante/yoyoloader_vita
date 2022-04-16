@@ -41,17 +41,17 @@ int audio_freq;
 int audio_mode;
 
 float movie_pos[8] = {
-  -1.0f, 1.0f,
-  -1.0f, -1.0f,
-   1.0f, 1.0f,
-   1.0f, -1.0f
+	-1.0f, 1.0f,
+	-1.0f, -1.0f,
+	 1.0f, 1.0f,
+	 1.0f, -1.0f
 };
 
 float movie_texcoord[8] = {
-  0.0f, 1.0f,
-  0.0f, 0.0f,
-  1.0f, 1.0f,
-  1.0f, 0.0f
+	0.0f, 1.0f,
+	0.0f, 0.0f,
+	1.0f, 1.0f,
+	1.0f, 0.0f
 };
 
 unzFile apk_file;
