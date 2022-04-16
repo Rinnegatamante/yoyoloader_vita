@@ -45,7 +45,7 @@ jobs:
         cmake -DLOADER=1 -DSTANDALONE=1 ..
         make -j$(nproc)
         cd ../launcher
-        cp loader2.bin builder/standalone.bin
+        cp ../standalone/loader2.bin builder/standalone.bin
         cp ../livearea/bg0.png builder/assets/bg.png
         cp ../livearea/icon0.png builder/assets/icon0.png
         cp ../livearea/default_gate.png builder/assets/startup.png

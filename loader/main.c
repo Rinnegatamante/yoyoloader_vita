@@ -1603,7 +1603,6 @@ int main(int argc, char **argv)
 	recursive_mkdir(data_path);
 	
 	strcpy(pkg_name, "com.rinnegatamante.loader");
-	sceIoMkdir(data_path, 0777);
 	sceIoMkdir("ux0:data/gms/shared", 0777);
 	sceIoMkdir("ux0:data/gms/shared/gxp", 0777);
 	sceIoMkdir("ux0:data/gms/shared/glsl", 0777);
