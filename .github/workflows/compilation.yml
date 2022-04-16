@@ -33,7 +33,7 @@ jobs:
         cd ../standalone_video
         cmake -DLOADER=1 -DVIDEO_SUPPORT=1 -DSTANDALONE=1 ..
         make -j$(nproc)
-        mv loader.bin standalone_video.bin
+        mv loader2.bin standalone_video.bin
         cd ..
         make -C vitaGL SOFTFP_ABI=1 NO_DEBUG=1 SAMPLER_UNIFORMS=1 CACHED_MEM=1 -j$(nproc) clean
         make -C vitaGL SOFTFP_ABI=1 NO_DEBUG=1 SAMPLER_UNIFORMS=1 CACHED_MEM=1 -j$(nproc) install
@@ -44,7 +44,7 @@ jobs:
         cd ../standalone
         cmake -DLOADER=1 -DSTANDALONE=1 ..
         make -j$(nproc)
-        mv loader.bin standalone.bin
+        mv loader2.bin standalone.bin
     - name: Get current date
       id: date
       run: echo "::set-output name=date::$(date +'%Y-%m-%d')"
@@ -81,6 +81,6 @@ jobs:
     - uses: svenstaro/upload-release-action@v2
       with:
         repo_token: ${{ secrets.GITHUB_TOKEN }}
-        file: standalone/standalone_video.bin
+        file: standalone_video/standalone_video.bin
         overwrite: true
         tag: Nightly

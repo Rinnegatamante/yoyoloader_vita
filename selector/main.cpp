@@ -430,16 +430,8 @@ int main(int argc, char *argv[]) {
 	int res = 0;
 	FILE *f;
 	
-	// Check if YoYo Loader has been launched with a custom bubble
-	bool skip_updates_check = strstr(stringify(GIT_VERSION), "dirty") != nullptr;
-	char boot_params[1024];
-	sceAppMgrGetAppParam(boot_params);
-	if (strstr(boot_params,"psgm:play") && strstr(boot_params, "&param=")) {
-		skip_updates_check = true;
-		launch_item = strstr(boot_params, "&param=") + 7;
-	}
-	
 	// Checking for updates
+	bool skip_updates_check = strstr(stringify(GIT_VERSION), "dirty") != nullptr;
 	if (!skip_updates_check) {
 		sceSysmoduleLoadModule(SCE_SYSMODULE_NET);
 		int ret = sceNetShowNetstat();
