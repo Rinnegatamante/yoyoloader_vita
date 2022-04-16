@@ -58,6 +58,10 @@ int compressTextures = 0;
 extern int maximizeMem;
 int debugShaders = 0;
 int debugMode = 0;
+int ime_active = 0;
+int msg_active = 0;
+int msg_index = 0;
+int ime_index = 0;
 
 char data_path[256];
 char apk_path[256];
@@ -452,6 +456,7 @@ enum {
 void main_loop() {
 	int (*Java_com_yoyogames_runner_RunnerJNILib_Process) (void *env, int a2, int w, int h, float accel_x, float accel_y, float accel_z, int keypad_open, int orientation, float refresh_rate) = (void *)so_symbol(&yoyoloader_mod, "Java_com_yoyogames_runner_RunnerJNILib_Process");
 	int (*Java_com_yoyogames_runner_RunnerJNILib_TouchEvent) (void *env, int a2, int type, int id, float x, float y) = (void *)so_symbol(&yoyoloader_mod, "Java_com_yoyogames_runner_RunnerJNILib_TouchEvent");
+	int (*Java_com_yoyogames_runner_RunnerJNILib_InputResult) (void *env, int a2, char *string, int state, int id) = (void *)so_symbol(&yoyoloader_mod, "Java_com_yoyogames_runner_RunnerJNILib_InputResult");
 	int lastX[SCE_TOUCH_MAX_REPORT] = {-1, -1, -1, -1, -1, -1, -1, -1};
 	int lastY[SCE_TOUCH_MAX_REPORT] = {-1, -1, -1, -1, -1, -1, -1, -1};
 	int (*Java_com_yoyogames_runner_RunnerJNILib_canFlip) (void) = (void *)so_symbol(&yoyoloader_mod, "Java_com_yoyogames_runner_RunnerJNILib_canFlip");
@@ -488,8 +493,24 @@ void main_loop() {
 		SceMotionSensorState sensor;
 		sceMotionGetSensorState(&sensor, 1);
 		Java_com_yoyogames_runner_RunnerJNILib_Process(fake_env, 0, SCREEN_W, SCREEN_H, sensor.accelerometer.x, sensor.accelerometer.y, sensor.accelerometer.z, 0, 0, 60.0f);
-		if (Java_com_yoyogames_runner_RunnerJNILib_canFlip())
-			vglSwapBuffers(GL_FALSE);
+		if (Java_com_yoyogames_runner_RunnerJNILib_canFlip()) {
+			if (ime_active) {
+				char *r = get_ime_dialog_result();
+				if (r) {
+					Java_com_yoyogames_runner_RunnerJNILib_InputResult(fake_env, 0, r, 1, ime_index);
+					ime_active = 0;
+				}
+				vglSwapBuffers(GL_TRUE);
+			} else if (msg_active) {
+				if (get_msg_dialog_result()) {
+					Java_com_yoyogames_runner_RunnerJNILib_InputResult(fake_env, 0, "OK", 1, msg_index);
+					msg_active = 0;
+				}
+				vglSwapBuffers(GL_TRUE);
+			} else {
+				vglSwapBuffers(GL_FALSE);
+			}
+		}
 	}
 }
 
@@ -1270,17 +1291,23 @@ int check_kubridge(void) {
 enum MethodIDs {
 	UNKNOWN = 0,
 	INIT,
-	GET_UDID
+	GET_UDID,
+	SHOW_MESSAGE,
+	INPUT_STRING_ASYNC,
+	SHOW_MESSAGE_ASYNC
 } MethodIDs;
 
 typedef struct {
 	char *name;
-	enum MethodIDs id;
+	int id;
 } NameToMethodID;
 
 static NameToMethodID name_to_method_ids[] = {
 	{ "<init>", INIT },
 	{ "GetUDID", GET_UDID },
+	{ "ShowMessage", SHOW_MESSAGE },
+	{ "InputStringAsync", INPUT_STRING_ASYNC },
+	{ "ShowMessageAsync", SHOW_MESSAGE_ASYNC },
 };
 
 int GetMethodID(void *env, void *class, const char *name, const char *sig) {
@@ -1307,7 +1334,22 @@ int GetStaticMethodID(void *env, void *class, const char *name, const char *sig)
 }
 
 void CallStaticVoidMethodV(void *env, void *obj, int methodID, uintptr_t *args) {
+	int (*Java_com_yoyogames_runner_RunnerJNILib_InputResult) (void *env, int a2, char *string, int state, int id); 
+	
 	switch (methodID) {
+	case SHOW_MESSAGE:
+		debugPrintf(args[0]);
+		break;
+	case INPUT_STRING_ASYNC:
+		init_ime_dialog(args[0], args[1]);
+		ime_index = (int)args[2];
+		ime_active = 1;
+		break;
+	case SHOW_MESSAGE_ASYNC:
+		init_msg_dialog(args[0]);
+		msg_index = (int)args[1];
+		msg_active = 1;
+		break;
 	default:
 		if (methodID != UNKNOWN)
 			debugPrintf("CallStaticVoidMethodV(%d)\n", methodID);
