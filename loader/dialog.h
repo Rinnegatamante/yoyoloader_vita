@@ -10,6 +10,5 @@ int init_msg_dialog(const char *msg);
 int get_msg_dialog_result(void);
 
 void fatal_error(const char *fmt, ...) __attribute__((noreturn));
-void msg_dialog(const char *msg);
 
 #endif

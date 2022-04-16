@@ -152,7 +152,3 @@ void fatal_error(const char *fmt, ...) {
 	sceKernelExitProcess(0);
 	while (1);
 }
-
-void msg_dialog(const char *string) {
-	fatal_error("bruuuuuuuh.");
-}
