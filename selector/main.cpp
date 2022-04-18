@@ -565,7 +565,7 @@ int main(int argc, char *argv[]) {
 			const char *desc = nullptr;
 			
 			ImGui::SetNextWindowPos(ImVec2(50, 30), ImGuiSetCond_Always);
-			ImGui::SetNextWindowSize(ImVec2(860, 400), ImGuiSetCond_Always);
+			ImGui::SetNextWindowSize(ImVec2(860, 500), ImGuiSetCond_Always);
 			ImGui::Begin(settings_str, nullptr, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoCollapse);
 			ImGui::Checkbox("Force GLES1 Mode", &hovered->gles1);
 			if (ImGui::IsItemHovered())
@@ -628,7 +628,7 @@ int main(int argc, char *argv[]) {
 				else
 					ImGui::ProgressBar(0.0f, ImVec2(200, 0));
 			}
-			ImGui::SetCursorPosY(360);
+			ImGui::SetCursorPosY(460);
 			if (desc)
 				ImGui::TextWrapped(desc);
 			ImGui::End();
