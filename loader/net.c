@@ -17,8 +17,7 @@ uint8_t *downloader_hdr_buffer = NULL;
 volatile int post_response_code, get_response_code;
 SceUID post_thid, get_thid;
 
-static size_t write_cb(void *ptr, size_t size, size_t nmemb, void *stream)
-{
+static size_t write_cb(void *ptr, size_t size, size_t nmemb, void *stream) {
 	uint8_t *dst = &downloader_mem_buffer[downloaded_bytes];
 	downloaded_bytes += nmemb;
 	if (total_bytes < downloaded_bytes) total_bytes = downloaded_bytes;
@@ -26,8 +25,7 @@ static size_t write_cb(void *ptr, size_t size, size_t nmemb, void *stream)
 	return nmemb;
 }
 
-static size_t header_cb(char *ptr, size_t size, size_t nmemb, void *stream)
-{
+static size_t header_cb(char *ptr, size_t size, size_t nmemb, void *stream) {
 	uint8_t *dst = &downloader_hdr_buffer[downloaded_hdr_bytes];
 	downloaded_hdr_bytes += nmemb;
 	if (total_hdr_bytes < downloaded_hdr_bytes) total_hdr_bytes = downloaded_hdr_bytes;
@@ -35,8 +33,7 @@ static size_t header_cb(char *ptr, size_t size, size_t nmemb, void *stream)
 	return nmemb;
 }
 
-static int send_post_request_thread(unsigned int argc, void *argv)
-{
+static int send_post_request_thread(unsigned int argc, void *argv) {
 	downloader_mem_buffer = vglMalloc(0x10000);
 	downloader_hdr_buffer = vglMalloc(0x1000);
 	downloaded_bytes = 0;
@@ -71,8 +68,7 @@ static int send_post_request_thread(unsigned int argc, void *argv)
 	return sceKernelExitDeleteThread(0);
 }
 
-static int send_get_request_thread(unsigned int argc, void *argv)
-{
+static int send_get_request_thread(unsigned int argc, void *argv) {
 	downloader_mem_buffer = vglMalloc(0x100000);
 	downloader_hdr_buffer = vglMalloc(0x1000);
 	downloaded_bytes = 0;

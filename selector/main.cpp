@@ -175,7 +175,7 @@ const char *options_descs[] = {
 	"Increases the size of the memory pool available for the Runner. May solve some crashes.",
 	"Makes the Loader compress any spriteset used by the game at runtime. Reduces memory usage but may cause stuttering and longer loading times.",
 	"Enables Video Player implementation in the Runner at the cost of potentially reducing the total amount of memory available for the game.",
-	"Enables Network functionalities implementation in the Runner at the cost of potentially reducing the total amount of memory available for the game."
+	"Enables network functionalities implementation in the Runner at the cost of potentially reducing the total amount of memory available for the game."
 };
 
 const char *sort_modes_str[] = {
@@ -578,6 +578,9 @@ int main(int argc, char *argv[]) {
 			ImGui::Checkbox("Enable Video Support", &hovered->video_support);
 			if (ImGui::IsItemHovered())
 				desc = options_descs[VIDEO_SUPPORT];
+			ImGui::Checkbox("Enable Network Features", &hovered->has_net);
+			if (ImGui::IsItemHovered())
+				desc = options_descs[NET_SUPPORT];
 			ImGui::Separator();
 			ImGui::Checkbox("Force Bilinear Filtering", &hovered->bilinear);
 			if (ImGui::IsItemHovered())
@@ -635,6 +638,7 @@ int main(int argc, char *argv[]) {
 			ImGui::Text("Run with Extended Mem Mode: %s", hovered->mem_extended ? "Yes" : "No");
 			ImGui::Text("Run with Extended Runner Pool: %s", hovered->newlib_extended ? "Yes" : "No");
 			ImGui::Text("Enable Video Player: %s", hovered->video_support ? "Yes" : "No");
+			ImGui::Text("Enable Network Features: %s", hovered->has_net ? "Yes" : "No");
 			ImGui::Separator();
 			ImGui::Text("Force Bilinear Filtering: %s", hovered->bilinear ? "Yes" : "No");
 			ImGui::Text("Compress Textures: %s", hovered->compress_textures ? "Yes" : "No");
