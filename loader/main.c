@@ -17,6 +17,11 @@
 #include <AL/alext.h>
 #include <AL/efx.h>
 
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <netdb.h>
+#include <arpa/inet.h>
+
 #include <dirent.h>
 #include <malloc.h>
 #include <stdio.h>
@@ -50,11 +55,23 @@
 #define STB_ONLY_PNG
 #include "stb_image.h"
 
+extern void send_post_request(const char *url, const char *data);
+extern SceUID post_thid;
+extern SceUID get_thid;
+extern volatile int post_response_code;
+extern volatile int get_response_code;
+extern volatile uint64_t downloaded_bytes;
+extern uint8_t *downloader_mem_buffer;
+extern uint8_t *downloader_hdr_buffer;
+extern char *post_url;
+extern char *get_url;
+
 int forceGL1 = 0;
 int forceSplashSkip = 0;
 int forceWinMode = 0;
 int forceBilinear = 0;
 int compressTextures = 0;
+int has_net = 0;
 extern int maximizeMem;
 int debugShaders = 0;
 int debugMode = 0;
@@ -62,6 +79,12 @@ int ime_active = 0;
 int msg_active = 0;
 int msg_index = 0;
 int ime_index = 0;
+int post_active = 0;
+int post_index = 0;
+int get_active = 0;
+int get_index = 0;
+
+double jni_double = 0.0f;
 
 char data_path[256];
 char apk_path[256];
@@ -106,6 +129,7 @@ void loadConfig(const char *game) {
 			else if (strcmp("debugMode", buffer) == 0) debugMode = value;
 			else if (strcmp("noSplash", buffer) == 0) forceSplashSkip = value;
 			else if (strcmp("maximizeMem", buffer) == 0) maximizeMem = value;
+			else if (strcmp("netSupport", buffer) == 0) has_net = value;
 		}
 		fclose(config);
 	}
@@ -473,13 +497,39 @@ void main_loop() {
 	int (*Java_com_yoyogames_runner_RunnerJNILib_Process) (void *env, int a2, int w, int h, float accel_x, float accel_y, float accel_z, int keypad_open, int orientation, float refresh_rate) = (void *)so_symbol(&yoyoloader_mod, "Java_com_yoyogames_runner_RunnerJNILib_Process");
 	int (*Java_com_yoyogames_runner_RunnerJNILib_TouchEvent) (void *env, int a2, int type, int id, float x, float y) = (void *)so_symbol(&yoyoloader_mod, "Java_com_yoyogames_runner_RunnerJNILib_TouchEvent");
 	int (*Java_com_yoyogames_runner_RunnerJNILib_InputResult) (void *env, int a2, char *string, int state, int id) = (void *)so_symbol(&yoyoloader_mod, "Java_com_yoyogames_runner_RunnerJNILib_InputResult");
-	int lastX[SCE_TOUCH_MAX_REPORT] = {-1, -1, -1, -1, -1, -1, -1, -1};
-	int lastY[SCE_TOUCH_MAX_REPORT] = {-1, -1, -1, -1, -1, -1, -1, -1};
+	int (*Java_com_yoyogames_runner_RunnerJNILib_HttpResult) (void *env, int a2, void *result, int responde_code, int id, char *url, void *header) = (void *)so_symbol(&yoyoloader_mod, "Java_com_yoyogames_runner_RunnerJNILib_HttpResult");
 	int (*Java_com_yoyogames_runner_RunnerJNILib_canFlip) (void) = (void *)so_symbol(&yoyoloader_mod, "Java_com_yoyogames_runner_RunnerJNILib_canFlip");
-	
 	int *g_IOFrameCount = (int *)so_symbol(&yoyoloader_mod, "g_IOFrameCount");
 	
+	int lastX[SCE_TOUCH_MAX_REPORT] = {-1, -1, -1, -1, -1, -1, -1, -1};
+	int lastY[SCE_TOUCH_MAX_REPORT] = {-1, -1, -1, -1, -1, -1, -1, -1};
+	
 	for (;;) {
+		if (post_active) {
+			SceKernelThreadInfo info;
+			info.size = sizeof(SceKernelThreadInfo);
+			int res = sceKernelGetThreadInfo(post_thid, &info);
+			if (info.status > SCE_THREAD_DORMANT || res < 0) {
+				Java_com_yoyogames_runner_RunnerJNILib_HttpResult(fake_env, 0, downloader_mem_buffer, post_response_code, post_index, post_url, downloader_hdr_buffer);
+				free(post_url);
+				vglFree(downloader_mem_buffer);
+				vglFree(downloader_hdr_buffer);
+				post_active = 0;
+			}
+		}
+		if (get_active) {
+			SceKernelThreadInfo info;
+			info.size = sizeof(SceKernelThreadInfo);
+			int res = sceKernelGetThreadInfo(get_thid, &info);
+			if (info.status > SCE_THREAD_DORMANT || res < 0) {
+				Java_com_yoyogames_runner_RunnerJNILib_HttpResult(fake_env, 0, downloader_mem_buffer, get_response_code, get_index, get_url, downloader_hdr_buffer);
+				free(get_url);
+				vglFree(downloader_mem_buffer);
+				vglFree(downloader_hdr_buffer);
+				get_active = 0;
+			}
+		}
+		
 		SceTouchData touch;
 		sceTouchPeek(SCE_TOUCH_PORT_FRONT, &touch, 1);
 		for (int i = 0; i < SCE_TOUCH_MAX_REPORT; i++) {
@@ -1034,6 +1084,7 @@ static so_default_dynlib default_dynlib[] = {
 	{ "__stack_chk_guard", (uintptr_t)&__stack_chk_guard_fake },
 	{ "_ctype_", (uintptr_t)&BIONIC_ctype_},
 	{ "abort", (uintptr_t)&abort },
+	//{ "accept", (uintptr_t)&accept },
 	{ "acos", (uintptr_t)&acos },
 	{ "acosf", (uintptr_t)&acosf },
 	{ "alBufferData", (uintptr_t)&alBufferData },
@@ -1084,6 +1135,7 @@ static so_default_dynlib default_dynlib[] = {
 	{ "atoi", (uintptr_t)&atoi },
 	{ "atol", (uintptr_t)&atol },
 	{ "atoll", (uintptr_t)&atoll },
+	//{ "bind", (uintptr_t)&bind },
 	{ "bsearch", (uintptr_t)&bsearch },
 	{ "btowc", (uintptr_t)&btowc },
 	{ "calloc", (uintptr_t)&calloc },
@@ -1092,6 +1144,7 @@ static so_default_dynlib default_dynlib[] = {
 	{ "clearerr", (uintptr_t)&clearerr },
 	{ "clock_gettime", (uintptr_t)&clock_gettime },
 	{ "close", (uintptr_t)&close },
+	//{ "connect", (uintptr_t)&connect },
 	{ "cos", (uintptr_t)&cos },
 	{ "cosf", (uintptr_t)&cosf },
 	{ "cosh", (uintptr_t)&cosh },
@@ -1126,6 +1179,7 @@ static so_default_dynlib default_dynlib[] = {
 	{ "fputs", (uintptr_t)&fputs },
 	{ "fread", (uintptr_t)&fread },
 	{ "free", (uintptr_t)&vglFree },
+	//{ "freeaddrinfo", (uintptr_t)&freeaddrinfo },
 	{ "frexp", (uintptr_t)&frexp },
 	{ "frexpf", (uintptr_t)&frexpf },
 	{ "fscanf", (uintptr_t)&fscanf },
@@ -1135,11 +1189,17 @@ static so_default_dynlib default_dynlib[] = {
 	{ "ftell", (uintptr_t)&ftell },
 	{ "ftello", (uintptr_t)&ftello },
 	{ "fwrite", (uintptr_t)&fwrite },
+	{ "getaddrinfo", (uintptr_t)&getaddrinfo },
 	{ "getc", (uintptr_t)&getc },
 	{ "getenv", (uintptr_t)&ret0 },
+	//{ "getsockopt", (uintptr_t)&getsockopt },
 	{ "getwc", (uintptr_t)&getwc },
 	{ "gettimeofday", (uintptr_t)&gettimeofday },
 	{ "gmtime64", (uintptr_t)&gmtime64 },
+	{ "inet_addr", (uintptr_t)&inet_addr },
+	{ "inet_ntoa", (uintptr_t)&inet_ntoa },
+	//{ "inet_ntop", (uintptr_t)&inet_ntop },
+	//{ "inet_pton", (uintptr_t)&inet_pton },
 	{ "inflate", (uintptr_t)&inflate },
 	{ "inflateEnd", (uintptr_t)&inflateEnd },
 	{ "inflateInit_", (uintptr_t)&inflateInit_ },
@@ -1168,6 +1228,7 @@ static so_default_dynlib default_dynlib[] = {
 	{ "isxdigit", (uintptr_t)&isxdigit },
 	{ "ldexp", (uintptr_t)&ldexp },
 	{ "ldiv", (uintptr_t)&ldiv },
+	//{ "listen", (uintptr_t)&listen },
 	{ "llrint", (uintptr_t)&llrint },
 	{ "localtime_r", (uintptr_t)&localtime_r },
 	{ "localtime64", (uintptr_t)&localtime64 },
@@ -1194,7 +1255,7 @@ static so_default_dynlib default_dynlib[] = {
 	{ "open", (uintptr_t)&open },
 	{ "pow", (uintptr_t)&pow },
 	{ "powf", (uintptr_t)&powf },
-	{ "printf", (uintptr_t)&printf },
+	{ "printf", (uintptr_t)&debugPrintf },
 	{ "pthread_attr_destroy", (uintptr_t)&ret0 },
 	{ "pthread_attr_init", (uintptr_t)&ret0 },
 	{ "pthread_attr_setdetachstate", (uintptr_t)&ret0 },
@@ -1220,18 +1281,24 @@ static so_default_dynlib default_dynlib[] = {
 	{ "qsort", (uintptr_t)&qsort },
 	{ "read", (uintptr_t)&read },
 	{ "realloc", (uintptr_t)&realloc },
+	//{ "recv", (uintptr_t)&recv },
+	//{ "recvfrom", (uintptr_t)&recvfrom },
 	{ "remove", (uintptr_t)&sceIoRemove },
 	{ "rint", (uintptr_t)&rint },
 	{ "scandir", (uintptr_t)&scandir },
+	//{ "send", (uintptr_t)&send },
+	//{ "sendto", (uintptr_t)&sendto },
 	{ "setenv", (uintptr_t)&ret0 },
 	{ "setjmp", (uintptr_t)&setjmp },
 	{ "setlocale", (uintptr_t)&ret0 },
+	//{ "setsockopt", (uintptr_t)&setsockopt },
 	{ "setvbuf", (uintptr_t)&setvbuf },
 	{ "sin", (uintptr_t)&sin },
 	{ "sincosf", (uintptr_t)&sincosf },
 	{ "sinf", (uintptr_t)&sinf },
 	{ "sinh", (uintptr_t)&sinh },
 	{ "snprintf", (uintptr_t)&snprintf },
+	//{ "socket", (uintptr_t)&socket },
 	{ "sprintf", (uintptr_t)&sprintf },
 	{ "sqrt", (uintptr_t)&sqrt },
 	{ "sqrtf", (uintptr_t)&sqrtf },
@@ -1310,7 +1377,11 @@ enum MethodIDs {
 	GET_UDID,
 	SHOW_MESSAGE,
 	INPUT_STRING_ASYNC,
-	SHOW_MESSAGE_ASYNC
+	SHOW_MESSAGE_ASYNC,
+	CALL_EXTENSION_FUNCTION,
+	DOUBLE_VALUE,
+	HTTP_POST,
+	HTTP_GET
 } MethodIDs;
 
 typedef struct {
@@ -1324,34 +1395,34 @@ static NameToMethodID name_to_method_ids[] = {
 	{ "ShowMessage", SHOW_MESSAGE },
 	{ "InputStringAsync", INPUT_STRING_ASYNC },
 	{ "ShowMessageAsync", SHOW_MESSAGE_ASYNC },
+	{ "CallExtensionFunction", CALL_EXTENSION_FUNCTION },
+	{ "doubleValue", DOUBLE_VALUE },
+	{ "HttpGet", HTTP_GET },
+	{ "HttpPost", HTTP_POST }
 };
 
 int GetMethodID(void *env, void *class, const char *name, const char *sig) {
-	debugPrintf("GetMethodID: %s\n", name);
-
 	for (int i = 0; i < sizeof(name_to_method_ids) / sizeof(NameToMethodID); i++) {
 		if (strcmp(name, name_to_method_ids[i].name) == 0) {
 			return name_to_method_ids[i].id;
 		}
 	}
 
-	return UNKNOWN;
+	debugPrintf("Attempted to get an unknown method ID with name %s\n", name);
+	return 0;
 }
 
 int GetStaticMethodID(void *env, void *class, const char *name, const char *sig) {
-	debugPrintf("GetStaticMethodID: %s\n", name);
-	
 	for (int i = 0; i < sizeof(name_to_method_ids) / sizeof(NameToMethodID); i++) {
 		if (strcmp(name, name_to_method_ids[i].name) == 0)
 			return name_to_method_ids[i].id;
 	}
 
-	return UNKNOWN;
+	debugPrintf("Attempted to get an unknown static method ID with name %s\n", name);
+	return 0;
 }
 
 void CallStaticVoidMethodV(void *env, void *obj, int methodID, uintptr_t *args) {
-	int (*Java_com_yoyogames_runner_RunnerJNILib_InputResult) (void *env, int a2, char *string, int state, int id); 
-	
 	switch (methodID) {
 	case SHOW_MESSAGE:
 		debugPrintf(args[0]);
@@ -1365,6 +1436,20 @@ void CallStaticVoidMethodV(void *env, void *obj, int methodID, uintptr_t *args) 
 		init_msg_dialog(args[0]);
 		msg_index = (int)args[1];
 		msg_active = 1;
+		break;
+	case HTTP_POST:
+		if (has_net) {
+			send_post_request(args[0], args[1]);
+			post_index = (int)args[2];
+			post_active = 1;
+		}
+		break;
+	case HTTP_GET:
+		if (has_net) {
+			send_get_request(args[0]);
+			get_index = (int)args[1];
+			get_active = 1;
+		}
 		break;
 	default:
 		if (methodID != UNKNOWN)
@@ -1392,7 +1477,7 @@ uint64_t CallLongMethodV(void *env, void *obj, int methodID, uintptr_t *args) {
 	return 0;
 }
 
-void *FindClass(void) {
+void *FindClass(void *env, const char *name) {
 	return (void *)0x41414141;
 }
 
@@ -1472,14 +1557,33 @@ void *CallObjectMethodV(void *env, void *obj, int methodID, uintptr_t *args) {
 	return NULL;
 }
 
+typedef struct {
+	char *module_name;
+	char *method_name;
+	int argc;
+	double *double_array;
+	void *object_array;
+} ext_func;
+
 void *CallStaticObjectMethodV(void *env, void *obj, int methodID, uintptr_t *args) {
-	static char *r = NULL;
+	static char r[0x8000];
+
 	switch (methodID) {
 	case GET_UDID:
-		if (!r)
-			r = malloc(0x10);
-		strcpy(r, "1234");
-		return r;
+		return "1234";
+	case CALL_EXTENSION_FUNCTION:
+		{
+			ext_func *f = (ext_func *)args;
+			if (!strcmp(f->module_name, "PickMe")) {
+				if (!strcmp(f->method_name, "getDire1")) {
+					sprintf(r, "%s%s/", data_path, f->object_array);
+					recursive_mkdir(r);
+					return r;
+				}
+			}
+			debugPrintf("Called undefined extension function from module %s with name %s\n", f->module_name, f->method_name);
+			return NULL;
+		}
 	default:
 		if (methodID != UNKNOWN)
 			debugPrintf("CallStaticObjectMethodV(%d)\n", methodID);
@@ -1515,8 +1619,17 @@ int CallBooleanMethodV(void *env, void *obj, int methodID, uintptr_t *args) {
 }
 
 double CallDoubleMethodV(void *env, void *obj, int methodID, uintptr_t *args) {
-	if (methodID != UNKNOWN)
-		debugPrintf("CallDoubleMethodV(%d)\n", methodID);
+	double r;
+	switch (methodID) {
+	case DOUBLE_VALUE:
+		r = jni_double;
+		jni_double = 0.0f;
+		return r;
+	default:
+		if (methodID != UNKNOWN)
+			debugPrintf("CallDoubleMethodV(%d)\n", methodID);
+		break;
+	}
 	return 0.0;
 }
 
@@ -1533,12 +1646,20 @@ void *NewIntArray(void *env, int size) {
 	return malloc(sizeof(int) * size);	
 }
 
-void *NewObjectArray(void *env, int size) {
-	return NULL;	
+void *NewObjectArray(void *env, int size, int clazz, void *elements) {
+	void *r = malloc(size);
+	if (elements) {
+		sceClibMemcpy(r, elements, size);
+	}
+	return r;
 }
 
 void *NewDoubleArray(void *env, int size) {
 	return malloc(sizeof(double) * size);	
+}
+
+int GetArrayLength(void *env, void *array) {
+	return (int)downloaded_bytes;
 }
 
 void SetIntArrayRegion(void *env, int *array, int start, int len, int *buf) {
@@ -1549,7 +1670,12 @@ void SetDoubleArrayRegion(void *env, double *array, int start, int len, double *
 	sceClibMemcpy(&array[start], buf, sizeof(double) * len);
 }
 
-void SetObjectArrayElement(void *env, void *array, int size, void *val) {
+void SetObjectArrayElement(void *env, void *array, int index, void *val) {
+	strcpy(&array[index], val);
+}
+
+void GetByteArrayRegion(void *env, void *array, int start, int len, void *buf) {
+	sceClibMemcpy(buf, &array[start], len);
 }
 
 int GetIntField(void *env, void *obj, int fieldID) { return 0; }
@@ -1563,7 +1689,20 @@ int main(int argc, char **argv)
 #ifdef HAS_VIDEO_PLAYBACK_SUPPORT
 	sceSysmoduleLoadModule(SCE_SYSMODULE_AVPLAYER);
 #endif
-
+	
+	if (has_net) {
+		// Init Net
+		sceSysmoduleLoadModule(SCE_SYSMODULE_NET);
+		int ret = sceNetShowNetstat();
+		SceNetInitParam initparam;
+		if (ret == SCE_NET_ERROR_ENOTINIT) {
+			initparam.memory = malloc(1024 * 1024);
+			initparam.size = 1024 * 1024;
+			initparam.flags = 0;
+			sceNetInit(&initparam);
+		}
+	}
+	
 	// Checking requested game launch
 	char game_name[0x200];
 #ifndef STANDALONE_MODE
@@ -1680,6 +1819,7 @@ int main(int argc, char **argv)
 	*(uintptr_t *)(fake_env + 0x68) = (uintptr_t)ret0; // EnsureLocalCapacity
 	*(uintptr_t *)(fake_env + 0x74) = (uintptr_t)NewObjectV;
 	*(uintptr_t *)(fake_env + 0x7C) = (uintptr_t)GetObjectClass;
+	*(uintptr_t *)(fake_env + 0x80) = (uintptr_t)ret1; // IsInstanceOf
 	*(uintptr_t *)(fake_env + 0x84) = (uintptr_t)GetMethodID;
 	*(uintptr_t *)(fake_env + 0x8C) = (uintptr_t)CallObjectMethodV;
 	*(uintptr_t *)(fake_env + 0x98) = (uintptr_t)CallBooleanMethodV;
@@ -1702,10 +1842,12 @@ int main(int argc, char **argv)
 	*(uintptr_t *)(fake_env + 0x29C) = (uintptr_t)NewStringUTF;
 	*(uintptr_t *)(fake_env + 0x2A4) = (uintptr_t)GetStringUTFChars;
 	*(uintptr_t *)(fake_env + 0x2A8) = (uintptr_t)ret0; // ReleaseStringUTFChars
+	*(uintptr_t *)(fake_env + 0x2AC) = (uintptr_t)GetArrayLength;
 	*(uintptr_t *)(fake_env + 0x2B0) = (uintptr_t)NewObjectArray;
 	*(uintptr_t *)(fake_env + 0x2B8) = (uintptr_t)SetObjectArrayElement;
 	*(uintptr_t *)(fake_env + 0x2CC) = (uintptr_t)NewIntArray;
 	*(uintptr_t *)(fake_env + 0x2D8) = (uintptr_t)NewDoubleArray;
+	*(uintptr_t *)(fake_env + 0x320) = (uintptr_t)GetByteArrayRegion;
 	*(uintptr_t *)(fake_env + 0x34C) = (uintptr_t)SetIntArrayRegion;
 	*(uintptr_t *)(fake_env + 0x358) = (uintptr_t)SetDoubleArrayRegion;
 	*(uintptr_t *)(fake_env + 0x36C) = (uintptr_t)GetJavaVM;

@@ -441,11 +441,11 @@ int so_resolve(so_module *mod, so_default_dynlib *default_dynlib, int size_defau
 
 				if (!resolved) {
 					if (type == R_ARM_JUMP_SLOT) {
-						debugPrintf("Missing: %s\n", mod->dynstr + sym->st_name);
+						debugPrintf("Unresolved import: %s\n", mod->dynstr + sym->st_name);
 						*ptr = (uintptr_t)&plt0_stub;
 					}
 					else {
-						fatal_error("Missing: %s\n", mod->dynstr + sym->st_name);
+						fatal_error("Unresolved import: %s\n", mod->dynstr + sym->st_name);
 					}
 				}
 			}

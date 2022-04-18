@@ -46,6 +46,7 @@ add_executable(YoYoLoader
   loader/ctype_patch.c
   loader/sbrk.c
   loader/videoplayer_patch.c
+  loader/net.c
 )
 
 target_link_libraries(YoYoLoader
@@ -61,6 +62,9 @@ target_link_libraries(YoYoLoader
   vitashark
   soloud
   mathneon
+  curl
+  ssl
+  crypto
   kubridge_stub
   SceAppMgr_stub
   SceAppUtil_stub
@@ -139,6 +143,7 @@ add_executable(loader
   loader/ctype_patch.c
   loader/sbrk.c
   loader/videoplayer_patch.c
+  loader/net.c
 )
 
 target_link_libraries(loader
@@ -154,6 +159,9 @@ target_link_libraries(loader
   vitashark
   soloud
   mathneon
+  curl
+  ssl
+  crypto
   kubridge_stub
   SceAppMgr_stub
   SceAppUtil_stub

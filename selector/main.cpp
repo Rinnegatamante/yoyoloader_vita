@@ -17,7 +17,7 @@
 #define stringify(x) FUNC_TO_NAME(x)
 #define MIN(x, y) (x) < (y) ? (x) : (y)
 
-#define NUM_OPTIONS 10
+#define NUM_OPTIONS 11
 
 extern "C" {
 	int debugPrintf(const char *fmt, ...) {return 0;}
@@ -59,6 +59,7 @@ struct GameSelection {
 	bool mem_extended;
 	bool newlib_extended;
 	bool video_support;
+	bool has_net;
 	GameSelection *next;
 };
 
@@ -139,6 +140,7 @@ void loadConfig(GameSelection *g) {
 			else if (strcmp("maximizeMem", buffer) == 0) g->mem_extended = (bool)value;
 			else if (strcmp("maximizeNewlib", buffer) == 0) g->newlib_extended = (bool)value;
 			else if (strcmp("videoSupport", buffer) == 0) g->video_support = (bool)value;
+			else if (strcmp("netSupport", buffer) == 0) g->has_net = (bool)value;
 		}
 		fclose(config);
 	} else {
@@ -157,7 +159,8 @@ enum {
 	OPTIMIZE_APK,
 	EXTEND_NEWLIB,
 	COMPRESS_TEXTURES,
-	VIDEO_SUPPORT
+	VIDEO_SUPPORT,
+	NET_SUPPORT
 };
 
 const char *options_descs[] = {
@@ -171,7 +174,8 @@ const char *options_descs[] = {
 	"Reduces apk size by removing unnecessary data inside it and improves performances by recompressing files one by one depending on their expected use.",
 	"Increases the size of the memory pool available for the Runner. May solve some crashes.",
 	"Makes the Loader compress any spriteset used by the game at runtime. Reduces memory usage but may cause stuttering and longer loading times.",
-	"Enables Video Player implementation in the Runner at the cost of potentially reducing the total amount of memory available for the game."
+	"Enables Video Player implementation in the Runner at the cost of potentially reducing the total amount of memory available for the game.",
+	"Enables Network functionalities implementation in the Runner at the cost of potentially reducing the total amount of memory available for the game."
 };
 
 const char *sort_modes_str[] = {
@@ -669,6 +673,7 @@ int main(int argc, char *argv[]) {
 	fprintf(f, "%s=%d\n", "maximizeMem", (int)hovered->mem_extended);
 	fprintf(f, "%s=%d\n", "maximizeNewlib", (int)hovered->newlib_extended);
 	fprintf(f, "%s=%d\n", "videoSupport", (int)hovered->video_support);
+	fprintf(f, "%s=%d\n", "netSupport", (int)hovered->has_net);
 	fclose(f);
 	
 	if (hovered->newlib_extended) {
