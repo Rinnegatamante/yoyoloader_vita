@@ -5,7 +5,7 @@
 extern unsigned int _newlib_heap_size_user __attribute__((weak));
 
 static int _newlib_heap_memblock;
-static unsigned _newlib_heap_size;
+unsigned _newlib_heap_size;
 static char *_newlib_heap_base, *_newlib_heap_end, *_newlib_heap_cur;
 static SceKernelLwMutexWork _newlib_sbrk_mutex;
 
@@ -39,10 +39,8 @@ void _init_vita_heap(void)
 #if 0 // Devkit mode
 	_newlib_heap_size = 570 * 1024 * 1024;
 #else
-	SceIoStat stat;
-	if (sceIoGetstat("ux0:data/gms/newlib.cfg", &stat) >= 0)
+	if (!sceIoRemove("ux0:data/gms/newlib.cfg"))
 	{
-		sceIoRemove("ux0:data/gms/newlib.cfg");
 		_newlib_heap_size = 300 * 1024 * 1024;
 	}
 	else
