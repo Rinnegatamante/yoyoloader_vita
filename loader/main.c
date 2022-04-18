@@ -187,76 +187,86 @@ int debugPrintf(char *text, ...) {
 }
 #endif
 
+struct android_dirent {
+	char pad[18];
+	unsigned char d_type;
+	char d_name[256];
+};
+
 // From https://github.com/kraj/uClibc/blob/master/libc/misc/dirent/scandir.c
-int scandir(const char *dir, struct dirent ***namelist,
+int scandir_hook(const char *dir, struct android_dirent ***namelist,
 	int (*selector) (const struct dirent *),
 	int (*compar) (const struct dirent **, const struct dirent **))
 {
 	DIR *dp = opendir (dir);
 	struct dirent *current;
-	struct dirent **names = NULL;
+	struct android_dirent d;
+	struct android_dirent *android_current = &d;
+	struct android_dirent **names = NULL;
 	size_t names_size = 0, pos;
 	//int save;
 
 	if (dp == NULL)
-	return -1;
+		return -1;
 
 	//save = errno;
 	//__set_errno (0);
 
 	pos = 0;
 	while ((current = readdir (dp)) != NULL) {
-	int use_it = selector == NULL;
+		int use_it = selector == NULL;
+		
+		sceClibMemcpy(android_current->d_name, current->d_name, 256);
+		android_current->d_type = SCE_S_ISDIR(current->d_stat.st_mode) ? 4 : 8;
 
-	if (! use_it)
-	{
-		use_it = (*selector) (current);
-		/* The selector function might have changed errno.
-		 * It was zero before and it need to be again to make
-		 * the latter tests work.  */
-		//if (! use_it)
-		//__set_errno (0);
-	}
-	if (use_it)
-	{
-		struct dirent *vnew;
-		size_t dsize;
-
-		/* Ignore errors from selector or readdir */
-		//__set_errno (0);
-
-		if (pos == names_size)
-		{
-		struct dirent **new;
-		if (names_size == 0)
-			names_size = 10;
-		else
-			names_size *= 2;
-		new = (struct dirent **) realloc (names,
-					names_size * sizeof (struct dirent *));
-		if (new == NULL)
-			break;
-		names = new;
+		if (! use_it)
+		{	
+			use_it = (*selector) (android_current);
+			/* The selector function might have changed errno.
+			* It was zero before and it need to be again to make
+			* the latter tests work.  */
+			//if (! use_it)
+			//__set_errno (0);
 		}
+		if (use_it)
+		{
+			struct android_dirent *vnew;
+			size_t dsize;
 
-		dsize = &current->d_name[256+1] - (char*)current;
-		vnew = (struct dirent *) malloc (dsize);
-		if (vnew == NULL)
-		break;
+			/* Ignore errors from selector or readdir */
+			//__set_errno (0);
 
-		names[pos++] = (struct dirent *) memcpy (vnew, current, dsize);
-	}
+			if (pos == names_size)
+			{
+				struct android_dirent **new;
+				if (names_size == 0)
+					names_size = 10;
+				else
+					names_size *= 2;
+				new = (struct android_dirent **) vglRealloc (names, names_size * sizeof (struct android_dirent *));
+				if (new == NULL)
+					break;
+				names = new;
+			}
+
+			dsize = &android_current->d_name[256+1] - (char*)android_current;
+			vnew = (struct android_dirent *) vglMalloc (dsize);
+			if (vnew == NULL)
+				break;
+
+			names[pos++] = (struct android_dirent *) sceClibMemcpy (vnew, android_current, dsize);
+		}
 	}
 
 	if (errno != 0)
 	{
-	//save = errno;
-	closedir (dp);
-	while (pos > 0)
-		free (names[--pos]);
-	free (names);
-	//__set_errno (save);
-	return -1;
+		//save = errno;
+		closedir (dp);
+		while (pos > 0)
+			vglFree (names[--pos]);
+		vglFree (names);
+		//__set_errno (save);
+		return -1;
 	}
 
 	closedir (dp);
@@ -264,7 +274,7 @@ int scandir(const char *dir, struct dirent ***namelist,
 
 	/* Sort the list if we have a comparison function to sort with.  */
 	if (compar != NULL)
-	qsort (names, pos, sizeof (struct dirent *), (__compar_fn_t) compar);
+		qsort (names, pos, sizeof (struct android_dirent *), (__compar_fn_t) compar);
 	*namelist = names;
 	return pos;
 }
@@ -1285,7 +1295,7 @@ static so_default_dynlib default_dynlib[] = {
 	//{ "recvfrom", (uintptr_t)&recvfrom },
 	{ "remove", (uintptr_t)&sceIoRemove },
 	{ "rint", (uintptr_t)&rint },
-	{ "scandir", (uintptr_t)&scandir },
+	{ "scandir", (uintptr_t)&scandir_hook },
 	//{ "send", (uintptr_t)&send },
 	//{ "sendto", (uintptr_t)&sendto },
 	{ "setenv", (uintptr_t)&ret0 },
@@ -1578,7 +1588,7 @@ void *CallStaticObjectMethodV(void *env, void *obj, int methodID, uintptr_t *arg
 				if (!strcmp(f->method_name, "getDire1")) {
 					sprintf(r, "%s%s/", data_path, f->object_array);
 					recursive_mkdir(r);
-					return r;
+					return f->object_array;
 				}
 			}
 			debugPrintf("Called undefined extension function from module %s with name %s\n", f->module_name, f->method_name);
