@@ -17,7 +17,7 @@
 #define stringify(x) FUNC_TO_NAME(x)
 #define MIN(x, y) (x) < (y) ? (x) : (y)
 
-#define NUM_OPTIONS 11
+#define NUM_OPTIONS 12
 
 extern "C" {
 	int debugPrintf(const char *fmt, ...) {return 0;}
@@ -60,6 +60,7 @@ struct GameSelection {
 	bool newlib_extended;
 	bool video_support;
 	bool has_net;
+	bool squeeze_mem;
 	GameSelection *next;
 };
 
@@ -141,6 +142,7 @@ void loadConfig(GameSelection *g) {
 			else if (strcmp("maximizeNewlib", buffer) == 0) g->newlib_extended = (bool)value;
 			else if (strcmp("videoSupport", buffer) == 0) g->video_support = (bool)value;
 			else if (strcmp("netSupport", buffer) == 0) g->has_net = (bool)value;
+			else if (strcmp("squeezeMem", buffer) == 0) g->squeeze_mem = (bool)value;
 		}
 		fclose(config);
 	} else {
@@ -160,7 +162,8 @@ enum {
 	EXTEND_NEWLIB,
 	COMPRESS_TEXTURES,
 	VIDEO_SUPPORT,
-	NET_SUPPORT
+	NET_SUPPORT,
+	SQUEEZE_MEM
 };
 
 const char *options_descs[] = {
@@ -175,7 +178,8 @@ const char *options_descs[] = {
 	"Increases the size of the memory pool available for the Runner. May solve some crashes.",
 	"Makes the Loader compress any spriteset used by the game at runtime. Reduces memory usage but may cause stuttering and longer loading times.",
 	"Enables Video Player implementation in the Runner at the cost of potentially reducing the total amount of memory available for the game.",
-	"Enables network functionalities implementation in the Runner at the cost of potentially reducing the total amount of memory available for the game."
+	"Enables network functionalities implementation in the Runner at the cost of potentially reducing the total amount of memory available for the game.",
+	"Makes the Loader setup vitaGL with the lowest amount possible of dedicated memory for internal buffers. Increases available mem for the game at the cost of potential performance loss."
 };
 
 const char *sort_modes_str[] = {
@@ -575,6 +579,9 @@ int main(int argc, char *argv[]) {
 			ImGui::Checkbox("Run with Extended Runner Pool", &hovered->newlib_extended);
 			if (ImGui::IsItemHovered())
 				desc = options_descs[EXTEND_NEWLIB];
+			ImGui::Checkbox("Run with Mem Squeezing", &hovered->squeeze_mem);
+			if (ImGui::IsItemHovered())
+				desc = options_descs[SQUEEZE_MEM];
 			ImGui::Checkbox("Enable Video Support", &hovered->video_support);
 			if (ImGui::IsItemHovered())
 				desc = options_descs[VIDEO_SUPPORT];
@@ -637,6 +644,7 @@ int main(int argc, char *argv[]) {
 			ImGui::Text("Fake Windows as Platform: %s", hovered->fake_win_mode ? "Yes" : "No");
 			ImGui::Text("Run with Extended Mem Mode: %s", hovered->mem_extended ? "Yes" : "No");
 			ImGui::Text("Run with Extended Runner Pool: %s", hovered->newlib_extended ? "Yes" : "No");
+			ImGui::Text("Run with Mem Squeezing: %s", hovered->squeeze_mem ? "Yes" : "No");
 			ImGui::Text("Enable Video Player: %s", hovered->video_support ? "Yes" : "No");
 			ImGui::Text("Enable Network Features: %s", hovered->has_net ? "Yes" : "No");
 			ImGui::Separator();
@@ -678,6 +686,7 @@ int main(int argc, char *argv[]) {
 	fprintf(f, "%s=%d\n", "maximizeNewlib", (int)hovered->newlib_extended);
 	fprintf(f, "%s=%d\n", "videoSupport", (int)hovered->video_support);
 	fprintf(f, "%s=%d\n", "netSupport", (int)hovered->has_net);
+	fprintf(f, "%s=%d\n", "squeezeMem", (int)hovered->squeeze_mem);
 	fclose(f);
 	
 	if (hovered->newlib_extended) {

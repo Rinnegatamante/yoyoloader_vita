@@ -74,6 +74,7 @@ int compressTextures = 0;
 int has_net = 0;
 extern int maximizeMem;
 int debugShaders = 0;
+int squeeze_mem = 0;
 int debugMode = 0;
 int ime_active = 0;
 int msg_active = 0;
@@ -130,6 +131,7 @@ void loadConfig(const char *game) {
 			else if (strcmp("noSplash", buffer) == 0) forceSplashSkip = value;
 			else if (strcmp("maximizeMem", buffer) == 0) maximizeMem = value;
 			else if (strcmp("netSupport", buffer) == 0) has_net = value;
+			else if (strcmp("squeezeMem", buffer) == 0) squeeze_mem = value;
 		}
 		fclose(config);
 	}
@@ -219,8 +221,7 @@ int scandir_hook(const char *dir, struct android_dirent ***namelist,
 		sceClibMemcpy(android_current->d_name, current->d_name, 256);
 		android_current->d_type = SCE_S_ISDIR(current->d_stat.st_mode) ? 4 : 8;
 
-		if (! use_it)
-		{	
+		if (! use_it) {	
 			use_it = (*selector) (android_current);
 			/* The selector function might have changed errno.
 			* It was zero before and it need to be again to make
@@ -228,8 +229,7 @@ int scandir_hook(const char *dir, struct android_dirent ***namelist,
 			//if (! use_it)
 			//__set_errno (0);
 		}
-		if (use_it)
-		{
+		if (use_it) {
 			struct android_dirent *vnew;
 			size_t dsize;
 
@@ -258,8 +258,7 @@ int scandir_hook(const char *dir, struct android_dirent ***namelist,
 		}
 	}
 
-	if (errno != 0)
-	{
+	if (errno != 0) {
 		//save = errno;
 		closedir (dp);
 		while (pos > 0)
@@ -1021,6 +1020,15 @@ void __cxa_throw_hook(void *thrown_exception, void *tinfo, void (*dest)(void *))
 		__cxa_throw(thrown_exception, tinfo, dest);
 }
 
+void *mmap(void *addr, size_t length, int prot, int flags, int fd, off_t offset) {
+	return vglMalloc(length);
+}
+
+int munmap(void *addr, size_t length) {
+	vglFree(addr);
+	return 0;
+}
+
 static so_default_dynlib default_dynlib[] = {
 	{ "AAssetManager_open", (uintptr_t)&AAssetManager_open},
 	{ "AAsset_close", (uintptr_t)&AAsset_close},
@@ -1251,6 +1259,7 @@ static so_default_dynlib default_dynlib[] = {
 	{ "lseek", (uintptr_t)&lseek },
 	{ "malloc", (uintptr_t)&vglMalloc },
 	{ "mbrtowc", (uintptr_t)&mbrtowc },
+	{ "memalign", (uintptr_t)&vglMemalign },
 	{ "memchr", (uintptr_t)&sceClibMemchr },
 	{ "memcmp", (uintptr_t)&memcmp },
 	{ "memcpy", (uintptr_t)&sceClibMemcpy },
@@ -1259,8 +1268,10 @@ static so_default_dynlib default_dynlib[] = {
 	{ "mkdir", (uintptr_t)&mkdir },
 	{ "mktime", (uintptr_t)&mktime },
 	{ "mktime64", (uintptr_t)&mktime64 },
+	{ "mmap", (uintptr_t)&mmap },
 	{ "modf", (uintptr_t)&modf },
 	{ "modff", (uintptr_t)&modff },
+	{ "munmap", (uintptr_t)&munmap },
 	{ "nanosleep", (uintptr_t)&nanosleep },
 	{ "open", (uintptr_t)&open },
 	{ "pow", (uintptr_t)&pow },
@@ -1808,6 +1819,8 @@ int main(int argc, char **argv)
 	
 	// Initializing vitaGL
 	vglSetupGarbageCollector(127, 0x20000);
+	if (squeeze_mem)
+		vglSetParamBufferSize(2 * 1024 * 1024);
 	if (maximizeMem)
 		vglInitWithCustomThreshold(0, SCREEN_W, SCREEN_H, MEMORY_VITAGL_THRESHOLD_MB * 1024 * 1024, 0, 0, 0, SCE_GXM_MULTISAMPLE_NONE);
 	else
