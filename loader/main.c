@@ -65,6 +65,7 @@ extern uint8_t *downloader_mem_buffer;
 extern uint8_t *downloader_hdr_buffer;
 extern char *post_url;
 extern char *get_url;
+extern unsigned _newlib_heap_size;
 
 int forceGL1 = 0;
 int forceSplashSkip = 0;
@@ -1737,7 +1738,7 @@ int main(int argc, char **argv)
 		strcpy(game_name, "AM2R"); // Debug
 	}
 #else
-	sceAppMgrAppParamGetString(0, 12, game_name , 256);
+	sceAppMgrAppParamGetString(0, 12, game_name, 256);
 #endif
 
 	// Enabling analogs and touch sampling
@@ -1789,7 +1790,25 @@ int main(int argc, char **argv)
 	
 	// Loading config file
 	loadConfig(game_name);
-
+	debugPrintf("+--------------------------------------------+\n");
+	debugPrintf("|YoYo Loader Setup                           |\n");
+	debugPrintf("+--------------------------------------------+\n");
+	debugPrintf("|Force GLES1 Mode: %s                         |\n", forceGL1 ? "Y" : "N");
+	debugPrintf("|Skip Splashscreen at Boot: %s                |\n", forceSplashSkip ? "Y" : "N");
+	debugPrintf("|Fake Windows as Platform: %s                 |\n", forceWinMode ? "Y" : "N");
+	debugPrintf("|Run with Extended Mem Mode: %s               |\n", maximizeMem ? "Y" : "N");
+	debugPrintf("|Run with Extended Runner Pool: %s            |\n", _newlib_heap_size > 256 * 1024 * 1024 ? "Y" : "N");
+	debugPrintf("|Run with Mem Squeezing: %s                   |\n", squeeze_mem ? "Y" : "N");
+#ifdef HAS_VIDEO_PLAYBACK_SUPPORT
+	debugPrintf("|Enable Video Player: Y\n                    |\n");
+#else
+	debugPrintf("|Enable Video Player: N\n                    |\n");
+#endif
+	debugPrintf("|Enable Network Features: %s                  |\n", has_net ? "Y" : "N");
+	debugPrintf("|Force Bilinear Filtering: %s                 |\n", forceBilinear ? "Y" : "N");
+	debugPrintf("|Compress Textures: %s\n                      |\n", compressTextures ? "Y" : "N");
+	debugPrintf("+--------------------------------------------+\n\n\n");
+	
 	// Loading splash screen from the apk
 	uint8_t *splash_buf = NULL;
 	uint32_t splash_size;
