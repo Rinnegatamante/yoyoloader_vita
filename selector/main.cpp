@@ -325,7 +325,7 @@ static int updaterThread(unsigned int args, void *arg) {
 		if (downloaded_bytes > 4 * 1024) {
 			if (i == UPDATER_CHECK_UPDATES) {
 				char target_commit[7];
-				strncpy(target_commit, strstr((char*)downloader_mem_buffer, "body") + 10, 6);
+				snprintf(target_commit, 6, strstr((char*)downloader_mem_buffer, "body") + 10);
 				if (strncmp(target_commit, stringify(GIT_VERSION), 5)) {
 					sprintf(url, "https://api.github.com/repos/Rinnegatamante/yoyoloader_vita/compare/%s...%s", stringify(GIT_VERSION), target_commit);
 					update_detected = true;
