@@ -6,7 +6,7 @@
  * This software may be modified and distributed under the terms
  * of the MIT license.	See the LICENSE file for details.
  */
-
+#define _POSIX_TIMERS
 #include <vitasdk.h>
 #include <kubridge.h>
 #include <vitashark.h>
@@ -315,16 +315,6 @@ int ret0(void) {
 
 int ret1(void) {
 	return 1;
-}
-
-int clock_gettime(int clk_ik, struct timespec *t) {
-	struct timeval now;
-	int rv = gettimeofday(&now, NULL);
-	if (rv)
-		return rv;
-	t->tv_sec = now.tv_sec;
-	t->tv_nsec = now.tv_usec * 1000;
-	return 0;
 }
 
 int pthread_mutex_init_fake(pthread_mutex_t **uid, const pthread_mutexattr_t *mutexattr) {
@@ -916,11 +906,6 @@ void *sceClibMemclr(void *dst, SceSize len) {
 
 void *sceClibMemset2(void *dst, SceSize len, int ch) {
 	return sceClibMemset(dst, ch, len);
-}
-
-int nanosleep(const struct timespec *req, struct timespec *rem) {
-	const uint32_t usec = req->tv_sec * 1000 * 1000 + req->tv_nsec / 1000;
-	return sceKernelDelayThreadCB(usec);
 }
 
 #define IS_LEAP(n) ((!(((n) + 1900) % 400) || (!(((n) + 1900) % 4) && (((n) + 1900) % 100))) != 0)

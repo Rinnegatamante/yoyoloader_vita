@@ -5,7 +5,7 @@
 #include "config.h"
 #include "so_util.h"
 
-extern so_module twom_mod;
+extern so_module yoyoloader_mod;
 
 #if 0
 #define debugPrintf printf
@@ -16,8 +16,6 @@ int debugPrintf(char *text, ...);
 int ret0();
 
 int sceKernelChangeThreadCpuAffinityMask(SceUID thid, int cpuAffinityMask);
-
-SceUID _vshKernelSearchModuleByName(const char *, int *);
 
 extern SceTouchPanelInfo panelInfoFront, panelInfoBack;
 
