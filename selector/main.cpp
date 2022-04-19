@@ -469,6 +469,37 @@ int main(int argc, char *argv[]) {
 	ImGui_ImplVitaGL_TouchUsage(false);
 	ImGui_ImplVitaGL_GamepadUsage(true);
 	ImGui::StyleColorsDark();
+	ImGuiStyle& style = ImGui::GetStyle();
+	ImVec4 col_area = ImVec4(0.047f, 0.169f, 0.059f, 0.44f);
+	ImVec4 col_main = ImVec4(0.2f, 0.627f, 0.169f, 0.86f);
+	style.Colors[ImGuiCol_ChildWindowBg]         = ImVec4(col_area.x, col_area.y, col_area.z, 0.00f);
+	style.Colors[ImGuiCol_FrameBg]               = ImVec4(col_area.x, col_area.y, col_area.z, 1.00f);
+	style.Colors[ImGuiCol_FrameBgHovered]        = ImVec4(col_main.x, col_main.y, col_main.z, 0.68f);
+	style.Colors[ImGuiCol_FrameBgActive]         = ImVec4(col_main.x, col_main.y, col_main.z, 1.00f);
+	style.Colors[ImGuiCol_TitleBg]               = ImVec4(col_main.x, col_main.y, col_main.z, 0.45f);
+	style.Colors[ImGuiCol_TitleBgCollapsed]      = ImVec4(col_main.x, col_main.y, col_main.z, 0.35f);
+	style.Colors[ImGuiCol_TitleBgActive]         = ImVec4(col_main.x, col_main.y, col_main.z, 0.78f);
+	style.Colors[ImGuiCol_MenuBarBg]             = ImVec4(col_area.x, col_area.y, col_area.z, 0.57f);
+	style.Colors[ImGuiCol_ScrollbarBg]           = ImVec4(col_area.x, col_area.y, col_area.z, 1.00f);
+	style.Colors[ImGuiCol_ScrollbarGrab]         = ImVec4(col_main.x, col_main.y, col_main.z, 0.31f);
+	style.Colors[ImGuiCol_ScrollbarGrabHovered]  = ImVec4(col_main.x, col_main.y, col_main.z, 0.78f);
+	style.Colors[ImGuiCol_ScrollbarGrabActive]   = ImVec4(col_main.x, col_main.y, col_main.z, 1.00f);
+	style.Colors[ImGuiCol_CheckMark]             = ImVec4(col_main.x, col_main.y, col_main.z, 0.80f);
+	style.Colors[ImGuiCol_SliderGrab]            = ImVec4(col_main.x, col_main.y, col_main.z, 0.24f);
+	style.Colors[ImGuiCol_SliderGrabActive]      = ImVec4(col_main.x, col_main.y, col_main.z, 1.00f);
+	style.Colors[ImGuiCol_Button]                = ImVec4(col_main.x, col_main.y, col_main.z, 0.44f);
+	style.Colors[ImGuiCol_ButtonHovered]         = ImVec4(col_main.x, col_main.y, col_main.z, 0.86f);
+	style.Colors[ImGuiCol_ButtonActive]          = ImVec4(col_main.x, col_main.y, col_main.z, 1.00f);
+	style.Colors[ImGuiCol_Header]                = ImVec4(col_main.x, col_main.y, col_main.z, 0.76f);
+	style.Colors[ImGuiCol_HeaderHovered]         = ImVec4(col_main.x, col_main.y, col_main.z, 0.86f);
+	style.Colors[ImGuiCol_HeaderActive]          = ImVec4(col_main.x, col_main.y, col_main.z, 1.00f);
+	style.Colors[ImGuiCol_ResizeGrip]            = ImVec4(col_main.x, col_main.y, col_main.z, 0.20f);
+	style.Colors[ImGuiCol_ResizeGripHovered]     = ImVec4(col_main.x, col_main.y, col_main.z, 0.78f);
+	style.Colors[ImGuiCol_ResizeGripActive]      = ImVec4(col_main.x, col_main.y, col_main.z, 1.00f);
+	style.Colors[ImGuiCol_PlotLinesHovered]      = ImVec4(col_main.x, col_main.y, col_main.z, 1.00f);
+	style.Colors[ImGuiCol_PlotHistogramHovered]  = ImVec4(col_main.x, col_main.y, col_main.z, 1.00f);
+	style.Colors[ImGuiCol_TextSelectedBg]        = ImVec4(col_main.x, col_main.y, col_main.z, 0.43f);
+	style.Colors[ImGuiCol_NavHighlight]           = ImVec4(col_main.x, col_main.y, col_main.z, 0.86f);
 	ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f);
 	ImGui::GetIO().MouseDrawCursor = false;
 	
@@ -728,11 +759,11 @@ int main(int argc, char *argv[]) {
 			ImGui::Separator();
 			ImGui::Text("Run with Debug Mode: %s", hovered->debug_mode ? "Yes" : "No");
 			ImGui::Text("Run with Shaders Debug Mode: %s", hovered->debug_shaders ? "Yes" : "No");
-			ImGui::TextColored(ImVec4(1.0f,1.0f,0.0f,1.0f), "Press Triangle to change settings");
+			ImGui::TextColored(ImVec4(0.702f, 0.863f, 0.067f, 1.00f), "Press Triangle to change settings");
 		}
 		ImGui::SetCursorPosY(480);
 		ImGui::Text("Sort Mode: %s", sort_modes_str[sort_idx]);
-		ImGui::TextColored(ImVec4(1.0f,1.0f,0.0f,1.0f), "Press L/R to change sorting mode");
+		ImGui::TextColored(ImVec4(0.702f, 0.863f, 0.067f, 1.00f), "Press L/R to change sorting mode");
 		ImGui::End();
 		
 		glViewport(0, 0, static_cast<int>(ImGui::GetIO().DisplaySize.x), static_cast<int>(ImGui::GetIO().DisplaySize.y));
