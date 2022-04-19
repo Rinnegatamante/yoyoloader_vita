@@ -28,6 +28,7 @@ jobs:
       run: |
         git config --global --add safe.directory /__w/yoyoloader_vita/yoyoloader_vita
         git describe --abbrev=6 --dirty --always
+        zip -9 -r banners.zip banners
         mkdir standalone
         mkdir standalone_video
         mkdir build
@@ -85,5 +86,11 @@ jobs:
       with:
         repo_token: ${{ secrets.GITHUB_TOKEN }}
         file: launcher/builder.zip
+        overwrite: true
+        tag: Nightly
+    - uses: svenstaro/upload-release-action@v2
+      with:
+        repo_token: ${{ secrets.GITHUB_TOKEN }}
+        file: banners.zip
         overwrite: true
         tag: Nightly
