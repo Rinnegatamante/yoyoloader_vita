@@ -22,6 +22,8 @@ jobs:
         cd ../..
         git clone https://github.com/Rinnegatamante/vitaGL.git
         make -C vitaGL SOFTFP_ABI=1 NO_DEBUG=1 SAMPLER_UNIFORMS=1 CACHED_MEM=1 PHYCONT_ON_DEMAND=1 -j$(nproc) install
+        cp stubs/libSceNet_stub.a /home/user/vitasdk/arm-vita-eabi/lib
+        cp stubs/libSceNet_stub_weak.a /home/user/vitasdk/arm-vita-eabi/lib
     - name: Compile project
       run: |
         mkdir standalone

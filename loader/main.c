@@ -1714,6 +1714,7 @@ int main(int argc, char **argv)
 	
 	if (has_net) {
 		// Init Net
+		debugPrintf("Initializing sceNet...\n");
 		sceSysmoduleLoadModule(SCE_SYSMODULE_NET);
 		int ret = sceNetShowNetstat();
 		SceNetInitParam initparam;

@@ -60,7 +60,6 @@ target_link_libraries(YoYoLoader
   ogg
   vitaGL
   vitashark
-  soloud
   mathneon
   curl
   ssl
@@ -159,7 +158,6 @@ target_link_libraries(loader
   ogg
   vitaGL
   vitashark
-  soloud
   mathneon
   curl
   ssl
