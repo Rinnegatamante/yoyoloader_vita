@@ -280,6 +280,11 @@ void GamePadUpdate() {
 	new_states[14] = pad.buttons & SCE_CTRL_LEFT ? 1 : 0;
 	new_states[15] = pad.buttons & SCE_CTRL_RIGHT ? 1 : 0;
 	
+#ifndef STANDALONE_MODE
+	if (new_states[8] && new_states[9] && new_states[4] && new_states[5])
+		sceAppMgrLoadExec("app0:eboot.bin", NULL, NULL);
+#endif
+	
 	// Rearpad support for L2/R2/L3/R3 emulation
 	SceTouchData touch;
 	sceTouchPeek(SCE_TOUCH_PORT_BACK, &touch, 1);
