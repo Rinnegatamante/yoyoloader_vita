@@ -1777,6 +1777,8 @@ int main(int argc, char **argv)
 	// Loading ARMv7 executable from the apk
 	unz_file_info file_info;
 	unzFile apk_file = unzOpen(apk_path);
+	if (!apk_file)
+		fatal_error("Error could not find %s.", apk_path);
 	unzLocateFile(apk_file, "lib/armeabi-v7a/libyoyo.so", NULL);
 	unzGetCurrentFileInfo(apk_file, &file_info, NULL, 0, NULL, 0, NULL, 0);
 	unzOpenCurrentFile(apk_file);
@@ -1800,13 +1802,13 @@ int main(int argc, char **argv)
 	debugPrintf("|Run with Extended Runner Pool: %s            |\n", _newlib_heap_size > 256 * 1024 * 1024 ? "Y" : "N");
 	debugPrintf("|Run with Mem Squeezing: %s                   |\n", squeeze_mem ? "Y" : "N");
 #ifdef HAS_VIDEO_PLAYBACK_SUPPORT
-	debugPrintf("|Enable Video Player: Y\n                    |\n");
+	debugPrintf("|Enable Video Player: Y                      |\n");
 #else
-	debugPrintf("|Enable Video Player: N\n                    |\n");
+	debugPrintf("|Enable Video Player: N                      |\n");
 #endif
 	debugPrintf("|Enable Network Features: %s                  |\n", has_net ? "Y" : "N");
 	debugPrintf("|Force Bilinear Filtering: %s                 |\n", forceBilinear ? "Y" : "N");
-	debugPrintf("|Compress Textures: %s\n                      |\n", compressTextures ? "Y" : "N");
+	debugPrintf("|Compress Textures: %s                        |\n", compressTextures ? "Y" : "N");
 	debugPrintf("+--------------------------------------------+\n\n\n");
 	
 	// Loading splash screen from the apk

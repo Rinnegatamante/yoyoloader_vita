@@ -77,6 +77,7 @@ target_link_libraries(YoYoLoader
   SceFios2_stub
   SceGxm_stub
   SceMotion_stub
+  SceNet_stub
   SceShaccCg_stub
   SceSysmodule_stub
   ScePower_stub
@@ -122,6 +123,7 @@ target_link_libraries(YoYoLoader
   SceDisplay_stub
   SceKernelDmacMgr_stub
   SceGxm_stub
+  SceNet_stub
   SceShaccCg_stub
   SceSysmodule_stub
   ScePower_stub
@@ -174,6 +176,7 @@ target_link_libraries(loader
   SceFios2_stub
   SceGxm_stub
   SceMotion_stub
+  SceNet_stub
   SceShaccCg_stub
   SceSysmodule_stub
   ScePower_stub
