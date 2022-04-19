@@ -1712,20 +1712,6 @@ int main(int argc, char **argv)
 	sceSysmoduleLoadModule(SCE_SYSMODULE_AVPLAYER);
 #endif
 	
-	if (has_net) {
-		// Init Net
-		debugPrintf("Initializing sceNet...\n");
-		sceSysmoduleLoadModule(SCE_SYSMODULE_NET);
-		int ret = sceNetShowNetstat();
-		SceNetInitParam initparam;
-		if (ret == SCE_NET_ERROR_ENOTINIT) {
-			initparam.memory = malloc(1024 * 1024);
-			initparam.size = 1024 * 1024;
-			initparam.flags = 0;
-			sceNetInit(&initparam);
-		}
-	}
-	
 	// Checking requested game launch
 	char game_name[0x200];
 #ifndef STANDALONE_MODE
@@ -1811,6 +1797,20 @@ int main(int argc, char **argv)
 	debugPrintf("|Force Bilinear Filtering: %s                 |\n", forceBilinear ? "Y" : "N");
 	debugPrintf("|Compress Textures: %s                        |\n", compressTextures ? "Y" : "N");
 	debugPrintf("+--------------------------------------------+\n\n\n");
+	
+	if (has_net) {
+		// Init Net
+		debugPrintf("Initializing sceNet...\n");
+		sceSysmoduleLoadModule(SCE_SYSMODULE_NET);
+		int ret = sceNetShowNetstat();
+		SceNetInitParam initparam;
+		if (ret == SCE_NET_ERROR_ENOTINIT) {
+			initparam.memory = malloc(1024 * 1024);
+			initparam.size = 1024 * 1024;
+			initparam.flags = 0;
+			sceNetInit(&initparam);
+		}
+	}
 	
 	// Loading splash screen from the apk
 	uint8_t *splash_buf = NULL;
