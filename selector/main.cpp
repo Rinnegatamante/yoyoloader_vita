@@ -7,6 +7,10 @@
 #include "../loader/zip.h"
 #include "../loader/unzip.h"
 
+#define STB_IMAGE_IMPLEMENTATION
+#define STB_ONLY_PNG
+#include "../loader/stb_image.h"
+
 #define DATA_PATH "ux0:data/gms"
 #define LAUNCH_FILE_PATH DATA_PATH "/launch.txt"
 #define TEMP_DOWNLOAD_NAME "ux0:data/yyl.tmp"
@@ -48,6 +52,7 @@ char *bytes_string;
 
 struct GameSelection {
 	char name[128];
+	char game_id[128];
 	float size;
 	bool bilinear;
 	bool gles1;
@@ -63,6 +68,8 @@ struct GameSelection {
 	bool squeeze_mem;
 	GameSelection *next;
 };
+
+GameSelection *old_hovered = NULL;
 
 extern "C" {
 void *__wrap_memcpy(void *dest, const void *src, size_t n) {
@@ -417,8 +424,40 @@ int file_exists(const char *path) {
 	return sceIoGetstat(path, &stat) >= 0;
 }
 
+static bool has_preview_icon = false;
+static int preview_width, preview_height, preview_x, preview_y;
+GLuint preview_icon = 0;
+#define PREVIEW_PADDING 6
+#define PREVIEW_HEIGHT 160.0f
+#define PREVIEW_WIDTH  394.0f
+bool LoadPreview(GameSelection *game) {
+	if (old_hovered == game)
+		return has_preview_icon;
+	old_hovered = game;
+	
+	char banner_path[256];
+	sprintf(banner_path, "ux0:data/gms/shared/banners/%s.png", game->game_id);
+	uint8_t *icon_data = stbi_load(banner_path, &preview_width, &preview_height, NULL, 4);
+	if (icon_data) {
+		if (!preview_icon) glGenTextures(1, &preview_icon);
+		glBindTexture(GL_TEXTURE_2D, preview_icon);
+		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, preview_width, preview_height, 0, GL_RGBA, GL_UNSIGNED_BYTE, icon_data);
+		float scale = MIN(PREVIEW_WIDTH / (float)preview_width, PREVIEW_HEIGHT / (float)preview_height);
+		preview_width = scale * (float)preview_width;
+		preview_height = scale * (float)preview_height;
+		preview_x = (PREVIEW_WIDTH - preview_width) / 2;
+		preview_y = (PREVIEW_HEIGHT - preview_height) / 2;
+		free(icon_data);
+		return true;
+	}
+	
+	return false;
+}
+
 int main(int argc, char *argv[]) {
 	sceIoMkdir("ux0:data/gms", 0777);
+	sceIoMkdir("ux0:data/gms/shared", 0777);
+	sceIoMkdir("ux0:data/gms/shared/banners", 0777);
 	
 	if (!file_exists("ur0:/data/libshacccg.suprx") && !file_exists("ur0:/data/external/libshacccg.suprx"))
 		fatal_error("Error libshacccg.suprx is not installed.");
@@ -448,6 +487,7 @@ int main(int argc, char *argv[]) {
 	}
 	
 	// Checking for updates
+	downloader_mem_buffer = (uint8_t*)malloc(32 * 1024 * 1024);
 	if (!skip_updates_check) {
 		sceSysmoduleLoadModule(SCE_SYSMODULE_NET);
 		int ret = sceNetShowNetstat();
@@ -458,8 +498,7 @@ int main(int argc, char *argv[]) {
 			initparam.flags = 0;
 			sceNetInit(&initparam);
 		}
-	
-		downloader_mem_buffer = (uint8_t*)malloc(32 * 1024 * 1024);
+
 		SceUID thd = sceKernelCreateThread("Auto Updater", &updaterThread, 0x10000100, 0x100000, 0, 0, NULL);
 		sceKernelStartThread(thd, 0, NULL);
 		do {
@@ -488,7 +527,6 @@ int main(int argc, char *argv[]) {
 			DrawChangeListDialog(f);
 			sceIoRemove(LOG_DOWNLOAD_NAME);
 		}
-		free(downloader_mem_buffer);
 	}
 	
 	SceUID fd = sceIoDopen("ux0:data/gms");
@@ -499,6 +537,34 @@ int main(int argc, char *argv[]) {
 		sprintf(apk_name, "ux0:data/gms/%s/game.apk", g_dir.d_name);
 		if (!sceIoGetstat(apk_name, &stat)) {
 			GameSelection *g = (GameSelection *)malloc(sizeof(GameSelection));
+			char id_path[256];
+			sprintf(id_path, "ux0:data/gms/%s/id.txt", g_dir.d_name);
+			FILE *f2 = fopen(id_path, "r");
+			if (f2) {
+				int len = fread(g->game_id, 1, 128, f2);
+				g->game_id[len] = 0;
+				fclose(f2);
+			} else {
+				unzFile apk_file = unzOpen(apk_name);
+				unzLocateFile(apk_file, "assets/game.droid", NULL);
+				unzOpenCurrentFile(apk_file);
+				unzReadCurrentFile(apk_file, downloader_mem_buffer, 20);
+				uint32_t offs;
+				unzReadCurrentFile(apk_file, &offs, 4);
+				uint32_t target = offs - 28;
+				while (target > 32 * 1024 * 1024) {
+					unzReadCurrentFile(apk_file, downloader_mem_buffer, 32 * 1024 * 1024);
+					target -= 32 * 1024 * 1024;
+				}
+				unzReadCurrentFile(apk_file, downloader_mem_buffer, target);
+				unzReadCurrentFile(apk_file, &offs, 4);
+				unzReadCurrentFile(apk_file, g->game_id, offs + 1);
+				f2 = fopen(id_path, "w");
+				fwrite(g->game_id, 1, strlen(g->game_id), f2);
+				fclose(f2);
+				unzCloseCurrentFile(apk_file);
+				unzClose(apk_file);
+			}
 			strcpy(g->name, g_dir.d_name);
 			g->size = (float)stat.st_size / (1024.0f * 1024.0f);
 			loadConfig(g);
@@ -506,6 +572,7 @@ int main(int argc, char *argv[]) {
 			games = g;
 		}
 	}
+	free(downloader_mem_buffer);
 	sceIoDclose(fd);
 	
 	while (!launch_item) {
@@ -530,7 +597,7 @@ int main(int argc, char *argv[]) {
 		}
 		
 		ImGui::SetNextWindowPos(ImVec2(0, 19), ImGuiSetCond_Always);
-		ImGui::SetNextWindowSize(ImVec2(560, 524), ImGuiSetCond_Always);
+		ImGui::SetNextWindowSize(ImVec2(553, 524), ImGuiSetCond_Always);
 		ImGui::Begin("##main", nullptr, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoBringToFrontOnFocus);
 		
 		GameSelection *g = games;
@@ -634,10 +701,16 @@ int main(int argc, char *argv[]) {
 			ImGui::End();
 		}
 		
-		ImGui::SetNextWindowPos(ImVec2(560, 19), ImGuiSetCond_Always);
-		ImGui::SetNextWindowSize(ImVec2(400, 524), ImGuiSetCond_Always);
+		ImGui::SetNextWindowPos(ImVec2(553, 19), ImGuiSetCond_Always);
+		ImGui::SetNextWindowSize(ImVec2(407, 524), ImGuiSetCond_Always);
 		ImGui::Begin("Info Window", nullptr, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoBringToFrontOnFocus);
 		if (hovered) {
+			has_preview_icon = LoadPreview(hovered); 
+			if (has_preview_icon) {
+				ImGui::SetCursorPos(ImVec2(preview_x + PREVIEW_PADDING, preview_y + PREVIEW_PADDING));
+				ImGui::Image((void*)preview_icon, ImVec2(preview_width, preview_height));
+			}
+			ImGui::Text("Game ID: %s", hovered->game_id);
 			ImGui::Text("APK Size: %.2f MBs", hovered->size);
 			ImGui::Separator();
 			ImGui::Text("Force GLES1 Mode: %s", hovered->gles1 ? "Yes" : "No");
