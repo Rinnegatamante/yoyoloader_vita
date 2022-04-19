@@ -1773,8 +1773,9 @@ int main(int argc, char **argv)
 	uint8_t *so_buffer = (uint8_t *)malloc(so_size);
 	unzReadCurrentFile(apk_file, so_buffer, so_size);
 	unzCloseCurrentFile(apk_file);
-	if (so_mem_load(&yoyoloader_mod, so_buffer, so_size, LOAD_ADDRESS) < 0)
-		fatal_error("Error could not load lib/armeabi-v7a/libyoyo.so from inside game.apk.");
+	int res = so_mem_load(&yoyoloader_mod, so_buffer, so_size, LOAD_ADDRESS);
+	if (res < 0)
+		fatal_error("Error could not load lib/armeabi-v7a/libyoyo.so from inside game.apk. (Errorcode: 0x%08X)", res);
 	free(so_buffer);
 	
 	// Loading config file
