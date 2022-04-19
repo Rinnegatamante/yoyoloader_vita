@@ -1015,6 +1015,11 @@ int munmap(void *addr, size_t length) {
 	return 0;
 }
 
+int nanosleep_hook(const struct timespec *req, struct timespec *rem) {
+	const uint32_t usec = req->tv_sec * 1000 * 1000 + req->tv_nsec / 1000;
+	return sceKernelDelayThreadCB(usec);
+}
+
 static so_default_dynlib default_dynlib[] = {
 	{ "AAssetManager_open", (uintptr_t)&AAssetManager_open},
 	{ "AAsset_close", (uintptr_t)&AAsset_close},
@@ -1258,7 +1263,7 @@ static so_default_dynlib default_dynlib[] = {
 	{ "modf", (uintptr_t)&modf },
 	{ "modff", (uintptr_t)&modff },
 	{ "munmap", (uintptr_t)&munmap },
-	{ "nanosleep", (uintptr_t)&nanosleep },
+	{ "nanosleep", (uintptr_t)&nanosleep_hook },
 	{ "open", (uintptr_t)&open },
 	{ "pow", (uintptr_t)&pow },
 	{ "powf", (uintptr_t)&powf },

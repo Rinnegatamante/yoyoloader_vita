@@ -26,6 +26,8 @@ jobs:
         make -C vitaGL SOFTFP_ABI=1 NO_DEBUG=1 SAMPLER_UNIFORMS=1 CACHED_MEM=1 PHYCONT_ON_DEMAND=1 -j$(nproc) install
     - name: Compile project
       run: |
+        git config --global --add safe.directory /__w/yoyoloader_vita/yoyoloader_vita
+        git describe --abbrev=6 --dirty --always
         mkdir standalone
         mkdir standalone_video
         mkdir build
