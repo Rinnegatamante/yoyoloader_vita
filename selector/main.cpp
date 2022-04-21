@@ -28,9 +28,10 @@ extern "C" {
 	void fatal_error(const char *fmt, ...);
 };
 
-void DrawDownloaderDialog(int index, float downloaded_bytes, float total_bytes, char *text, int passes);
+void DrawDownloaderDialog(int index, float downloaded_bytes, float total_bytes, char *text, int passes, bool self_contained);
 void DrawExtractorDialog(int index, float file_extracted_bytes, float extracted_bytes, float file_total_bytes, float total_bytes, char *filename, int num_files);
 void DrawChangeListDialog(FILE *f);
+void DrawExtrapolatorDialog(char *game);
 
 // Auto updater passes
 enum {
@@ -49,6 +50,7 @@ static volatile uint8_t downloader_pass = 1;
 uint8_t *downloader_mem_buffer = nullptr;
 static FILE *fh;
 char *bytes_string;
+SceUID banner_thid;
 
 struct GameSelection {
 	char name[128];
@@ -357,8 +359,23 @@ static int updaterThread(unsigned int args, void *arg) {
 		}
 	}
 	curl_easy_cleanup(curl_handle);
-	sceKernelExitDeleteThread(0);
-	return 0;
+	return sceKernelExitDeleteThread(0);
+}
+
+static int bannerThread(unsigned int args, void *arg) {
+	char url[512];
+	curl_handle = curl_easy_init();
+	sprintf(url, "https://github.com/Rinnegatamante/yoyoloader_vita/releases/download/Nightly/banners.zip");
+	downloaded_bytes = 0;
+	total_bytes = 20 * 1024; /* 20 KB */
+	startDownload(url);
+	if (downloaded_bytes > 4 * 1024) {
+		fh = fopen(TEMP_DOWNLOAD_NAME, "wb");
+		fwrite((const void*)downloader_mem_buffer, 1, downloaded_bytes, fh);
+		fclose(fh);
+	}
+	curl_easy_cleanup(curl_handle);
+	return sceKernelExitDeleteThread(0);
 }
 
 static char fname[512], ext_fname[512], read_buffer[8192];
@@ -424,6 +441,7 @@ int file_exists(const char *path) {
 	return sceIoGetstat(path, &stat) >= 0;
 }
 
+static bool is_downloading_banners = false;
 static bool has_preview_icon = false;
 static int preview_width, preview_height, preview_x, preview_y;
 GLuint preview_icon = 0;
@@ -499,7 +517,7 @@ int main(int argc, char *argv[]) {
 	style.Colors[ImGuiCol_PlotLinesHovered]      = ImVec4(col_main.x, col_main.y, col_main.z, 1.00f);
 	style.Colors[ImGuiCol_PlotHistogramHovered]  = ImVec4(col_main.x, col_main.y, col_main.z, 1.00f);
 	style.Colors[ImGuiCol_TextSelectedBg]        = ImVec4(col_main.x, col_main.y, col_main.z, 0.43f);
-	style.Colors[ImGuiCol_NavHighlight]           = ImVec4(col_main.x, col_main.y, col_main.z, 0.86f);
+	style.Colors[ImGuiCol_NavHighlight]          = ImVec4(col_main.x, col_main.y, col_main.z, 0.86f);
 	ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f);
 	ImGui::GetIO().MouseDrawCursor = false;
 	
@@ -509,7 +527,7 @@ int main(int argc, char *argv[]) {
 	FILE *f;
 	
 	// Check if YoYo Loader has been launched with a custom bubble
-	bool skip_updates_check = strstr(stringify(GIT_VERSION), "dirty") != nullptr;
+	bool skip_updates_check = true;//strstr(stringify(GIT_VERSION), "dirty") != nullptr;
 	char boot_params[1024];
 	sceAppMgrGetAppParam(boot_params);
 	if (strstr(boot_params,"psgm:play") && strstr(boot_params, "&param=")) {
@@ -519,23 +537,22 @@ int main(int argc, char *argv[]) {
 	
 	// Checking for updates
 	downloader_mem_buffer = (uint8_t*)malloc(32 * 1024 * 1024);
+	sceSysmoduleLoadModule(SCE_SYSMODULE_NET);
+	int ret = sceNetShowNetstat();
+	SceNetInitParam initparam;
+	if (ret == SCE_NET_ERROR_ENOTINIT) {
+		initparam.memory = malloc(1024 * 1024);
+		initparam.size = 1024 * 1024;
+		initparam.flags = 0;
+		sceNetInit(&initparam);
+	}
 	if (!skip_updates_check) {
-		sceSysmoduleLoadModule(SCE_SYSMODULE_NET);
-		int ret = sceNetShowNetstat();
-		SceNetInitParam initparam;
-		if (ret == SCE_NET_ERROR_ENOTINIT) {
-			initparam.memory = malloc(1024 * 1024);
-			initparam.size = 1024 * 1024;
-			initparam.flags = 0;
-			sceNetInit(&initparam);
-		}
-
 		SceUID thd = sceKernelCreateThread("Auto Updater", &updaterThread, 0x10000100, 0x100000, 0, 0, NULL);
 		sceKernelStartThread(thd, 0, NULL);
 		do {
-			if (downloader_pass == UPDATER_CHECK_UPDATES) DrawDownloaderDialog(downloader_pass + 1, downloaded_bytes, total_bytes, "Checking for updates", NUM_UPDATE_PASSES);
-			else if (downloader_pass == UPDATER_DOWNLOAD_CHANGELIST) DrawDownloaderDialog(downloader_pass + 1, downloaded_bytes, total_bytes, "Downloading Changelist", NUM_UPDATE_PASSES);
-			else DrawDownloaderDialog(downloader_pass + 1, downloaded_bytes, total_bytes, "Downloading an update", NUM_UPDATE_PASSES);
+			if (downloader_pass == UPDATER_CHECK_UPDATES) DrawDownloaderDialog(downloader_pass + 1, downloaded_bytes, total_bytes, "Checking for updates", NUM_UPDATE_PASSES, true);
+			else if (downloader_pass == UPDATER_DOWNLOAD_CHANGELIST) DrawDownloaderDialog(downloader_pass + 1, downloaded_bytes, total_bytes, "Downloading Changelist", NUM_UPDATE_PASSES, true);
+			else DrawDownloaderDialog(downloader_pass + 1, downloaded_bytes, total_bytes, "Downloading an update", NUM_UPDATE_PASSES, true);
 			res = sceKernelGetThreadInfo(thd, &info);
 		} while (info.status <= SCE_THREAD_DORMANT && res >= 0);
 		total_bytes = 0xFFFFFFFF;
@@ -567,6 +584,7 @@ int main(int argc, char *argv[]) {
 		SceIoStat stat;
 		sprintf(apk_name, "ux0:data/gms/%s/game.apk", g_dir.d_name);
 		if (!sceIoGetstat(apk_name, &stat)) {
+			DrawExtrapolatorDialog(g_dir.d_name);
 			GameSelection *g = (GameSelection *)malloc(sizeof(GameSelection));
 			char id_path[256];
 			sprintf(id_path, "ux0:data/gms/%s/id.txt", g_dir.d_name);
@@ -590,6 +608,12 @@ int main(int argc, char *argv[]) {
 				unzReadCurrentFile(apk_file, downloader_mem_buffer, target);
 				unzReadCurrentFile(apk_file, &offs, 4);
 				unzReadCurrentFile(apk_file, g->game_id, offs + 1);
+				if (!strcmp(g->game_id, "Runner")) {
+					unzReadCurrentFile(apk_file, &offs, 4);
+					unzReadCurrentFile(apk_file, downloader_mem_buffer, offs + 1);
+					unzReadCurrentFile(apk_file, &offs, 4);
+					unzReadCurrentFile(apk_file, g->game_id, offs + 1);
+				}
 				f2 = fopen(id_path, "w");
 				fwrite(g->game_id, 1, strlen(g->game_id), f2);
 				fclose(f2);
@@ -603,7 +627,6 @@ int main(int argc, char *argv[]) {
 			games = g;
 		}
 	}
-	free(downloader_mem_buffer);
 	sceIoDclose(fd);
 	
 	while (!launch_item) {
@@ -646,10 +669,14 @@ int main(int argc, char *argv[]) {
 		
 		SceCtrlData pad;
 		sceCtrlPeekBufferPositive(0, &pad, 1);
-		if (pad.buttons & SCE_CTRL_TRIANGLE && !(oldpad & SCE_CTRL_TRIANGLE) && hovered && !extracting) {
+		if (pad.buttons & SCE_CTRL_TRIANGLE && !(oldpad & SCE_CTRL_TRIANGLE) && hovered && !extracting && !is_downloading_banners) {
 			is_config_invoked = !is_config_invoked;
 			sprintf(settings_str, "%s - Settings", hovered->name);
 			saved_size = -1.0f;
+		} else if (pad.buttons & SCE_CTRL_SQUARE && !(oldpad & SCE_CTRL_SQUARE) && !is_config_invoked && !is_downloading_banners) {
+			is_downloading_banners = true;
+			banner_thid = sceKernelCreateThread("Banners Downloader", &bannerThread, 0x10000100, 0x100000, 0, 0, NULL);
+			sceKernelStartThread(banner_thid, 0, NULL);
 		} else if (pad.buttons & SCE_CTRL_LTRIGGER && !(oldpad & SCE_CTRL_LTRIGGER) && !is_config_invoked) {
 			sort_idx -= 1;
 			if (sort_idx < 0)
@@ -659,7 +686,21 @@ int main(int argc, char *argv[]) {
 		}
 		oldpad = pad.buttons;
 		
-		if (is_config_invoked) {
+		if (is_downloading_banners) {
+			res = sceKernelGetThreadInfo(banner_thid, &info);
+			if (info.status > SCE_THREAD_DORMANT || res < 0) {
+				glViewport(0, 0, static_cast<int>(ImGui::GetIO().DisplaySize.x), static_cast<int>(ImGui::GetIO().DisplaySize.y));
+				ImGui::Render();
+				ImGui_ImplVitaGL_RenderDrawData(ImGui::GetDrawData());
+				vglSwapBuffers(GL_FALSE);
+				extract_file(TEMP_DOWNLOAD_NAME, "ux0:data/gms/shared/");
+				ImGui_ImplVitaGL_NewFrame();
+				sceIoRemove(TEMP_DOWNLOAD_NAME);
+				is_downloading_banners = false;
+			} else {
+				DrawDownloaderDialog(1, downloaded_bytes, total_bytes, "Downloading banners", 1, false);
+			}
+		} else if (is_config_invoked) {
 			const char *desc = nullptr;
 			
 			ImGui::SetNextWindowPos(ImVec2(50, 30), ImGuiSetCond_Always);
@@ -761,9 +802,10 @@ int main(int argc, char *argv[]) {
 			ImGui::Text("Run with Shaders Debug Mode: %s", hovered->debug_shaders ? "Yes" : "No");
 			ImGui::TextColored(ImVec4(0.702f, 0.863f, 0.067f, 1.00f), "Press Triangle to change settings");
 		}
-		ImGui::SetCursorPosY(480);
+		ImGui::SetCursorPosY(470);
 		ImGui::Text("Sort Mode: %s", sort_modes_str[sort_idx]);
 		ImGui::TextColored(ImVec4(0.702f, 0.863f, 0.067f, 1.00f), "Press L/R to change sorting mode");
+		ImGui::TextColored(ImVec4(0.702f, 0.863f, 0.067f, 1.00f), "Press Square to update banners collection");
 		ImGui::End();
 		
 		glViewport(0, 0, static_cast<int>(ImGui::GetIO().DisplaySize.x), static_cast<int>(ImGui::GetIO().DisplaySize.y));
