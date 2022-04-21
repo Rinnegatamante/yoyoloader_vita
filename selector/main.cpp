@@ -22,6 +22,7 @@
 #define MIN(x, y) (x) < (y) ? (x) : (y)
 
 #define NUM_OPTIONS 12
+#define NUM_DB_CHUNKS 2
 
 extern "C" {
 	int debugPrintf(const char *fmt, ...) {return 0;}
@@ -52,6 +53,16 @@ static FILE *fh;
 char *bytes_string;
 SceUID banner_thid;
 
+struct CompatibilityList {
+	char name[128];
+	bool playable;
+	bool ingame_plus;
+	bool ingame_low;
+	bool crash;
+	bool slow;
+	CompatibilityList *next;
+};
+
 struct GameSelection {
 	char name[128];
 	char game_id[128];
@@ -68,10 +79,100 @@ struct GameSelection {
 	bool video_support;
 	bool has_net;
 	bool squeeze_mem;
+	CompatibilityList *status;
 	GameSelection *next;
 };
 
-GameSelection *old_hovered = NULL;
+static CompatibilityList *comp = nullptr;
+static GameSelection *old_hovered = NULL;
+
+void AppendCompatibilityDatabase(const char *file) {
+	FILE *f = fopen(file, "rb");
+	if (f) {
+		fseek(f, 0, SEEK_END);
+		uint64_t len = ftell(f);
+		fseek(f, 0, SEEK_SET);
+		char *buffer = (char*)malloc(len + 1);
+		fread(buffer, 1, len, f);
+		buffer[len] = 0;
+		char *ptr = buffer;
+		char *end, *end2;
+		do {
+			ptr = strstr(ptr, "\"title\":");
+			if (ptr) {
+				ptr += 10;
+				end2 = strstr(ptr, "\"");
+				ptr = strstr(ptr, "[") + 1;
+				if (ptr && ptr < end2) {
+					end = strstr(ptr, "]");
+					CompatibilityList *node = (CompatibilityList*)malloc(sizeof(CompatibilityList));
+				
+					// Extracting title
+					sceClibMemcpy(node->name, ptr, end - ptr);
+					node->name[end - ptr] = 0;
+				
+					// Extracting tags
+					bool perform_slow_check = true;
+					ptr += 1000; // Let's skip some data to improve performances
+					ptr = strstr(ptr, "\"labels\":");
+					ptr = strstr(ptr + 150, "\"name\":");
+					ptr += 9;
+					if (ptr[0] == 'P') {
+						node->playable = true;
+						node->ingame_low = false;
+						node->ingame_plus = false;
+						node->crash = false;
+					} else if (ptr[0] == 'C') {
+						node->playable = false;
+						node->ingame_low = false;
+						node->ingame_plus = false;
+						node->slow = false;
+						node->crash = true;
+						perform_slow_check = false;
+					} else {
+						node->playable = false;
+						node->crash = false;
+						end = strstr(ptr, "\"");
+						if ((end - ptr) == 13) {
+							node->ingame_plus = true;
+							node->ingame_low = false;
+						}else {
+							node->ingame_low = true;
+							node->ingame_plus = false;
+						}
+					}
+					ptr += 120; // Let's skip some data to improve performances
+					if (perform_slow_check) {
+						end = ptr;
+						ptr = strstr(ptr, "]");
+						if ((ptr - end) > 200) node->slow = true;
+						else node->slow = false;
+					}
+				
+					ptr += 350; // Let's skip some data to improve performances
+					node->next = comp;
+					comp = node;
+				} else {
+					ptr = end2 + 1500;
+				}
+			}
+		} while (ptr);
+		fclose(f);
+		free(buffer);
+	}
+}
+
+CompatibilityList *SearchForCompatibilityData(const char *name) {
+	CompatibilityList *node = comp;
+	char tmp[128];
+	sprintf(tmp, name);
+	while (node) {
+		printf("node: %s\n", node->name);
+		if (strcmp(node->name, tmp) == 0) return node;
+		node = node->next;
+	}
+	return nullptr;
+}
 
 extern "C" {
 void *__wrap_memcpy(void *dest, const void *src, size_t n) {
@@ -305,6 +406,34 @@ int optimizer_thread(unsigned int argc, void *argv) {
 	return sceKernelExitDeleteThread(0);
 }
 
+static int compatListThread(unsigned int args, void *arg) {
+	char url[512], dbname[64];
+	curl_handle = curl_easy_init();
+	for (int i = 1; i <= NUM_DB_CHUNKS; i++) {
+		downloader_pass = i;
+		sprintf(dbname, "ux0:data/gms/shared/db%d.json", i);
+		sprintf(url, "https://api.github.com/repos/Rinnegatamante/YoYo-Loader-Vita-Compatibility/issues?state=open&page=%d&per_page=100", i);
+		downloaded_bytes = 0;
+
+		// FIXME: Workaround since GitHub Api does not set Content-Length
+		SceIoStat stat;
+		sceIoGetstat(dbname, &stat);
+		total_bytes = stat.st_size;
+
+		startDownload(url);
+
+		if (downloaded_bytes > 12 * 1024) {
+			fh = fopen(dbname, "wb");
+			fwrite(downloader_mem_buffer, 1, downloaded_bytes, fh);
+			fclose(fh);
+		}
+		downloaded_bytes = total_bytes;
+	}
+	curl_easy_cleanup(curl_handle);
+	sceKernelExitDeleteThread(0);
+	return 0;
+}
+
 void OptimizeApk(char *game) {
 	tot_idx = -1;
 	saved_size = -1.0f;
@@ -527,7 +656,7 @@ int main(int argc, char *argv[]) {
 	FILE *f;
 	
 	// Check if YoYo Loader has been launched with a custom bubble
-	bool skip_updates_check = true;//strstr(stringify(GIT_VERSION), "dirty") != nullptr;
+	bool skip_updates_check = strstr(stringify(GIT_VERSION), "dirty") != nullptr;
 	char boot_params[1024];
 	sceAppMgrGetAppParam(boot_params);
 	if (strstr(boot_params,"psgm:play") && strstr(boot_params, "&param=")) {
@@ -577,6 +706,23 @@ int main(int argc, char *argv[]) {
 		}
 	}
 	
+	// Downloading compatibility list
+	bool skip_compat_update = false;
+	if  (!skip_compat_update) {
+		SceUID thd = sceKernelCreateThread("Compat List Updater", &compatListThread, 0x10000100, 0x100000, 0, 0, NULL);
+		sceKernelStartThread(thd, 0, NULL);
+		do {
+			DrawDownloaderDialog(downloader_pass, downloaded_bytes, total_bytes, "Downloading compatibility list database", NUM_DB_CHUNKS, true);
+			res = sceKernelGetThreadInfo(thd, &info);
+		} while (info.status <= SCE_THREAD_DORMANT && res >= 0);
+	}
+	
+	for (int i = 1; i <= NUM_DB_CHUNKS; i++) {
+		char dbname[64];
+		sprintf(dbname, "ux0:data/gms/shared/db%d.json", i);
+		AppendCompatibilityDatabase(dbname);
+	}
+	
 	SceUID fd = sceIoDopen("ux0:data/gms");
 	SceIoDirent g_dir;
 	while (sceIoDread(fd, &g_dir) > 0) {
@@ -623,6 +769,7 @@ int main(int argc, char *argv[]) {
 			strcpy(g->name, g_dir.d_name);
 			g->size = (float)stat.st_size / (1024.0f * 1024.0f);
 			loadConfig(g);
+			g->status = SearchForCompatibilityData(g->game_id);
 			g->next = games;
 			games = g;
 		}
@@ -784,6 +931,25 @@ int main(int argc, char *argv[]) {
 			}
 			ImGui::Text("Game ID: %s", hovered->game_id);
 			ImGui::Text("APK Size: %.2f MBs", hovered->size);
+			if (hovered->status) {
+				if (hovered->status->playable) {
+					ImGui::SameLine();
+					ImGui::SetCursorPosX(345);
+					ImGui::TextColored(ImVec4(0, 0.75f, 0, 1.0f), "Playable");
+				} else if (hovered->status->ingame_plus) {
+					ImGui::SameLine();
+					ImGui::SetCursorPosX(345);
+					ImGui::TextColored(ImVec4(1.0f, 1.0f, 0, 1.0f), "Ingame +");
+				} else if (hovered->status->ingame_low) {
+					ImGui::SameLine();
+					ImGui::SetCursorPosX(345);
+					ImGui::TextColored(ImVec4(1.0f, 0.5f, 0.25f, 1.0f), "Ingame -");
+				} else if (hovered->status->crash) {
+					ImGui::SameLine();
+					ImGui::SetCursorPosX(345);
+					ImGui::TextColored(ImVec4(1.0f, 0, 0, 1.0f), "   Crash");
+				}
+			}
 			ImGui::Separator();
 			ImGui::Text("Force GLES1 Mode: %s", hovered->gles1 ? "Yes" : "No");
 			ImGui::Text("Fake Windows as Platform: %s", hovered->fake_win_mode ? "Yes" : "No");
