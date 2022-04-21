@@ -22,15 +22,17 @@
 #define MIN(x, y) (x) < (y) ? (x) : (y)
 
 #define NUM_OPTIONS 12
+#define NUM_DB_CHUNKS 2
 
 extern "C" {
 	int debugPrintf(const char *fmt, ...) {return 0;}
 	void fatal_error(const char *fmt, ...);
 };
 
-void DrawDownloaderDialog(int index, float downloaded_bytes, float total_bytes, char *text, int passes);
+void DrawDownloaderDialog(int index, float downloaded_bytes, float total_bytes, char *text, int passes, bool self_contained);
 void DrawExtractorDialog(int index, float file_extracted_bytes, float extracted_bytes, float file_total_bytes, float total_bytes, char *filename, int num_files);
 void DrawChangeListDialog(FILE *f);
+void DrawExtrapolatorDialog(char *game);
 
 // Auto updater passes
 enum {
@@ -49,6 +51,17 @@ static volatile uint8_t downloader_pass = 1;
 uint8_t *downloader_mem_buffer = nullptr;
 static FILE *fh;
 char *bytes_string;
+SceUID banner_thid;
+
+struct CompatibilityList {
+	char name[128];
+	bool playable;
+	bool ingame_plus;
+	bool ingame_low;
+	bool crash;
+	bool slow;
+	CompatibilityList *next;
+};
 
 struct GameSelection {
 	char name[128];
@@ -66,10 +79,100 @@ struct GameSelection {
 	bool video_support;
 	bool has_net;
 	bool squeeze_mem;
+	CompatibilityList *status;
 	GameSelection *next;
 };
 
-GameSelection *old_hovered = NULL;
+static CompatibilityList *comp = nullptr;
+static GameSelection *old_hovered = NULL;
+
+void AppendCompatibilityDatabase(const char *file) {
+	FILE *f = fopen(file, "rb");
+	if (f) {
+		fseek(f, 0, SEEK_END);
+		uint64_t len = ftell(f);
+		fseek(f, 0, SEEK_SET);
+		char *buffer = (char*)malloc(len + 1);
+		fread(buffer, 1, len, f);
+		buffer[len] = 0;
+		char *ptr = buffer;
+		char *end, *end2;
+		do {
+			ptr = strstr(ptr, "\"title\":");
+			if (ptr) {
+				ptr += 10;
+				end2 = strstr(ptr, "\"");
+				ptr = strstr(ptr, "[") + 1;
+				if (ptr && ptr < end2) {
+					end = strstr(ptr, "]");
+					CompatibilityList *node = (CompatibilityList*)malloc(sizeof(CompatibilityList));
+				
+					// Extracting title
+					sceClibMemcpy(node->name, ptr, end - ptr);
+					node->name[end - ptr] = 0;
+				
+					// Extracting tags
+					bool perform_slow_check = true;
+					ptr += 1000; // Let's skip some data to improve performances
+					ptr = strstr(ptr, "\"labels\":");
+					ptr = strstr(ptr + 150, "\"name\":");
+					ptr += 9;
+					if (ptr[0] == 'P') {
+						node->playable = true;
+						node->ingame_low = false;
+						node->ingame_plus = false;
+						node->crash = false;
+					} else if (ptr[0] == 'C') {
+						node->playable = false;
+						node->ingame_low = false;
+						node->ingame_plus = false;
+						node->slow = false;
+						node->crash = true;
+						perform_slow_check = false;
+					} else {
+						node->playable = false;
+						node->crash = false;
+						end = strstr(ptr, "\"");
+						if ((end - ptr) == 13) {
+							node->ingame_plus = true;
+							node->ingame_low = false;
+						}else {
+							node->ingame_low = true;
+							node->ingame_plus = false;
+						}
+					}
+					ptr += 120; // Let's skip some data to improve performances
+					if (perform_slow_check) {
+						end = ptr;
+						ptr = strstr(ptr, "]");
+						if ((ptr - end) > 200) node->slow = true;
+						else node->slow = false;
+					}
+				
+					ptr += 350; // Let's skip some data to improve performances
+					node->next = comp;
+					comp = node;
+				} else {
+					ptr = end2 + 1500;
+				}
+			}
+		} while (ptr);
+		fclose(f);
+		free(buffer);
+	}
+}
+
+CompatibilityList *SearchForCompatibilityData(const char *name) {
+	CompatibilityList *node = comp;
+	char tmp[128];
+	sprintf(tmp, name);
+	while (node) {
+		printf("node: %s\n", node->name);
+		if (strcmp(node->name, tmp) == 0) return node;
+		node = node->next;
+	}
+	return nullptr;
+}
 
 extern "C" {
 void *__wrap_memcpy(void *dest, const void *src, size_t n) {
@@ -303,6 +406,34 @@ int optimizer_thread(unsigned int argc, void *argv) {
 	return sceKernelExitDeleteThread(0);
 }
 
+static int compatListThread(unsigned int args, void *arg) {
+	char url[512], dbname[64];
+	curl_handle = curl_easy_init();
+	for (int i = 1; i <= NUM_DB_CHUNKS; i++) {
+		downloader_pass = i;
+		sprintf(dbname, "ux0:data/gms/shared/db%d.json", i);
+		sprintf(url, "https://api.github.com/repos/Rinnegatamante/YoYo-Loader-Vita-Compatibility/issues?state=open&page=%d&per_page=100", i);
+		downloaded_bytes = 0;
+
+		// FIXME: Workaround since GitHub Api does not set Content-Length
+		SceIoStat stat;
+		sceIoGetstat(dbname, &stat);
+		total_bytes = stat.st_size;
+
+		startDownload(url);
+
+		if (downloaded_bytes > 12 * 1024) {
+			fh = fopen(dbname, "wb");
+			fwrite(downloader_mem_buffer, 1, downloaded_bytes, fh);
+			fclose(fh);
+		}
+		downloaded_bytes = total_bytes;
+	}
+	curl_easy_cleanup(curl_handle);
+	sceKernelExitDeleteThread(0);
+	return 0;
+}
+
 void OptimizeApk(char *game) {
 	tot_idx = -1;
 	saved_size = -1.0f;
@@ -357,8 +488,23 @@ static int updaterThread(unsigned int args, void *arg) {
 		}
 	}
 	curl_easy_cleanup(curl_handle);
-	sceKernelExitDeleteThread(0);
-	return 0;
+	return sceKernelExitDeleteThread(0);
+}
+
+static int bannerThread(unsigned int args, void *arg) {
+	char url[512];
+	curl_handle = curl_easy_init();
+	sprintf(url, "https://github.com/Rinnegatamante/yoyoloader_vita/releases/download/Nightly/banners.zip");
+	downloaded_bytes = 0;
+	total_bytes = 20 * 1024; /* 20 KB */
+	startDownload(url);
+	if (downloaded_bytes > 4 * 1024) {
+		fh = fopen(TEMP_DOWNLOAD_NAME, "wb");
+		fwrite((const void*)downloader_mem_buffer, 1, downloaded_bytes, fh);
+		fclose(fh);
+	}
+	curl_easy_cleanup(curl_handle);
+	return sceKernelExitDeleteThread(0);
 }
 
 static char fname[512], ext_fname[512], read_buffer[8192];
@@ -424,6 +570,7 @@ int file_exists(const char *path) {
 	return sceIoGetstat(path, &stat) >= 0;
 }
 
+static bool is_downloading_banners = false;
 static bool has_preview_icon = false;
 static int preview_width, preview_height, preview_x, preview_y;
 GLuint preview_icon = 0;
@@ -499,7 +646,7 @@ int main(int argc, char *argv[]) {
 	style.Colors[ImGuiCol_PlotLinesHovered]      = ImVec4(col_main.x, col_main.y, col_main.z, 1.00f);
 	style.Colors[ImGuiCol_PlotHistogramHovered]  = ImVec4(col_main.x, col_main.y, col_main.z, 1.00f);
 	style.Colors[ImGuiCol_TextSelectedBg]        = ImVec4(col_main.x, col_main.y, col_main.z, 0.43f);
-	style.Colors[ImGuiCol_NavHighlight]           = ImVec4(col_main.x, col_main.y, col_main.z, 0.86f);
+	style.Colors[ImGuiCol_NavHighlight]          = ImVec4(col_main.x, col_main.y, col_main.z, 0.86f);
 	ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f);
 	ImGui::GetIO().MouseDrawCursor = false;
 	
@@ -519,23 +666,22 @@ int main(int argc, char *argv[]) {
 	
 	// Checking for updates
 	downloader_mem_buffer = (uint8_t*)malloc(32 * 1024 * 1024);
+	sceSysmoduleLoadModule(SCE_SYSMODULE_NET);
+	int ret = sceNetShowNetstat();
+	SceNetInitParam initparam;
+	if (ret == SCE_NET_ERROR_ENOTINIT) {
+		initparam.memory = malloc(1024 * 1024);
+		initparam.size = 1024 * 1024;
+		initparam.flags = 0;
+		sceNetInit(&initparam);
+	}
 	if (!skip_updates_check) {
-		sceSysmoduleLoadModule(SCE_SYSMODULE_NET);
-		int ret = sceNetShowNetstat();
-		SceNetInitParam initparam;
-		if (ret == SCE_NET_ERROR_ENOTINIT) {
-			initparam.memory = malloc(1024 * 1024);
-			initparam.size = 1024 * 1024;
-			initparam.flags = 0;
-			sceNetInit(&initparam);
-		}
-
 		SceUID thd = sceKernelCreateThread("Auto Updater", &updaterThread, 0x10000100, 0x100000, 0, 0, NULL);
 		sceKernelStartThread(thd, 0, NULL);
 		do {
-			if (downloader_pass == UPDATER_CHECK_UPDATES) DrawDownloaderDialog(downloader_pass + 1, downloaded_bytes, total_bytes, "Checking for updates", NUM_UPDATE_PASSES);
-			else if (downloader_pass == UPDATER_DOWNLOAD_CHANGELIST) DrawDownloaderDialog(downloader_pass + 1, downloaded_bytes, total_bytes, "Downloading Changelist", NUM_UPDATE_PASSES);
-			else DrawDownloaderDialog(downloader_pass + 1, downloaded_bytes, total_bytes, "Downloading an update", NUM_UPDATE_PASSES);
+			if (downloader_pass == UPDATER_CHECK_UPDATES) DrawDownloaderDialog(downloader_pass + 1, downloaded_bytes, total_bytes, "Checking for updates", NUM_UPDATE_PASSES, true);
+			else if (downloader_pass == UPDATER_DOWNLOAD_CHANGELIST) DrawDownloaderDialog(downloader_pass + 1, downloaded_bytes, total_bytes, "Downloading Changelist", NUM_UPDATE_PASSES, true);
+			else DrawDownloaderDialog(downloader_pass + 1, downloaded_bytes, total_bytes, "Downloading an update", NUM_UPDATE_PASSES, true);
 			res = sceKernelGetThreadInfo(thd, &info);
 		} while (info.status <= SCE_THREAD_DORMANT && res >= 0);
 		total_bytes = 0xFFFFFFFF;
@@ -560,6 +706,23 @@ int main(int argc, char *argv[]) {
 		}
 	}
 	
+	// Downloading compatibility list
+	bool skip_compat_update = false;
+	if  (!skip_compat_update) {
+		SceUID thd = sceKernelCreateThread("Compat List Updater", &compatListThread, 0x10000100, 0x100000, 0, 0, NULL);
+		sceKernelStartThread(thd, 0, NULL);
+		do {
+			DrawDownloaderDialog(downloader_pass, downloaded_bytes, total_bytes, "Downloading compatibility list database", NUM_DB_CHUNKS, true);
+			res = sceKernelGetThreadInfo(thd, &info);
+		} while (info.status <= SCE_THREAD_DORMANT && res >= 0);
+	}
+	
+	for (int i = 1; i <= NUM_DB_CHUNKS; i++) {
+		char dbname[64];
+		sprintf(dbname, "ux0:data/gms/shared/db%d.json", i);
+		AppendCompatibilityDatabase(dbname);
+	}
+	
 	SceUID fd = sceIoDopen("ux0:data/gms");
 	SceIoDirent g_dir;
 	while (sceIoDread(fd, &g_dir) > 0) {
@@ -567,6 +730,7 @@ int main(int argc, char *argv[]) {
 		SceIoStat stat;
 		sprintf(apk_name, "ux0:data/gms/%s/game.apk", g_dir.d_name);
 		if (!sceIoGetstat(apk_name, &stat)) {
+			DrawExtrapolatorDialog(g_dir.d_name);
 			GameSelection *g = (GameSelection *)malloc(sizeof(GameSelection));
 			char id_path[256];
 			sprintf(id_path, "ux0:data/gms/%s/id.txt", g_dir.d_name);
@@ -590,6 +754,12 @@ int main(int argc, char *argv[]) {
 				unzReadCurrentFile(apk_file, downloader_mem_buffer, target);
 				unzReadCurrentFile(apk_file, &offs, 4);
 				unzReadCurrentFile(apk_file, g->game_id, offs + 1);
+				if (!strcmp(g->game_id, "Runner")) {
+					unzReadCurrentFile(apk_file, &offs, 4);
+					unzReadCurrentFile(apk_file, downloader_mem_buffer, offs + 1);
+					unzReadCurrentFile(apk_file, &offs, 4);
+					unzReadCurrentFile(apk_file, g->game_id, offs + 1);
+				}
 				f2 = fopen(id_path, "w");
 				fwrite(g->game_id, 1, strlen(g->game_id), f2);
 				fclose(f2);
@@ -599,11 +769,11 @@ int main(int argc, char *argv[]) {
 			strcpy(g->name, g_dir.d_name);
 			g->size = (float)stat.st_size / (1024.0f * 1024.0f);
 			loadConfig(g);
+			g->status = SearchForCompatibilityData(g->game_id);
 			g->next = games;
 			games = g;
 		}
 	}
-	free(downloader_mem_buffer);
 	sceIoDclose(fd);
 	
 	while (!launch_item) {
@@ -646,10 +816,14 @@ int main(int argc, char *argv[]) {
 		
 		SceCtrlData pad;
 		sceCtrlPeekBufferPositive(0, &pad, 1);
-		if (pad.buttons & SCE_CTRL_TRIANGLE && !(oldpad & SCE_CTRL_TRIANGLE) && hovered && !extracting) {
+		if (pad.buttons & SCE_CTRL_TRIANGLE && !(oldpad & SCE_CTRL_TRIANGLE) && hovered && !extracting && !is_downloading_banners) {
 			is_config_invoked = !is_config_invoked;
 			sprintf(settings_str, "%s - Settings", hovered->name);
 			saved_size = -1.0f;
+		} else if (pad.buttons & SCE_CTRL_SQUARE && !(oldpad & SCE_CTRL_SQUARE) && !is_config_invoked && !is_downloading_banners) {
+			is_downloading_banners = true;
+			banner_thid = sceKernelCreateThread("Banners Downloader", &bannerThread, 0x10000100, 0x100000, 0, 0, NULL);
+			sceKernelStartThread(banner_thid, 0, NULL);
 		} else if (pad.buttons & SCE_CTRL_LTRIGGER && !(oldpad & SCE_CTRL_LTRIGGER) && !is_config_invoked) {
 			sort_idx -= 1;
 			if (sort_idx < 0)
@@ -659,7 +833,21 @@ int main(int argc, char *argv[]) {
 		}
 		oldpad = pad.buttons;
 		
-		if (is_config_invoked) {
+		if (is_downloading_banners) {
+			res = sceKernelGetThreadInfo(banner_thid, &info);
+			if (info.status > SCE_THREAD_DORMANT || res < 0) {
+				glViewport(0, 0, static_cast<int>(ImGui::GetIO().DisplaySize.x), static_cast<int>(ImGui::GetIO().DisplaySize.y));
+				ImGui::Render();
+				ImGui_ImplVitaGL_RenderDrawData(ImGui::GetDrawData());
+				vglSwapBuffers(GL_FALSE);
+				extract_file(TEMP_DOWNLOAD_NAME, "ux0:data/gms/shared/");
+				ImGui_ImplVitaGL_NewFrame();
+				sceIoRemove(TEMP_DOWNLOAD_NAME);
+				is_downloading_banners = false;
+			} else {
+				DrawDownloaderDialog(1, downloaded_bytes, total_bytes, "Downloading banners", 1, false);
+			}
+		} else if (is_config_invoked) {
 			const char *desc = nullptr;
 			
 			ImGui::SetNextWindowPos(ImVec2(50, 30), ImGuiSetCond_Always);
@@ -743,6 +931,25 @@ int main(int argc, char *argv[]) {
 			}
 			ImGui::Text("Game ID: %s", hovered->game_id);
 			ImGui::Text("APK Size: %.2f MBs", hovered->size);
+			if (hovered->status) {
+				if (hovered->status->playable) {
+					ImGui::SameLine();
+					ImGui::SetCursorPosX(345);
+					ImGui::TextColored(ImVec4(0, 0.75f, 0, 1.0f), "Playable");
+				} else if (hovered->status->ingame_plus) {
+					ImGui::SameLine();
+					ImGui::SetCursorPosX(345);
+					ImGui::TextColored(ImVec4(1.0f, 1.0f, 0, 1.0f), "Ingame +");
+				} else if (hovered->status->ingame_low) {
+					ImGui::SameLine();
+					ImGui::SetCursorPosX(345);
+					ImGui::TextColored(ImVec4(1.0f, 0.5f, 0.25f, 1.0f), "Ingame -");
+				} else if (hovered->status->crash) {
+					ImGui::SameLine();
+					ImGui::SetCursorPosX(345);
+					ImGui::TextColored(ImVec4(1.0f, 0, 0, 1.0f), "   Crash");
+				}
+			}
 			ImGui::Separator();
 			ImGui::Text("Force GLES1 Mode: %s", hovered->gles1 ? "Yes" : "No");
 			ImGui::Text("Fake Windows as Platform: %s", hovered->fake_win_mode ? "Yes" : "No");
@@ -761,9 +968,10 @@ int main(int argc, char *argv[]) {
 			ImGui::Text("Run with Shaders Debug Mode: %s", hovered->debug_shaders ? "Yes" : "No");
 			ImGui::TextColored(ImVec4(0.702f, 0.863f, 0.067f, 1.00f), "Press Triangle to change settings");
 		}
-		ImGui::SetCursorPosY(480);
+		ImGui::SetCursorPosY(470);
 		ImGui::Text("Sort Mode: %s", sort_modes_str[sort_idx]);
 		ImGui::TextColored(ImVec4(0.702f, 0.863f, 0.067f, 1.00f), "Press L/R to change sorting mode");
+		ImGui::TextColored(ImVec4(0.702f, 0.863f, 0.067f, 1.00f), "Press Square to update banners collection");
 		ImGui::End();
 		
 		glViewport(0, 0, static_cast<int>(ImGui::GetIO().DisplaySize.x), static_cast<int>(ImGui::GetIO().DisplaySize.y));
