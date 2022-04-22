@@ -1105,6 +1105,7 @@ static so_default_dynlib default_dynlib[] = {
 	{ "alGenBuffers", (uintptr_t)&alGenBuffers },
 	{ "alGenSources", (uintptr_t)&alGenSources },
 	{ "alcGetCurrentContext", (uintptr_t)&alcGetCurrentContext },
+	{ "alGetBufferi", (uintptr_t)&alGetBufferi },
 	{ "alGetError", (uintptr_t)&alGetError },
 	{ "alGetSourcei", (uintptr_t)&alGetSourcei },
 	{ "alGetSourcef", (uintptr_t)&alGetSourcef },
@@ -1868,8 +1869,8 @@ int main(int argc, char **argv)
 		}
 	} else {
 		/* 
-		 * FIXME: Objects Array are handled badly and cause crashes in several games.
-		 * The only game actually requiring them are the ones using HTTP methods, so we enable them
+		 * FIXME: Object arrays are handled badly and cause crashes in several games.
+		 * The only games actually requiring them are the ones using HTTP methods, so we enable them
 		 * only if network functionalities are requested.
 		 */
 		disableObjectsArray = 1;
