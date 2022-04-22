@@ -54,21 +54,6 @@ jobs:
         cp ../livearea/icon0.png builder/assets/icon0.png
         cp ../livearea/default_gate.png builder/assets/startup.png
         zip -9 -r builder.zip builder
-    - name: Get current date
-      id: date
-      run: echo "::set-output name=date::$(date +'%Y-%m-%d')"
-    - name: Get changelog
-      id: changelog
-      uses: Rinnegatamante/get-git-log-action@master
-    - name: Update release body
-      id: update_release
-      uses: Rinnegatamante/update_release@master
-      env:
-        GITHUB_TOKEN: ${{ github.token }}
-      with:
-        release_name: "Nightly ${{ steps.date.outputs.date }}"
-        body: "${{ format('{0}\n{1}\n{2}\n{3}\n{4}\n{5}\n{6}\n{7}\n{8}\n{9}', steps.changelog.outputs.log0, steps.changelog.outputs.log1, steps.changelog.outputs.log2, steps.changelog.outputs.log3, steps.changelog.outputs.log4, steps.changelog.outputs.log5, steps.changelog.outputs.log6, steps.changelog.outputs.log7, steps.changelog.outputs.log8, steps.changelog.outputs.log9) }}"
-        tag: Nightly
     - uses: svenstaro/upload-release-action@v2
       with:
         repo_token: ${{ secrets.GITHUB_TOKEN }}
@@ -92,4 +77,19 @@ jobs:
         repo_token: ${{ secrets.GITHUB_TOKEN }}
         file: banners.zip
         overwrite: true
+        tag: Nightly
+    - name: Get current date
+      id: date
+      run: echo "::set-output name=date::$(date +'%Y-%m-%d')"
+    - name: Get changelog
+      id: changelog
+      uses: Rinnegatamante/get-git-log-action@master
+    - name: Update release body
+      id: update_release
+      uses: Rinnegatamante/update_release@master
+      env:
+        GITHUB_TOKEN: ${{ github.token }}
+      with:
+        release_name: "Nightly ${{ steps.date.outputs.date }}"
+        body: "${{ format('{0}\n{1}\n{2}\n{3}\n{4}\n{5}\n{6}\n{7}\n{8}\n{9}', steps.changelog.outputs.log0, steps.changelog.outputs.log1, steps.changelog.outputs.log2, steps.changelog.outputs.log3, steps.changelog.outputs.log4, steps.changelog.outputs.log5, steps.changelog.outputs.log6, steps.changelog.outputs.log7, steps.changelog.outputs.log8, steps.changelog.outputs.log9) }}"
         tag: Nightly
