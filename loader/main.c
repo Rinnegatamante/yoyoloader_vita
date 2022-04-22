@@ -559,7 +559,7 @@ void main_loop() {
 		SceMotionSensorState sensor;
 		sceMotionGetSensorState(&sensor, 1);
 		Java_com_yoyogames_runner_RunnerJNILib_Process(fake_env, 0, SCREEN_W, SCREEN_H, sensor.accelerometer.x, sensor.accelerometer.y, sensor.accelerometer.z, 0, 0, 60.0f);
-		if (Java_com_yoyogames_runner_RunnerJNILib_canFlip()) {
+		if (!Java_com_yoyogames_runner_RunnerJNILib_canFlip || Java_com_yoyogames_runner_RunnerJNILib_canFlip()) {
 			if (ime_active) {
 				char *r = get_ime_dialog_result();
 				if (r) {
@@ -857,25 +857,25 @@ void *retJNI(int dummy) {
 }
 
 const char *gl_ret0[] = {
-	"glPixelStorei",
+	"glCompileShader",
+	"glDeleteRenderbuffers",
 	"glDiscardFramebufferEXT",
+	"glFramebufferRenderbuffer",
+	"glGenRenderbuffers",
+	"glHint"
+	"glLightf",
 	"glMaterialx",
 	"glNormalPointer",
-	"glLightf",
-	"glCompileShader",
-	"glGenRenderbuffer",
-	"glDeleteRenderbuffers",
-	"glFramebufferRenderbuffer",
+	"glPixelStorei",
 	"glRenderbufferStorage",
-	"glHint"
 };
 static size_t gl_numret = sizeof(gl_ret0) / sizeof(*gl_ret0);
 
 static so_default_dynlib gl_hook[] = {
 	{"glShaderSource", (uintptr_t)&glShaderSourceHook},
-	{"glTexParameteri", (uintptr_t)&glTexParameteriHook},
-	{"glTexParameterf", (uintptr_t)&glTexParameterfHook},
 	{"glTexImage2D", (uintptr_t)&glTexImage2DHook},
+	{"glTexParameterf", (uintptr_t)&glTexParameterfHook},
+	{"glTexParameteri", (uintptr_t)&glTexParameteriHook},
 };
 static size_t gl_numhook = sizeof(gl_hook) / sizeof(*gl_hook);
 
@@ -1204,6 +1204,60 @@ static so_default_dynlib default_dynlib[] = {
 	//{ "getsockopt", (uintptr_t)&getsockopt },
 	{ "getwc", (uintptr_t)&getwc },
 	{ "gettimeofday", (uintptr_t)&gettimeofday },
+	{ "glAlphaFunc", (uintptr_t)&glAlphaFunc },
+	{ "glBindBuffer", (uintptr_t)&glBindBuffer },
+	{ "glBindFramebufferOES", (uintptr_t)&glBindFramebuffer },
+	{ "glBindTexture", (uintptr_t)&glBindTexture },
+	{ "glBlendFunc", (uintptr_t)&glBlendFunc },
+	{ "glBufferData", (uintptr_t)&glBufferData },
+	{ "glCheckFramebufferStatusOES", (uintptr_t)&glCheckFramebufferStatus },
+	{ "glClear", (uintptr_t)&glClear },
+	{ "glClearColor", (uintptr_t)&glClearColor },
+	{ "glClearDepthf", (uintptr_t)&glClearDepthf },
+	{ "glColorMask", (uintptr_t)&glColorMask },
+	{ "glColorPointer", (uintptr_t)&glColorPointer },
+	{ "glDeleteBuffers", (uintptr_t)&glDeleteBuffers },
+	{ "glDeleteFramebuffersOES", (uintptr_t)&glDeleteFramebuffers },
+	{ "glDeleteTextures", (uintptr_t)&glDeleteTextures },
+	{ "glDepthFunc", (uintptr_t)&glDepthFunc },
+	{ "glDepthMask", (uintptr_t)&glDepthMask },
+	{ "glDepthRangef", (uintptr_t)&glDepthRangef },
+	{ "glDisable", (uintptr_t)&glDisable },
+	{ "glDisableClientState", (uintptr_t)&glDisableClientState },
+	{ "glDrawArrays", (uintptr_t)&glDrawArrays },
+	{ "glEnable", (uintptr_t)&glEnable },
+	{ "glEnableClientState", (uintptr_t)&glEnableClientState },
+	{ "glFlush", (uintptr_t)&glFlush },
+	{ "glFogf", (uintptr_t)&glFogf },
+	{ "glFogfv", (uintptr_t)&glFogfv },
+	{ "glFramebufferTexture2DOES", (uintptr_t)&glFramebufferTexture2D },
+	{ "glFrontFace", (uintptr_t)&glFrontFace },
+	{ "glGenBuffers", (uintptr_t)&glGenBuffers },
+	{ "glGenFramebuffersOES", (uintptr_t)&glGenFramebuffers },
+	{ "glGenTextures", (uintptr_t)&glGenTextures },
+	{ "glGetError", (uintptr_t)&glGetError },
+	{ "glGetString", (uintptr_t)&glGetString },
+	{ "glHint", (uintptr_t)&ret0 },
+	{ "glLightModelfv", (uintptr_t)&glLightModelfv },
+	{ "glLightf", (uintptr_t)&ret0 },
+	{ "glLightfv", (uintptr_t)&glLightfv },
+	{ "glLoadIdentity", (uintptr_t)&glLoadIdentity },
+	{ "glLoadMatrixf", (uintptr_t)&glLoadMatrixf },
+	{ "glMaterialfv", (uintptr_t)&glMaterialfv },
+	{ "glMatrixMode", (uintptr_t)&glMatrixMode },
+	{ "glNormalPointer", (uintptr_t)&ret0 },
+	{ "glPixelStorei", (uintptr_t)&ret0 },
+	{ "glPopMatrix", (uintptr_t)&glPopMatrix },
+	{ "glPushMatrix", (uintptr_t)&glPushMatrix },
+	{ "glReadPixels", (uintptr_t)&glReadPixels },
+	{ "glScissor", (uintptr_t)&glScissor },
+	{ "glTexCoordPointer", (uintptr_t)&glTexCoordPointer },
+	{ "glTexEnvi", (uintptr_t)&glTexEnvi },
+	{ "glTexImage2D", (uintptr_t)&glTexImage2DHook },
+	{ "glTexParameterf", (uintptr_t)&glTexParameterfHook },
+	{ "glTexParameteri", (uintptr_t)&glTexParameteriHook },
+	{ "glVertexPointer", (uintptr_t)&glVertexPointer },
+	{ "glViewport", (uintptr_t)&glViewport },
 	{ "gmtime64", (uintptr_t)&gmtime64 },
 	{ "inet_addr", (uintptr_t)&inet_addr },
 	{ "inet_ntoa", (uintptr_t)&inet_ntoa },
