@@ -67,6 +67,7 @@ extern char *post_url;
 extern char *get_url;
 extern unsigned _newlib_heap_size;
 
+int disableObjectsArray = 0;
 int forceGL1 = 0;
 int forceSplashSkip = 0;
 int forceWinMode = 0;
@@ -862,12 +863,13 @@ const char *gl_ret0[] = {
 	"glDiscardFramebufferEXT",
 	"glFramebufferRenderbuffer",
 	"glGenRenderbuffers",
-	"glHint"
+	"glHint",
 	"glLightf",
 	"glMaterialx",
 	"glNormalPointer",
 	"glPixelStorei",
 	"glRenderbufferStorage",
+	"glShadeModel",
 };
 static size_t gl_numret = sizeof(gl_ret0) / sizeof(*gl_ret0);
 
@@ -1543,8 +1545,15 @@ uint64_t CallLongMethodV(void *env, void *obj, int methodID, uintptr_t *args) {
 	return 0;
 }
 
-void *FindClass(void *env, const char *name) {
-	return (void *)0x41414141;
+enum ClassIDs {
+	STRING
+};
+
+int FindClass(void *env, const char *name) {
+	if (!strcmp(name, "java/lang/String")) {
+		return STRING;
+	}
+	return 0x41414141;
 }
 
 void *NewGlobalRef(void *env, char *str) {
@@ -1632,8 +1641,7 @@ typedef struct {
 } ext_func;
 
 void *CallStaticObjectMethodV(void *env, void *obj, int methodID, uintptr_t *args) {
-	static char r[0x8000];
-
+	static char r[512];
 	switch (methodID) {
 	case GET_UDID:
 		return "1234";
@@ -1713,6 +1721,8 @@ void *NewIntArray(void *env, int size) {
 }
 
 void *NewObjectArray(void *env, int size, int clazz, void *elements) {
+	if (disableObjectsArray)
+		return NULL;
 	void *r = malloc(size);
 	if (elements) {
 		sceClibMemcpy(r, elements, size);
@@ -1737,7 +1747,8 @@ void SetDoubleArrayRegion(void *env, double *array, int start, int len, double *
 }
 
 void SetObjectArrayElement(void *env, void *array, int index, void *val) {
-	strcpy(&array[index], val);
+	if (array)
+		strcpy(&array[index], val);
 }
 
 void GetByteArrayRegion(void *env, void *array, int start, int len, void *buf) {
@@ -1855,6 +1866,13 @@ int main(int argc, char **argv)
 			initparam.flags = 0;
 			sceNetInit(&initparam);
 		}
+	} else {
+		/* 
+		 * FIXME: Objects Array are handled badly and cause crashes in several games.
+		 * The only game actually requiring them are the ones using HTTP methods, so we enable them
+		 * only if network functionalities are requested.
+		 */
+		disableObjectsArray = 1;
 	}
 	
 	// Loading splash screen from the apk
