@@ -26,6 +26,7 @@ extern uint8_t forceWinMode;
 
 int (*CreateDsMap)(int a1, char *type, int a3, int a4, char *desc, char *type2, double id, int a8);
 void (*CreateAsynEventWithDSMap)(int dsMap, int a2);
+extern void (*Function_Add)(const char *name, intptr_t func, int argc, char ret);
 
 typedef enum GamepadButtonState {
 	GAMEPAD_BUTTON_STATE_UP = -1,
@@ -361,9 +362,6 @@ void patch_gamepad() {
 	CreateAsynEventWithDSMap = (void *)so_symbol(&yoyoloader_mod, "_Z24CreateAsynEventWithDSMapii");
 	GamePadCheck(1);
 	
-	void (*Function_Add)(const char *name, intptr_t func, int argc, char ret) = (void *)so_symbol(&yoyoloader_mod, "_Z12Function_AddPKcPFvR6RValueP9CInstanceS4_iPS1_Eib");
-	if (Function_Add == NULL)
-		Function_Add = (void *)so_symbol(&yoyoloader_mod, "_Z12Function_AddPcPFvR6RValueP9CInstanceS3_iPS0_Eib");
 	Function_Add("gamepad_is_supported", (intptr_t)gamepad_is_supported, 0, 1);
 	Function_Add("gamepad_get_device_count", (intptr_t)gamepad_get_device_count, 0, 1);
 	Function_Add("gamepad_is_connected", (intptr_t)gamepad_is_connected, 1, 1);

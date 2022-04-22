@@ -87,6 +87,8 @@ int post_index = 0;
 int get_active = 0;
 int get_index = 0;
 
+void (*Function_Add)(const char *name, intptr_t func, int argc, char ret);
+
 double jni_double = 0.0f;
 
 char data_path[256];
@@ -1758,6 +1760,15 @@ void GetByteArrayRegion(void *env, void *array, int start, int len, void *buf) {
 
 int GetIntField(void *env, void *obj, int fieldID) { return 0; }
 
+static void game_end()
+{
+#ifdef STANDALONE_MODE
+	sceKernelExitProcess(0);
+#else
+	sceAppMgrLoadExec("app0:eboot.bin", NULL, NULL);
+#endif
+}
+
 int main(int argc, char **argv)
 {
 #if 0
@@ -1900,6 +1911,13 @@ int main(int argc, char **argv)
 	so_flush_caches(&yoyoloader_mod);
 	so_initialize(&yoyoloader_mod);
 	patch_runner_post_init();
+	
+	Function_Add = (void *)so_symbol(&yoyoloader_mod, "_Z12Function_AddPKcPFvR6RValueP9CInstanceS4_iPS1_Eib");
+	if (Function_Add == NULL)
+		Function_Add = (void *)so_symbol(&yoyoloader_mod, "_Z12Function_AddPcPFvR6RValueP9CInstanceS3_iPS0_Eib");
+	
+	Function_Add("game_end", game_end, 1, 1);
+	
 	patch_gamepad();
 	so_flush_caches(&yoyoloader_mod);
 	
