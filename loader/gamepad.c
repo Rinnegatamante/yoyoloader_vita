@@ -24,6 +24,10 @@
 extern so_module yoyoloader_mod;
 extern uint8_t forceWinMode;
 
+int (*CreateDsMap)(int a1, char *type, int a3, int a4, char *desc, char *type2, double id, int a8);
+void (*CreateAsynEventWithDSMap)(int dsMap, int a2);
+extern void (*Function_Add)(const char *name, intptr_t func, int argc, char ret);
+
 typedef enum GamepadButtonState {
 	GAMEPAD_BUTTON_STATE_UP = -1,
 	GAMEPAD_BUTTON_STATE_NEUTRAL = 0,
@@ -232,10 +236,38 @@ void gamepad_set_vibration(retval_t *ret, void *self, void *other, int argc, ret
 void gamepad_set_colour(retval_t *ret, void *self, void *other, int argc, retval_t *args) {
 }
 
-void GamePadRestart() {
-	int (*CreateDsMap)(int a1, char *type, int a3, int a4, char *desc, char *type2, double id, int a8) = (void *)so_symbol(&yoyoloader_mod, "_Z11CreateDsMapiz");
-	void (*CreateAsynEventWithDSMap)(int dsMap, int a2) = (void *)so_symbol(&yoyoloader_mod, "_Z24CreateAsynEventWithDSMapii");
+int GamePadCheck(int startup) {
+	if (sceCtrlIsMultiControllerSupported() && forceWinMode) {
+		int num_controllers = 0;
+		SceCtrlPortInfo ctrl_state;
+		sceCtrlGetControllerPortInfo(&ctrl_state);
+		for (int i = 1; i < 5; i++) {
+			int yoyo_port = i - 1;
+			if (ctrl_state.port[i] != SCE_CTRL_TYPE_UNPAIRED) {
+				num_controllers++;
+				if (!yoyo_gamepads[yoyo_port].is_available) {
+					yoyo_gamepads[yoyo_port].is_available = 1;
+					if (!startup) {
+						int dsMap = CreateDsMap(2, "event_type", 0, 0, "gamepad discovered", "pad_index", (double)yoyo_port, 0);
+						CreateAsynEventWithDSMap(dsMap, 0x4B);
+					}
+				}
+			} else if (yoyo_gamepads[yoyo_port].is_available) {
+				yoyo_gamepads[yoyo_port].is_available = 0;
+				if (!startup) {
+					int dsMap = CreateDsMap(2, "event_type", 0, 0, "gamepad lost", "pad_index", (double)yoyo_port, 0);
+					CreateAsynEventWithDSMap(dsMap, 0x4B);
+				}
+			}
+		}
+		return num_controllers;
+	} else {
+		yoyo_gamepads[forceWinMode ? 0 : 1].is_available = 1;
+		return 1;
+	}
+}
 
+void GamePadRestart() {
 	for (int i = 0; i < 4; i++) {
 		if (yoyo_gamepads[i].is_available) {
 			int dsMap = CreateDsMap(2, "event_type", 0, 0, "gamepad discovered", "pad_index", (double)i, 0);
@@ -257,71 +289,79 @@ static int update_button(int new_state, int old_state) {
 }
 
 void GamePadUpdate() {
-	SceCtrlData pad;
+	int num_controllers = GamePadCheck(0);
 	
-	// TODO: Add multiple controllers support
-	sceCtrlPeekBufferPositiveExt2(0, &pad, 1);
+	for (int i = 0; i < 4; i++) {
+		if (!yoyo_gamepads[i].is_available)
+			continue;
+
+		SceCtrlData pad;
+		int port = (num_controllers == 1 && i == (forceWinMode ? 0 : 1)) ? 0 : (i + 1);
+		sceCtrlPeekBufferPositiveExt2(port, &pad, 1);
 	
-	uint8_t new_states[16] = {};
-	new_states[0] = pad.buttons & SCE_CTRL_CROSS ? 1 : 0;
-	new_states[1] = pad.buttons & SCE_CTRL_CIRCLE ? 1 : 0;
-	new_states[2] = pad.buttons & SCE_CTRL_SQUARE ? 1 : 0;
-	new_states[3] = pad.buttons & SCE_CTRL_TRIANGLE ? 1 : 0;
-	new_states[4] = pad.buttons & SCE_CTRL_L1 ? 1 : 0;
-	new_states[5] = pad.buttons & SCE_CTRL_R1 ? 1 : 0;
-	new_states[6] = pad.buttons & SCE_CTRL_L2 ? 1 : 0;
-	new_states[7] = pad.buttons & SCE_CTRL_R2 ? 1 : 0;
-	new_states[8] = pad.buttons & SCE_CTRL_SELECT ? 1 : 0;
-	new_states[9] = pad.buttons & SCE_CTRL_START ? 1 : 0;
-	new_states[10] = pad.buttons & SCE_CTRL_L3 ? 1 : 0;
-	new_states[11] = pad.buttons & SCE_CTRL_R3 ? 1 : 0;
-	new_states[12] = pad.buttons & SCE_CTRL_UP ? 1 : 0;
-	new_states[13] = pad.buttons & SCE_CTRL_DOWN ? 1 : 0;
-	new_states[14] = pad.buttons & SCE_CTRL_LEFT ? 1 : 0;
-	new_states[15] = pad.buttons & SCE_CTRL_RIGHT ? 1 : 0;
-	
+		uint8_t new_states[16] = {
+			pad.buttons & SCE_CTRL_CROSS ? 1 : 0,
+			pad.buttons & SCE_CTRL_CIRCLE ? 1 : 0,
+			pad.buttons & SCE_CTRL_SQUARE ? 1 : 0,
+			pad.buttons & SCE_CTRL_TRIANGLE ? 1 : 0,
+			pad.buttons & SCE_CTRL_L1 ? 1 : 0,
+			pad.buttons & SCE_CTRL_R1 ? 1 : 0,
+			pad.buttons & SCE_CTRL_L2 ? 1 : 0,
+			pad.buttons & SCE_CTRL_R2 ? 1 : 0,
+			pad.buttons & SCE_CTRL_SELECT ? 1 : 0,
+			pad.buttons & SCE_CTRL_START ? 1 : 0,
+			pad.buttons & SCE_CTRL_L3 ? 1 : 0,
+			pad.buttons & SCE_CTRL_R3 ? 1 : 0,
+			pad.buttons & SCE_CTRL_UP ? 1 : 0,
+			pad.buttons & SCE_CTRL_DOWN ? 1 : 0,
+			pad.buttons & SCE_CTRL_LEFT ? 1 : 0,
+			pad.buttons & SCE_CTRL_RIGHT ? 1 : 0
+		};
+		
 #ifndef STANDALONE_MODE
-	if (new_states[8] && new_states[9] && new_states[4] && new_states[5])
-		sceAppMgrLoadExec("app0:eboot.bin", NULL, NULL);
+		if (new_states[8] && new_states[9] && new_states[4] && new_states[5])
+			sceAppMgrLoadExec("app0:eboot.bin", NULL, NULL);
 #endif
-	
-	// Rearpad support for L2/R2/L3/R3 emulation
-	SceTouchData touch;
-	sceTouchPeek(SCE_TOUCH_PORT_BACK, &touch, 1);
-	for (int i = 0; i < touch.reportNum; i++) {
-		int x = touch.report[i].x;
-		int y = touch.report[i].y;
-		if (x > 960) {
-			if (y > 544) {
-				new_states[11] = 1; // R3
-			} else {
-				new_states[7] = 1; // R2
-			}
-		} else {
-			if (y > 544) {
-				new_states[10] = 1; // L3
-			} else {
-				new_states[6] = 1; // L2
+
+		if (num_controllers == 1) {
+			// Rearpad support for L2/R2/L3/R3 emulation
+			SceTouchData touch;
+			sceTouchPeek(SCE_TOUCH_PORT_BACK, &touch, 1);
+			for (int j = 0; j < touch.reportNum; j++) {
+				int x = touch.report[j].x;
+				int y = touch.report[j].y;
+				if (x > 960) {
+					if (y > 544) {
+						new_states[11] = 1; // R3
+					} else {
+						new_states[7] = 1; // R2
+					}
+				} else {
+					if (y > 544) {
+						new_states[10] = 1; // L3
+					} else {
+						new_states[6] = 1; // L2
+					}
+				}
 			}
 		}
-	}
+		
+		for (int j = 0; j < 16; j++) {
+			yoyo_gamepads[i].buttons[j] = (double)update_button(new_states[j], (int)yoyo_gamepads[i].buttons[j]);
+		}
 	
-	for (int j = 0; j < 16; j++) {
-		yoyo_gamepads[forceWinMode ? 0 : 1].buttons[j] = (double)update_button(new_states[j], (int)yoyo_gamepads[forceWinMode ? 0 : 1].buttons[j]);
+		yoyo_gamepads[i].axis[0] = (double)((int)pad.lx - 127) / 127.0f;
+		yoyo_gamepads[i].axis[1] = (double)((int)pad.ly - 127) / 127.0f;
+		yoyo_gamepads[i].axis[2] = (double)((int)pad.rx - 127) / 127.0f;
+		yoyo_gamepads[i].axis[3] = (double)((int)pad.ry - 127) / 127.0f;
 	}
-	
-	yoyo_gamepads[forceWinMode ? 0 : 1].axis[0] = (double)((int)pad.lx - 127) / 127.0f;
-	yoyo_gamepads[forceWinMode ? 0 : 1].axis[1] = (double)((int)pad.ly - 127) / 127.0f;
-	yoyo_gamepads[forceWinMode ? 0 : 1].axis[2] = (double)((int)pad.rx - 127) / 127.0f;
-	yoyo_gamepads[forceWinMode ? 0 : 1].axis[3] = (double)((int)pad.ry - 127) / 127.0f;
 }
 
 void patch_gamepad() {
-	yoyo_gamepads[forceWinMode ? 0 : 1].is_available = 1;
+	CreateDsMap = (void *)so_symbol(&yoyoloader_mod, "_Z11CreateDsMapiz");
+	CreateAsynEventWithDSMap = (void *)so_symbol(&yoyoloader_mod, "_Z24CreateAsynEventWithDSMapii");
+	GamePadCheck(1);
 	
-	void (*Function_Add)(const char *name, intptr_t func, int argc, char ret) = (void *)so_symbol(&yoyoloader_mod, "_Z12Function_AddPKcPFvR6RValueP9CInstanceS4_iPS1_Eib");
-	if (Function_Add == NULL)
-		Function_Add = (void *)so_symbol(&yoyoloader_mod, "_Z12Function_AddPcPFvR6RValueP9CInstanceS3_iPS0_Eib");
 	Function_Add("gamepad_is_supported", (intptr_t)gamepad_is_supported, 0, 1);
 	Function_Add("gamepad_get_device_count", (intptr_t)gamepad_get_device_count, 0, 1);
 	Function_Add("gamepad_is_connected", (intptr_t)gamepad_is_connected, 1, 1);

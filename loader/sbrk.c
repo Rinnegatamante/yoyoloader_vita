@@ -2,6 +2,8 @@
 #include <reent.h>
 #include <vitasdk.h>
 
+#include "config.h"
+
 extern unsigned int _newlib_heap_size_user __attribute__((weak));
 
 static int _newlib_heap_memblock;
@@ -39,9 +41,33 @@ void _init_vita_heap(void)
 #if 0 // Devkit mode
 	_newlib_heap_size = 570 * 1024 * 1024;
 #else
-	if (!sceIoRemove("ux0:data/gms/newlib.cfg"))
+	char t[0x8000];
+	int size;
+#ifdef STANDALONE_MODE
+	SceUID fd = sceIoOpen("app0:yyl.cfg", SCE_O_RDONLY, 0777);
+#else
+	SceUID fd = sceIoOpen(LAUNCH_FILE_PATH, SCE_O_RDONLY, 0777);
+	if (fd > 0) {
+		size = sceIoRead(fd, t, 0x200);
+		sceIoClose(fd);
+		t[size] = 0;
+	} else {
+		sceClibSnprintf(t, 0x200, "%s", "AM2R");
+	}
+	sceClibSnprintf(&t[0x1000], 0x6000, "%s/%s/yyl.cfg", DATA_PATH, t);
+	fd = sceIoOpen(&t[0x1000], SCE_O_RDONLY, 0777);
+#endif
+	if (fd > 0)
 	{
-		_newlib_heap_size = 300 * 1024 * 1024;
+		size = sceIoRead(fd, t, 0x8000);
+		sceIoClose(fd);
+		t[size] = 0;
+		char *s = sceClibStrstr(t, "maximizeNewlib=");
+		if (s && s[15] == '1') {
+			_newlib_heap_size = 300 * 1024 * 1024;
+		} else {
+			_newlib_heap_size = 240 * 1024 * 1024;
+		}
 	}
 	else
 	{

@@ -1000,12 +1000,6 @@ int main(int argc, char *argv[]) {
 	fprintf(f, "%s=%d\n", "netSupport", (int)hovered->has_net);
 	fprintf(f, "%s=%d\n", "squeezeMem", (int)hovered->squeeze_mem);
 	fclose(f);
-	
-	if (hovered->newlib_extended) {
-		f = fopen("ux0:data/gms/newlib.cfg", "w+");
-		fprintf(f, "1");
-		fclose(f);
-	}
 
 	sceAppMgrLoadExec(hovered->video_support ? "app0:/loader2.bin" : "app0:/loader.bin", NULL, NULL);
 	return 0;

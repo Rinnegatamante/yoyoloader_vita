@@ -67,6 +67,7 @@ extern char *post_url;
 extern char *get_url;
 extern unsigned _newlib_heap_size;
 
+int disableObjectsArray = 0;
 int forceGL1 = 0;
 int forceSplashSkip = 0;
 int forceWinMode = 0;
@@ -85,6 +86,8 @@ int post_active = 0;
 int post_index = 0;
 int get_active = 0;
 int get_index = 0;
+
+void (*Function_Add)(const char *name, intptr_t func, int argc, char ret);
 
 double jni_double = 0.0f;
 
@@ -559,7 +562,7 @@ void main_loop() {
 		SceMotionSensorState sensor;
 		sceMotionGetSensorState(&sensor, 1);
 		Java_com_yoyogames_runner_RunnerJNILib_Process(fake_env, 0, SCREEN_W, SCREEN_H, sensor.accelerometer.x, sensor.accelerometer.y, sensor.accelerometer.z, 0, 0, 60.0f);
-		if (Java_com_yoyogames_runner_RunnerJNILib_canFlip()) {
+		if (!Java_com_yoyogames_runner_RunnerJNILib_canFlip || Java_com_yoyogames_runner_RunnerJNILib_canFlip()) {
 			if (ime_active) {
 				char *r = get_ime_dialog_result();
 				if (r) {
@@ -857,25 +860,26 @@ void *retJNI(int dummy) {
 }
 
 const char *gl_ret0[] = {
-	"glPixelStorei",
+	"glCompileShader",
+	"glDeleteRenderbuffers",
 	"glDiscardFramebufferEXT",
+	"glFramebufferRenderbuffer",
+	"glGenRenderbuffers",
+	"glHint",
+	"glLightf",
 	"glMaterialx",
 	"glNormalPointer",
-	"glLightf",
-	"glCompileShader",
-	"glGenRenderbuffer",
-	"glDeleteRenderbuffers",
-	"glFramebufferRenderbuffer",
+	"glPixelStorei",
 	"glRenderbufferStorage",
-	"glHint"
+	"glShadeModel",
 };
 static size_t gl_numret = sizeof(gl_ret0) / sizeof(*gl_ret0);
 
 static so_default_dynlib gl_hook[] = {
 	{"glShaderSource", (uintptr_t)&glShaderSourceHook},
-	{"glTexParameteri", (uintptr_t)&glTexParameteriHook},
-	{"glTexParameterf", (uintptr_t)&glTexParameterfHook},
 	{"glTexImage2D", (uintptr_t)&glTexImage2DHook},
+	{"glTexParameterf", (uintptr_t)&glTexParameterfHook},
+	{"glTexParameteri", (uintptr_t)&glTexParameteriHook},
 };
 static size_t gl_numhook = sizeof(gl_hook) / sizeof(*gl_hook);
 
@@ -1103,6 +1107,7 @@ static so_default_dynlib default_dynlib[] = {
 	{ "alGenBuffers", (uintptr_t)&alGenBuffers },
 	{ "alGenSources", (uintptr_t)&alGenSources },
 	{ "alcGetCurrentContext", (uintptr_t)&alcGetCurrentContext },
+	{ "alGetBufferi", (uintptr_t)&alGetBufferi },
 	{ "alGetError", (uintptr_t)&alGetError },
 	{ "alGetSourcei", (uintptr_t)&alGetSourcei },
 	{ "alGetSourcef", (uintptr_t)&alGetSourcef },
@@ -1204,6 +1209,60 @@ static so_default_dynlib default_dynlib[] = {
 	//{ "getsockopt", (uintptr_t)&getsockopt },
 	{ "getwc", (uintptr_t)&getwc },
 	{ "gettimeofday", (uintptr_t)&gettimeofday },
+	{ "glAlphaFunc", (uintptr_t)&glAlphaFunc },
+	{ "glBindBuffer", (uintptr_t)&glBindBuffer },
+	{ "glBindFramebufferOES", (uintptr_t)&glBindFramebuffer },
+	{ "glBindTexture", (uintptr_t)&glBindTexture },
+	{ "glBlendFunc", (uintptr_t)&glBlendFunc },
+	{ "glBufferData", (uintptr_t)&glBufferData },
+	{ "glCheckFramebufferStatusOES", (uintptr_t)&glCheckFramebufferStatus },
+	{ "glClear", (uintptr_t)&glClear },
+	{ "glClearColor", (uintptr_t)&glClearColor },
+	{ "glClearDepthf", (uintptr_t)&glClearDepthf },
+	{ "glColorMask", (uintptr_t)&glColorMask },
+	{ "glColorPointer", (uintptr_t)&glColorPointer },
+	{ "glDeleteBuffers", (uintptr_t)&glDeleteBuffers },
+	{ "glDeleteFramebuffersOES", (uintptr_t)&glDeleteFramebuffers },
+	{ "glDeleteTextures", (uintptr_t)&glDeleteTextures },
+	{ "glDepthFunc", (uintptr_t)&glDepthFunc },
+	{ "glDepthMask", (uintptr_t)&glDepthMask },
+	{ "glDepthRangef", (uintptr_t)&glDepthRangef },
+	{ "glDisable", (uintptr_t)&glDisable },
+	{ "glDisableClientState", (uintptr_t)&glDisableClientState },
+	{ "glDrawArrays", (uintptr_t)&glDrawArrays },
+	{ "glEnable", (uintptr_t)&glEnable },
+	{ "glEnableClientState", (uintptr_t)&glEnableClientState },
+	{ "glFlush", (uintptr_t)&glFlush },
+	{ "glFogf", (uintptr_t)&glFogf },
+	{ "glFogfv", (uintptr_t)&glFogfv },
+	{ "glFramebufferTexture2DOES", (uintptr_t)&glFramebufferTexture2D },
+	{ "glFrontFace", (uintptr_t)&glFrontFace },
+	{ "glGenBuffers", (uintptr_t)&glGenBuffers },
+	{ "glGenFramebuffersOES", (uintptr_t)&glGenFramebuffers },
+	{ "glGenTextures", (uintptr_t)&glGenTextures },
+	{ "glGetError", (uintptr_t)&glGetError },
+	{ "glGetString", (uintptr_t)&glGetString },
+	{ "glHint", (uintptr_t)&ret0 },
+	{ "glLightModelfv", (uintptr_t)&glLightModelfv },
+	{ "glLightf", (uintptr_t)&ret0 },
+	{ "glLightfv", (uintptr_t)&glLightfv },
+	{ "glLoadIdentity", (uintptr_t)&glLoadIdentity },
+	{ "glLoadMatrixf", (uintptr_t)&glLoadMatrixf },
+	{ "glMaterialfv", (uintptr_t)&glMaterialfv },
+	{ "glMatrixMode", (uintptr_t)&glMatrixMode },
+	{ "glNormalPointer", (uintptr_t)&ret0 },
+	{ "glPixelStorei", (uintptr_t)&ret0 },
+	{ "glPopMatrix", (uintptr_t)&glPopMatrix },
+	{ "glPushMatrix", (uintptr_t)&glPushMatrix },
+	{ "glReadPixels", (uintptr_t)&glReadPixels },
+	{ "glScissor", (uintptr_t)&glScissor },
+	{ "glTexCoordPointer", (uintptr_t)&glTexCoordPointer },
+	{ "glTexEnvi", (uintptr_t)&glTexEnvi },
+	{ "glTexImage2D", (uintptr_t)&glTexImage2DHook },
+	{ "glTexParameterf", (uintptr_t)&glTexParameterfHook },
+	{ "glTexParameteri", (uintptr_t)&glTexParameteriHook },
+	{ "glVertexPointer", (uintptr_t)&glVertexPointer },
+	{ "glViewport", (uintptr_t)&glViewport },
 	{ "gmtime64", (uintptr_t)&gmtime64 },
 	{ "inet_addr", (uintptr_t)&inet_addr },
 	{ "inet_ntoa", (uintptr_t)&inet_ntoa },
@@ -1489,8 +1548,15 @@ uint64_t CallLongMethodV(void *env, void *obj, int methodID, uintptr_t *args) {
 	return 0;
 }
 
-void *FindClass(void *env, const char *name) {
-	return (void *)0x41414141;
+enum ClassIDs {
+	STRING
+};
+
+int FindClass(void *env, const char *name) {
+	if (!strcmp(name, "java/lang/String")) {
+		return STRING;
+	}
+	return 0x41414141;
 }
 
 void *NewGlobalRef(void *env, char *str) {
@@ -1578,8 +1644,7 @@ typedef struct {
 } ext_func;
 
 void *CallStaticObjectMethodV(void *env, void *obj, int methodID, uintptr_t *args) {
-	static char r[0x8000];
-
+	static char r[512];
 	switch (methodID) {
 	case GET_UDID:
 		return "1234";
@@ -1659,6 +1724,8 @@ void *NewIntArray(void *env, int size) {
 }
 
 void *NewObjectArray(void *env, int size, int clazz, void *elements) {
+	if (disableObjectsArray)
+		return NULL;
 	void *r = malloc(size);
 	if (elements) {
 		sceClibMemcpy(r, elements, size);
@@ -1683,7 +1750,8 @@ void SetDoubleArrayRegion(void *env, double *array, int start, int len, double *
 }
 
 void SetObjectArrayElement(void *env, void *array, int index, void *val) {
-	strcpy(&array[index], val);
+	if (array)
+		strcpy(&array[index], val);
 }
 
 void GetByteArrayRegion(void *env, void *array, int start, int len, void *buf) {
@@ -1691,6 +1759,15 @@ void GetByteArrayRegion(void *env, void *array, int start, int len, void *buf) {
 }
 
 int GetIntField(void *env, void *obj, int fieldID) { return 0; }
+
+static void game_end()
+{
+#ifdef STANDALONE_MODE
+	sceKernelExitProcess(0);
+#else
+	sceAppMgrLoadExec("app0:eboot.bin", NULL, NULL);
+#endif
+}
 
 int main(int argc, char **argv)
 {
@@ -1801,6 +1878,13 @@ int main(int argc, char **argv)
 			initparam.flags = 0;
 			sceNetInit(&initparam);
 		}
+	} else {
+		/* 
+		 * FIXME: Object arrays are handled badly and cause crashes in several games.
+		 * The only games actually requiring them are the ones using HTTP methods, so we enable them
+		 * only if network functionalities are requested.
+		 */
+		disableObjectsArray = 1;
 	}
 	
 	// Loading splash screen from the apk
@@ -1827,6 +1911,13 @@ int main(int argc, char **argv)
 	so_flush_caches(&yoyoloader_mod);
 	so_initialize(&yoyoloader_mod);
 	patch_runner_post_init();
+	
+	Function_Add = (void *)so_symbol(&yoyoloader_mod, "_Z12Function_AddPKcPFvR6RValueP9CInstanceS4_iPS1_Eib");
+	if (Function_Add == NULL)
+		Function_Add = (void *)so_symbol(&yoyoloader_mod, "_Z12Function_AddPcPFvR6RValueP9CInstanceS3_iPS0_Eib");
+	
+	Function_Add("game_end", game_end, 1, 1);
+	
 	patch_gamepad();
 	so_flush_caches(&yoyoloader_mod);
 	
