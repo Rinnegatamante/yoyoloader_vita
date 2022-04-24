@@ -103,6 +103,7 @@ void video_close() {
 		sceAvPlayerClose(movie_player);
 		movie_audio_shutdown();
 		player_state = PLAYER_INACTIVE;
+		glDeleteTextures(5, movie_frame);
 	}
 }
 
