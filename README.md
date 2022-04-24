@@ -69,6 +69,6 @@ After all these requirements are met, you can compile the loader similarly to ho
 - JohnnyonFlame for GMSLoader used as reference for some implementations and for generic advices.
 - Once13One for the Livearea assets and the README showcase image.
 - hatoving for the German translation.
-- BetterWinds for the Spanish translation.
+- BetterWinds and SofyUchiha for the Spanish translation.
 - CatoTheYounger for providing most of the banners used in the game selector.
 - Everyone who contributed, tested and provided support over Vita Nuova Discord channel.
