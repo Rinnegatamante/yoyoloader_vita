@@ -1001,8 +1001,9 @@ int main(int argc, char *argv[]) {
 			int anim_w, anim_h;
 			GLuint anim_icon = video_get_frame(&anim_w, &anim_h);
 			if (anim_icon != 0xDEADBEEF) {
-				ImGui::SetCursorPos(ImVec2((PREVIEW_WIDTH - anim_w) / 2 + PREVIEW_PADDING, PREVIEW_PADDING));
-				ImGui::Image((void*)anim_icon, ImVec2(anim_w, preview_height));
+				// FIXME: For now we hardcode 284x160 since sceAvPlayer seems to align the output texture to 288x160 producing artifacts
+				ImGui::SetCursorPos(ImVec2((PREVIEW_WIDTH - 284) / 2 + PREVIEW_PADDING, PREVIEW_PADDING)); 
+				ImGui::Image((void*)anim_icon, ImVec2(anim_w, preview_height), ImVec2(0, 0), ImVec2(0.98765f, 1));
 			} else if (has_preview_icon) {
 				ImGui::SetCursorPos(ImVec2(preview_x + PREVIEW_PADDING, preview_y + PREVIEW_PADDING));
 				ImGui::Image((void*)preview_icon, ImVec2(preview_width, preview_height));
