@@ -29,6 +29,7 @@ int audio_port;
 int audio_len;
 int audio_freq;
 int audio_mode;
+bool first_frame = true;
 
 void *mem_alloc(void *p, uint32_t align, uint32_t size) {
 	return memalign(align, size);
@@ -106,6 +107,7 @@ void video_close() {
 }
 
 void video_open(const char *path) {
+	first_frame = true;
 	glGenTextures(5, movie_frame);
 	for (int i = 0; i < 5; i++) {
 		glBindTexture(GL_TEXTURE_2D, movie_frame[i]);
@@ -157,8 +159,9 @@ GLuint video_get_frame(int *width, int *height) {
 				*height = frame.details.video.height;
 				sceGxmTextureSetMinFilter(movie_tex[movie_frame_idx], SCE_GXM_TEXTURE_FILTER_LINEAR);
 				sceGxmTextureSetMagFilter(movie_tex[movie_frame_idx], SCE_GXM_TEXTURE_FILTER_LINEAR);
+				first_frame = false;
 			}
-			return movie_frame[movie_frame_idx];
+			return first_frame ? 0xDEADBEEF : movie_frame[movie_frame_idx];
 		} else {
 			player_state = PLAYER_STOP;
 		}

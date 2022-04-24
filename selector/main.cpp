@@ -563,16 +563,37 @@ static bool is_downloading_banners = false;
 static bool has_preview_icon = false;
 static int preview_width, preview_height, preview_x, preview_y;
 GLuint preview_icon = 0;
+static int animated_preview_delayer = 0;
+#define ANIMATED_PREVIEW_DELAY 60
 #define PREVIEW_PADDING 6
 #define PREVIEW_HEIGHT 160.0f
 #define PREVIEW_WIDTH  394.0f
+void LoadAnimatedPreview(GameSelection *game) {
+	if (animated_preview_delayer < ANIMATED_PREVIEW_DELAY) {
+		if (animated_preview_delayer == 0)
+			video_close();
+		animated_preview_delayer++;
+	} else if (animated_preview_delayer == ANIMATED_PREVIEW_DELAY) {
+		animated_preview_delayer++;
+		
+		char banner_path[256];
+	
+		sprintf(banner_path, "ux0:data/gms/shared/anim/%s.mp4", game->game_id);
+		FILE *f = fopen(banner_path, "rb");
+		if (f) {
+			fclose(f);
+			video_open(banner_path);
+		}
+	}
+}
+
 bool LoadPreview(GameSelection *game) {
 	if (old_hovered == game)
 		return has_preview_icon;
 	old_hovered = game;
-	
-	video_close();
+
 	bool ret = false;
+	animated_preview_delayer = 0;
 	
 	char banner_path[256];
 	sprintf(banner_path, "ux0:data/gms/shared/banners/%s.png", game->game_id);
@@ -587,17 +608,10 @@ bool LoadPreview(GameSelection *game) {
 		preview_x = (PREVIEW_WIDTH - preview_width) / 2;
 		preview_y = (PREVIEW_HEIGHT - preview_height) / 2;
 		free(icon_data);
-		ret = true;
+		return true;
 	}
 	
-	sprintf(banner_path, "ux0:data/gms/shared/anim/%s.mp4", game->game_id);
-	FILE *f = fopen(banner_path, "rb");
-	if (f) {
-		fclose(f);
-		video_open(banner_path);
-	}
-	
-	return ret;
+	return false;
 }
 
 void setTranslation(int idx) {
@@ -880,7 +894,7 @@ int main(int argc, char *argv[]) {
 		} else if (pad.buttons & SCE_CTRL_RTRIGGER && !(oldpad & SCE_CTRL_RTRIGGER) && !is_config_invoked) {
 			sort_idx = (sort_idx + 1) % (sizeof(sort_modes_str) / sizeof(sort_modes_str[0]));
 		} else if (pad.buttons & SCE_CTRL_SELECT && !(oldpad & SCE_CTRL_SELECT)) {
-			old_hovered = NULL;
+			animated_preview_delayer = 300;
 		}
 		oldpad = pad.buttons;
 		
@@ -976,6 +990,7 @@ int main(int argc, char *argv[]) {
 		ImGui::Begin("Info Window", nullptr, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoBringToFrontOnFocus);
 		if (hovered) {
 			has_preview_icon = LoadPreview(hovered);
+			LoadAnimatedPreview(hovered);
 			int anim_w, anim_h;
 			GLuint anim_icon = video_get_frame(&anim_w, &anim_h);
 			if (anim_icon != 0xDEADBEEF) {
