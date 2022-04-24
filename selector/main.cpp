@@ -622,6 +622,12 @@ void setTranslation(int idx) {
 	case SCE_SYSTEM_PARAM_LANG_ITALIAN:
 		sprintf(langFile, "app0:lang/Italian.ini");
 		break;
+	case SCE_SYSTEM_PARAM_LANG_SPANISH:
+		sprintf(langFile, "app0:lang/Spanish.ini");
+		break;
+	case SCE_SYSTEM_PARAM_LANG_GERMAN:
+		sprintf(langFile, "app0:lang/German.ini");
+		break;
 	default:
 		sprintf(langFile, "app0:lang/English.ini");
 		break;
@@ -894,7 +900,8 @@ int main(int argc, char *argv[]) {
 		} else if (pad.buttons & SCE_CTRL_RTRIGGER && !(oldpad & SCE_CTRL_RTRIGGER) && !is_config_invoked) {
 			sort_idx = (sort_idx + 1) % (sizeof(sort_modes_str) / sizeof(sort_modes_str[0]));
 		} else if (pad.buttons & SCE_CTRL_SELECT && !(oldpad & SCE_CTRL_SELECT)) {
-			animated_preview_delayer = 300;
+			video_close();
+			animated_preview_delayer = ANIMATED_PREVIEW_DELAY;
 		}
 		oldpad = pad.buttons;
 		
