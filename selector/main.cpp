@@ -25,6 +25,10 @@
 #define NUM_OPTIONS 12
 #define NUM_DB_CHUNKS 2
 
+extern void video_open(const char *path);
+extern GLuint video_get_frame(int *width, int *height);
+extern void video_close();
+
 extern "C" {
 	int debugPrintf(const char *fmt, ...) {return 0;}
 	void fatal_error(const char *fmt, ...);
@@ -567,6 +571,9 @@ bool LoadPreview(GameSelection *game) {
 		return has_preview_icon;
 	old_hovered = game;
 	
+	video_close();
+	bool ret = false;
+	
 	char banner_path[256];
 	sprintf(banner_path, "ux0:data/gms/shared/banners/%s.png", game->game_id);
 	uint8_t *icon_data = stbi_load(banner_path, &preview_width, &preview_height, NULL, 4);
@@ -580,10 +587,17 @@ bool LoadPreview(GameSelection *game) {
 		preview_x = (PREVIEW_WIDTH - preview_width) / 2;
 		preview_y = (PREVIEW_HEIGHT - preview_height) / 2;
 		free(icon_data);
-		return true;
+		ret = true;
 	}
 	
-	return false;
+	sprintf(banner_path, "ux0:data/gms/shared/anim/%s.mp4", game->game_id);
+	FILE *f = fopen(banner_path, "rb");
+	if (f) {
+		fclose(f);
+		video_open(banner_path);
+	}
+	
+	return ret;
 }
 
 void setTranslation(int idx) {
@@ -623,6 +637,8 @@ void setTranslation(int idx) {
 }
 
 int main(int argc, char *argv[]) {
+	sceSysmoduleLoadModule(SCE_SYSMODULE_AVPLAYER);
+	
 	sceIoMkdir("ux0:data/gms", 0777);
 	sceIoMkdir("ux0:data/gms/shared", 0777);
 	sceIoMkdir("ux0:data/gms/shared/banners", 0777);
@@ -689,7 +705,7 @@ int main(int argc, char *argv[]) {
 	FILE *f;
 	
 	// Check if YoYo Loader has been launched with a custom bubble
-	bool skip_updates_check = true;//strstr(stringify(GIT_VERSION), "dirty") != nullptr;
+	bool skip_updates_check = strstr(stringify(GIT_VERSION), "dirty") != nullptr;
 	char boot_params[1024];
 	sceAppMgrGetAppParam(boot_params);
 	if (strstr(boot_params,"psgm:play") && strstr(boot_params, "&param=")) {
@@ -863,6 +879,8 @@ int main(int argc, char *argv[]) {
 				sort_idx = (sizeof(sort_modes_str) / sizeof(sort_modes_str[0])) - 1;
 		} else if (pad.buttons & SCE_CTRL_RTRIGGER && !(oldpad & SCE_CTRL_RTRIGGER) && !is_config_invoked) {
 			sort_idx = (sort_idx + 1) % (sizeof(sort_modes_str) / sizeof(sort_modes_str[0]));
+		} else if (pad.buttons & SCE_CTRL_SELECT && !(oldpad & SCE_CTRL_SELECT)) {
+			old_hovered = NULL;
 		}
 		oldpad = pad.buttons;
 		
@@ -957,8 +975,13 @@ int main(int argc, char *argv[]) {
 		ImGui::SetNextWindowSize(ImVec2(407, 524), ImGuiSetCond_Always);
 		ImGui::Begin("Info Window", nullptr, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoBringToFrontOnFocus);
 		if (hovered) {
-			has_preview_icon = LoadPreview(hovered); 
-			if (has_preview_icon) {
+			has_preview_icon = LoadPreview(hovered);
+			int anim_w, anim_h;
+			GLuint anim_icon = video_get_frame(&anim_w, &anim_h);
+			if (anim_icon != 0xDEADBEEF) {
+				ImGui::SetCursorPos(ImVec2((PREVIEW_WIDTH - anim_w) / 2 + PREVIEW_PADDING, PREVIEW_PADDING));
+				ImGui::Image((void*)anim_icon, ImVec2(anim_w, preview_height));
+			} else if (has_preview_icon) {
 				ImGui::SetCursorPos(ImVec2(preview_x + PREVIEW_PADDING, preview_y + PREVIEW_PADDING));
 				ImGui::Image((void*)preview_icon, ImVec2(preview_width, preview_height));
 			}

@@ -87,6 +87,7 @@ target_link_libraries(YoYoLoader
 
 vita_create_self(loader2.bin YoYoLoader UNSAFE)
 else()
+if (LAUNCHER)
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -g -Wl,-q,--wrap,memcpy,--wrap,memmove,--wrap,memset -Wno-format-overflow -D_GNU_SOURCE -Wall -O3 -mfloat-abi=softfp")
 set(CMAKE_CXX_FLAGS "${CMAKE_C_FLAGS} -Wno-write-strings -DGIT_VERSION=\"${GIT_HASH}\" -std=c++11")
 
@@ -94,13 +95,12 @@ add_executable(YoYoLoader
   selector/main.cpp
   selector/dialogs.cpp
   selector/strings.cpp
+  selector/player.cpp
   loader/ioapi.c
   loader/unzip.c
   loader/zip.c
   loader/dialog.c
 )
-
-add_dependencies(YoYoLoader loader.bin)
 
 target_link_libraries(YoYoLoader
   imgui
@@ -129,9 +129,12 @@ target_link_libraries(YoYoLoader
   ScePower_stub
   SceTouch_stub
   SceVshBridge_stub
+  SceAvPlayer_stub
 )
 
-add_executable(loader
+vita_create_self(eboot.bin YoYoLoader UNSAFE)
+else()
+add_executable(YoYoLoader
   loader/main.c
   loader/dialog.c
   loader/so_util.c
@@ -148,7 +151,7 @@ add_executable(loader
   loader/net.c
 )
 
-target_link_libraries(loader
+target_link_libraries(YoYoLoader
   -Wl,--whole-archive pthread -Wl,--no-whole-archive
   openal
   m
@@ -183,9 +186,7 @@ target_link_libraries(loader
   SceVshBridge_stub
 )
 
-vita_create_self(loader.bin loader UNSAFE)
-
-vita_create_self(eboot.bin YoYoLoader UNSAFE)
+vita_create_self(loader.bin YoYoLoader UNSAFE)
 vita_create_vpk(YoYoLoader.vpk ${VITA_TITLEID} eboot.bin
   VERSION ${VITA_VERSION}
   NAME ${VITA_APP_NAME}
@@ -203,4 +204,5 @@ add_custom_target(copy
   COMMAND cp eboot.bin D:/app/${VITA_TITLEID}/eboot.bin
   DEPENDS eboot.bin
 )
+endif()
 endif()

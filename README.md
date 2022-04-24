@@ -61,16 +61,7 @@ Finally, you'll need to recompile the few missing ones on your own:
     make SOFTFP_ABI=1 NO_DEBUG=1 SAMPLER_UNIFORMS=1 CACHED_MEM=1 install
     ````
 
-After all these requirements are met, you can compile the loader with the following commands:
-
-```bash
-mkdir build && cd build
-cmake .. -DVIDEO_SUPPORT=1 -DLOADER=1 && make
-rm -f CMakeCache.txt
-cmake .. && make
-```
-
-Note that, in order to make the Video Player implementation work, vitaGL must be compiled with `PHYCONT_ON_DEMAND=1` added flag for the first binary and without for the second one.
+After all these requirements are met, you can compile the loader similarly to how the CI compiles it for nightly builds: https://github.com/Rinnegatamante/yoyoloader_vita/blob/main/.github/workflows/compilation.yml
 
 ## Credits
 

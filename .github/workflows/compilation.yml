@@ -32,6 +32,9 @@ jobs:
         mkdir standalone_video
         mkdir build
         cd build
+        cmake -DLAUNCHER=1 ..
+        make -j$(nproc)
+        rm -f CMakeCache.txt
         cmake -DLOADER=1 -DVIDEO_SUPPORT=1 ..
         make -j$(nproc)
         cd ../standalone_video
