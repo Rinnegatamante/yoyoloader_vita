@@ -231,6 +231,13 @@ static void startDownload(const char *url)
 	curl_easy_perform(curl_handle);
 }
 
+const char *sort_modes_str[] = {
+	"Name (Ascending)",
+	"Name (Descending)"
+};
+int sort_idx = 0;
+int old_sort_idx = -1;
+
 void loadConfig(GameSelection *g) {
 	char configFile[512];
 	char buffer[30];
@@ -257,6 +264,22 @@ void loadConfig(GameSelection *g) {
 		fclose(config);
 	} else {
 		sceClibMemset(&g->bilinear, 0, sizeof(bool) * NUM_OPTIONS);
+	}
+}
+
+void loadSelectorConfig() {
+	char configFile[512];
+	char buffer[30];
+	int value;
+	
+	sprintf(configFile, "%s/shared/yyl.cfg", DATA_PATH);
+	FILE *config = fopen(configFile, "r");
+
+	if (config) {
+		while (EOF != fscanf(config, "%[^=]=%d\n", buffer, &value)) {
+			if (strcmp("sortMode", buffer) == 0) sort_idx = value;
+		}
+		fclose(config);
 	}
 }
 
@@ -291,13 +314,6 @@ const char *options_descs[] = {
 	"Enables network functionalities implementation in the Runner at the cost of potentially reducing the total amount of memory available for the game.",
 	"Makes the Loader setup vitaGL with the lowest amount possible of dedicated memory for internal buffers. Increases available mem for the game at the cost of potential performance loss."
 };
-
-const char *sort_modes_str[] = {
-	"Name (Ascending)",
-	"Name (Descending)"
-};
-int sort_idx = 0;
-int old_sort_idx = -1;
 
 void swap_games(GameSelection *a, GameSelection *b) {
 	GameSelection tmp;
@@ -776,6 +792,8 @@ int main(int argc, char *argv[]) {
 	}
 	sceIoDclose(fd);
 	
+	loadSelectorConfig();
+	
 	while (!launch_item) {
 		if (old_sort_idx != sort_idx) {
 			old_sort_idx = sort_idx;
@@ -999,6 +1017,11 @@ int main(int argc, char *argv[]) {
 	fprintf(f, "%s=%d\n", "videoSupport", (int)hovered->video_support);
 	fprintf(f, "%s=%d\n", "netSupport", (int)hovered->has_net);
 	fprintf(f, "%s=%d\n", "squeezeMem", (int)hovered->squeeze_mem);
+	fclose(f);
+	
+	sprintf(config_path, "ux0:data/gms/shared/yyl.cfg");
+	f = fopen(config_path, "w+");
+	fprintf(f, "%s=%d\n", "sortMode", sort_idx);
 	fclose(f);
 
 	sceAppMgrLoadExec(hovered->video_support ? "app0:/loader2.bin" : "app0:/loader.bin", NULL, NULL);
