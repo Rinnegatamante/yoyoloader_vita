@@ -22,7 +22,7 @@ jobs:
         cmake -DCMAKE_TOOLCHAIN_FILE=${VITASDK}/share/vita.toolchain.cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_FLAGS=-mfloat-abi=softfp .. && make -j$(nproc) install
         cd ../..
         git clone https://github.com/Rinnegatamante/vitaGL.git
-        make -C vitaGL SOFTFP_ABI=1 NO_DEBUG=1 SAMPLER_UNIFORMS=1 CACHED_MEM=1 PHYCONT_ON_DEMAND=1 -j$(nproc) install
+        make -C vitaGL SOFTFP_ABI=1 NO_DEBUG=1 SAMPLER_UNIFORMS=1 CACHED_MEM=1 -j$(nproc) install
     - name: Compile project
       run: |
         git config --global --add safe.directory /__w/yoyoloader_vita/yoyoloader_vita
@@ -32,21 +32,26 @@ jobs:
         mkdir standalone_video
         mkdir build
         cd build
-        cmake -DLOADER=1 -DVIDEO_SUPPORT=1 ..
+        cmake -DLOADER=1 ..
         make -j$(nproc)
-        cd ../standalone_video
+        mv loader2.bin loader.bin
+        rm -f CMakeCache.txt
+        cd ../standalone
+        cmake -DLOADER=1 -DSTANDALONE=1 ..
+        make -j$(nproc)
+        cd ..
+        make -C vitaGL SOFTFP_ABI=1 NO_DEBUG=1 SAMPLER_UNIFORMS=1 CACHED_MEM=1 PHYCONT_ON_DEMAND=1 -j$(nproc) clean
+        make -C vitaGL SOFTFP_ABI=1 NO_DEBUG=1 SAMPLER_UNIFORMS=1 CACHED_MEM=1 PHYCONT_ON_DEMAND=1 -j$(nproc) install
+        cd standalone_video
         cmake -DLOADER=1 -DVIDEO_SUPPORT=1 -DSTANDALONE=1 ..
         make -j$(nproc)
         cp loader2.bin ../launcher/builder/standalone_video.bin
-        cd ..
-        make -C vitaGL SOFTFP_ABI=1 NO_DEBUG=1 SAMPLER_UNIFORMS=1 CACHED_MEM=1 -j$(nproc) clean
-        make -C vitaGL SOFTFP_ABI=1 NO_DEBUG=1 SAMPLER_UNIFORMS=1 CACHED_MEM=1 -j$(nproc) install
-        cd build
+        cd ../build
+        cmake -DLOADER=1 -DVIDEO_SUPPORT=1 ..
+        make clean
+        make -j$(nproc)
         rm -f CMakeCache.txt
         cmake ..
-        make -j$(nproc)
-        cd ../standalone
-        cmake -DLOADER=1 -DSTANDALONE=1 ..
         make -j$(nproc)
         cd ../launcher
         cp ../standalone/loader2.bin builder/standalone.bin
@@ -58,12 +63,6 @@ jobs:
       with:
         repo_token: ${{ secrets.GITHUB_TOKEN }}
         file: build/YoYoLoader.vpk
-        overwrite: true
-        tag: Nightly
-    - uses: svenstaro/upload-release-action@v2
-      with:
-        repo_token: ${{ secrets.GITHUB_TOKEN }}
-        file: build/loader
         overwrite: true
         tag: Nightly
     - uses: svenstaro/upload-release-action@v2
