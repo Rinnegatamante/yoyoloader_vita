@@ -93,6 +93,7 @@ set(CMAKE_CXX_FLAGS "${CMAKE_C_FLAGS} -Wno-write-strings -DGIT_VERSION=\"${GIT_H
 add_executable(YoYoLoader
   selector/main.cpp
   selector/dialogs.cpp
+  selector/strings.cpp
   loader/ioapi.c
   loader/unzip.c
   loader/zip.c
@@ -193,7 +194,9 @@ vita_create_vpk(YoYoLoader.vpk ${VITA_TITLEID} eboot.bin
        ${CMAKE_SOURCE_DIR}/livearea/bg0.png sce_sys/livearea/contents/bg0.png
        ${CMAKE_SOURCE_DIR}/livearea/template.xml sce_sys/livearea/contents/template.xml
        ${CMAKE_BINARY_DIR}/loader.bin loader.bin
-	   ${CMAKE_BINARY_DIR}/loader2.bin loader2.bin
+       ${CMAKE_BINARY_DIR}/loader2.bin loader2.bin
+       ${CMAKE_SOURCE_DIR}/translations/English.ini lang/English.ini
+       ${CMAKE_SOURCE_DIR}/translations/Italian.ini lang/Italian.ini
 )
 
 add_custom_target(copy

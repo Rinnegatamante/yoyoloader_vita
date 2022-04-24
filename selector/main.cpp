@@ -6,6 +6,7 @@
 #include <string>
 #include "../loader/zip.h"
 #include "../loader/unzip.h"
+#include "strings.h"
 
 #define STB_IMAGE_IMPLEMENTATION
 #define STB_ONLY_PNG
@@ -52,6 +53,7 @@ uint8_t *downloader_mem_buffer = nullptr;
 static FILE *fh;
 char *bytes_string;
 SceUID banner_thid;
+int console_language;
 
 struct CompatibilityList {
 	char name[128];
@@ -167,7 +169,6 @@ CompatibilityList *SearchForCompatibilityData(const char *name) {
 	char tmp[128];
 	sprintf(tmp, name);
 	while (node) {
-		printf("node: %s\n", node->name);
 		if (strcmp(node->name, tmp) == 0) return node;
 		node = node->next;
 	}
@@ -232,8 +233,8 @@ static void startDownload(const char *url)
 }
 
 const char *sort_modes_str[] = {
-	"Name (Ascending)",
-	"Name (Descending)"
+	lang_strings[STR_NAME_ASC],
+	lang_strings[STR_NAME_DESC],
 };
 int sort_idx = 0;
 int old_sort_idx = -1;
@@ -282,38 +283,6 @@ void loadSelectorConfig() {
 		fclose(config);
 	}
 }
-
-enum {
-	FORCE_GLES1,
-	BILINEAR_FILTER,
-	FAKE_WIN_MODE,
-	DEBUG_SHADERS,
-	DEBUG_MODE,
-	DISABLE_SPLASH,
-	EXTRA_MEM_MODE,
-	OPTIMIZE_APK,
-	EXTEND_NEWLIB,
-	COMPRESS_TEXTURES,
-	VIDEO_SUPPORT,
-	NET_SUPPORT,
-	SQUEEZE_MEM
-};
-
-const char *options_descs[] = {
-	"Enforces GLES1 as rendering backend mode. May improve performances or make a game go further when crashing.",
-	"Enforces bilinear filtering on textures.",
-	"Fakes the reported target mode to the Runner as Windows. Some games require it to properly handle inputs.",
-	"Enables dumping of attempted shader translations by the built-in GLSL to CG shader translator in ux0:data/gms/shared/glsl.",
-	"Enables debug logging in ux0:data/gms/shared/yyl.log.",
-	"Disables splashscreen rendering at game boot.",
-	"Allows the Runner to use approximately extra 12 MBs of memory. May break some debugging tools.",
-	"Reduces apk size by removing unnecessary data inside it and improves performances by recompressing files one by one depending on their expected use.",
-	"Increases the size of the memory pool available for the Runner. May solve some crashes.",
-	"Makes the Loader compress any spriteset used by the game at runtime. Reduces memory usage but may cause stuttering and longer loading times.",
-	"Enables Video Player implementation in the Runner at the cost of potentially reducing the total amount of memory available for the game.",
-	"Enables network functionalities implementation in the Runner at the cost of potentially reducing the total amount of memory available for the game.",
-	"Makes the Loader setup vitaGL with the lowest amount possible of dedicated memory for internal buffers. Increases available mem for the game at the cost of potential performance loss."
-};
 
 void swap_games(GameSelection *a, GameSelection *b) {
 	GameSelection tmp;
@@ -617,13 +586,61 @@ bool LoadPreview(GameSelection *game) {
 	return false;
 }
 
+void setTranslation(int idx) {
+	char langFile[LANG_STR_SIZE * 2];
+	char identifier[LANG_ID_SIZE], buffer[LANG_STR_SIZE];
+	
+	switch (idx) {
+	case SCE_SYSTEM_PARAM_LANG_ITALIAN:
+		sprintf(langFile, "app0:lang/Italian.ini");
+		break;
+	default:
+		sprintf(langFile, "app0:lang/English.ini");
+		break;
+	}
+	
+	FILE *config = fopen(langFile, "r");
+	if (config)
+	{
+		while (EOF != fscanf(config, "%[^=]=%[^\n]\n", identifier, buffer))
+		{
+			for (int i = 0; i < LANG_STRINGS_NUM; i++) {
+				if (strcmp(lang_identifiers[i], identifier) == 0) {
+					char *newline = nullptr, *p = buffer;
+					while (newline = strstr(p, "\\n")) {
+						newline[0] = '\n';
+						int len = strlen(&newline[2]);
+						memmove(&newline[1], &newline[2], len);
+						newline[len + 1] = 0;
+						p++;
+					}
+					strcpy(lang_strings[i], buffer);
+				}
+			}
+		}
+		fclose(config);
+	}
+}
+
 int main(int argc, char *argv[]) {
 	sceIoMkdir("ux0:data/gms", 0777);
 	sceIoMkdir("ux0:data/gms/shared", 0777);
 	sceIoMkdir("ux0:data/gms/shared/banners", 0777);
+	sceIoMkdir("ux0:data/gms/shared/lang", 0777);
 	
 	if (!file_exists("ur0:/data/libshacccg.suprx") && !file_exists("ur0:/data/external/libshacccg.suprx"))
-		fatal_error("Error libshacccg.suprx is not installed.");
+		fatal_error(lang_strings[STR_SHACCCG_ERROR]);
+
+	loadSelectorConfig();
+	
+	// Initializing sceAppUtil
+	SceAppUtilInitParam appUtilParam;
+	SceAppUtilBootParam appUtilBootParam;
+	memset(&appUtilParam, 0, sizeof(SceAppUtilInitParam));
+	memset(&appUtilBootParam, 0, sizeof(SceAppUtilBootParam));
+	sceAppUtilInit(&appUtilParam, &appUtilBootParam);
+	sceAppUtilSystemParamGetInt(SCE_SYSTEM_PARAM_ID_LANG, &console_language);
+	setTranslation(console_language);
 	
 	GameSelection *hovered = nullptr;
 	vglInitExtended(0, 960, 544, 0x1800000, SCE_GXM_MULTISAMPLE_4X);
@@ -672,7 +689,7 @@ int main(int argc, char *argv[]) {
 	FILE *f;
 	
 	// Check if YoYo Loader has been launched with a custom bubble
-	bool skip_updates_check = strstr(stringify(GIT_VERSION), "dirty") != nullptr;
+	bool skip_updates_check = true;//strstr(stringify(GIT_VERSION), "dirty") != nullptr;
 	char boot_params[1024];
 	sceAppMgrGetAppParam(boot_params);
 	if (strstr(boot_params,"psgm:play") && strstr(boot_params, "&param=")) {
@@ -695,9 +712,9 @@ int main(int argc, char *argv[]) {
 		SceUID thd = sceKernelCreateThread("Auto Updater", &updaterThread, 0x10000100, 0x100000, 0, 0, NULL);
 		sceKernelStartThread(thd, 0, NULL);
 		do {
-			if (downloader_pass == UPDATER_CHECK_UPDATES) DrawDownloaderDialog(downloader_pass + 1, downloaded_bytes, total_bytes, "Checking for updates", NUM_UPDATE_PASSES, true);
-			else if (downloader_pass == UPDATER_DOWNLOAD_CHANGELIST) DrawDownloaderDialog(downloader_pass + 1, downloaded_bytes, total_bytes, "Downloading Changelist", NUM_UPDATE_PASSES, true);
-			else DrawDownloaderDialog(downloader_pass + 1, downloaded_bytes, total_bytes, "Downloading an update", NUM_UPDATE_PASSES, true);
+			if (downloader_pass == UPDATER_CHECK_UPDATES) DrawDownloaderDialog(downloader_pass + 1, downloaded_bytes, total_bytes, lang_strings[STR_SEARCH_UPDATES], NUM_UPDATE_PASSES, true);
+			else if (downloader_pass == UPDATER_DOWNLOAD_CHANGELIST) DrawDownloaderDialog(downloader_pass + 1, downloaded_bytes, total_bytes, lang_strings[STR_CHANGELIST], NUM_UPDATE_PASSES, true);
+			else DrawDownloaderDialog(downloader_pass + 1, downloaded_bytes, total_bytes, lang_strings[STR_UPDATE], NUM_UPDATE_PASSES, true);
 			res = sceKernelGetThreadInfo(thd, &info);
 		} while (info.status <= SCE_THREAD_DORMANT && res >= 0);
 		total_bytes = 0xFFFFFFFF;
@@ -728,7 +745,7 @@ int main(int argc, char *argv[]) {
 		SceUID thd = sceKernelCreateThread("Compat List Updater", &compatListThread, 0x10000100, 0x100000, 0, 0, NULL);
 		sceKernelStartThread(thd, 0, NULL);
 		do {
-			DrawDownloaderDialog(downloader_pass, downloaded_bytes, total_bytes, "Downloading compatibility list database", NUM_DB_CHUNKS, true);
+			DrawDownloaderDialog(downloader_pass, downloaded_bytes, total_bytes, lang_strings[STR_COMPAT_LIST], NUM_DB_CHUNKS, true);
 			res = sceKernelGetThreadInfo(thd, &info);
 		} while (info.status <= SCE_THREAD_DORMANT && res >= 0);
 	}
@@ -792,8 +809,6 @@ int main(int argc, char *argv[]) {
 	}
 	sceIoDclose(fd);
 	
-	loadSelectorConfig();
-	
 	while (!launch_item) {
 		if (old_sort_idx != sort_idx) {
 			old_sort_idx = sort_idx;
@@ -836,7 +851,7 @@ int main(int argc, char *argv[]) {
 		sceCtrlPeekBufferPositive(0, &pad, 1);
 		if (pad.buttons & SCE_CTRL_TRIANGLE && !(oldpad & SCE_CTRL_TRIANGLE) && hovered && !extracting && !is_downloading_banners) {
 			is_config_invoked = !is_config_invoked;
-			sprintf(settings_str, "%s - Settings", hovered->name);
+			sprintf(settings_str, "%s - %s", hovered->name, lang_strings[STR_SETTINGS]);
 			saved_size = -1.0f;
 		} else if (pad.buttons & SCE_CTRL_SQUARE && !(oldpad & SCE_CTRL_SQUARE) && !is_config_invoked && !is_downloading_banners) {
 			is_downloading_banners = true;
@@ -863,7 +878,7 @@ int main(int argc, char *argv[]) {
 				sceIoRemove(TEMP_DOWNLOAD_NAME);
 				is_downloading_banners = false;
 			} else {
-				DrawDownloaderDialog(1, downloaded_bytes, total_bytes, "Downloading banners", 1, false);
+				DrawDownloaderDialog(1, downloaded_bytes, total_bytes, lang_strings[STR_BANNERS], 1, false);
 			}
 		} else if (is_config_invoked) {
 			const char *desc = nullptr;
@@ -871,62 +886,62 @@ int main(int argc, char *argv[]) {
 			ImGui::SetNextWindowPos(ImVec2(50, 30), ImGuiSetCond_Always);
 			ImGui::SetNextWindowSize(ImVec2(860, 500), ImGuiSetCond_Always);
 			ImGui::Begin(settings_str, nullptr, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoCollapse);
-			ImGui::Checkbox("Force GLES1 Mode", &hovered->gles1);
+			ImGui::Checkbox(lang_strings[STR_GLES1], &hovered->gles1);
 			if (ImGui::IsItemHovered())
-				desc = options_descs[FORCE_GLES1];
-			ImGui::Checkbox("Fake Windows as Platform", &hovered->fake_win_mode);
+				desc = lang_strings[STR_GLES1_DESC];
+			ImGui::Checkbox(lang_strings[STR_FAKE_WIN], &hovered->fake_win_mode);
 			if (ImGui::IsItemHovered())
-				desc = options_descs[FAKE_WIN_MODE];
-			ImGui::Checkbox("Run with Extended Mem Mode", &hovered->mem_extended);
+				desc = lang_strings[STR_FAKE_WIN_DESC];
+			ImGui::Checkbox(lang_strings[STR_EXTRA_MEM], &hovered->mem_extended);
 			if (ImGui::IsItemHovered())
-				desc = options_descs[EXTRA_MEM_MODE];
-			ImGui::Checkbox("Run with Extended Runner Pool", &hovered->newlib_extended);
+				desc = lang_strings[STR_EXTRA_MEM_DESC];
+			ImGui::Checkbox(lang_strings[STR_EXTRA_POOL], &hovered->newlib_extended);
 			if (ImGui::IsItemHovered())
-				desc = options_descs[EXTEND_NEWLIB];
-			ImGui::Checkbox("Run with Mem Squeezing", &hovered->squeeze_mem);
+				desc = lang_strings[STR_EXTRA_POOL_DESC];
+			ImGui::Checkbox(lang_strings[STR_SQUEEZE], &hovered->squeeze_mem);
 			if (ImGui::IsItemHovered())
-				desc = options_descs[SQUEEZE_MEM];
-			ImGui::Checkbox("Enable Video Support", &hovered->video_support);
+				desc = lang_strings[STR_SQUEEZE_DESC];
+			ImGui::Checkbox(lang_strings[STR_VIDEO_PLAYER], &hovered->video_support);
 			if (ImGui::IsItemHovered())
-				desc = options_descs[VIDEO_SUPPORT];
-			ImGui::Checkbox("Enable Network Features", &hovered->has_net);
+				desc = lang_strings[STR_VIDEO_PLAYER_DESC];
+			ImGui::Checkbox(lang_strings[STR_NETWORK], &hovered->has_net);
 			if (ImGui::IsItemHovered())
-				desc = options_descs[NET_SUPPORT];
+				desc = lang_strings[STR_NETWORK_DESC];
 			ImGui::Separator();
-			ImGui::Checkbox("Force Bilinear Filtering", &hovered->bilinear);
+			ImGui::Checkbox(lang_strings[STR_BILINEAR], &hovered->bilinear);
 			if (ImGui::IsItemHovered())
-				desc = options_descs[BILINEAR_FILTER];
-			ImGui::Checkbox("Compress Textures", &hovered->compress_textures);
+				desc = lang_strings[STR_BILINEAR_DESC];
+			ImGui::Checkbox(lang_strings[STR_COMPRESS], &hovered->compress_textures);
 			if (ImGui::IsItemHovered())
-				desc = options_descs[COMPRESS_TEXTURES];
+				desc = lang_strings[STR_COMPRESS_DESC];
 			ImGui::Separator();
-			ImGui::Checkbox("Skip Splashscreen at Boot", &hovered->skip_splash);
+			ImGui::Checkbox(lang_strings[STR_SPLASH_SKIP], &hovered->skip_splash);
 			if (ImGui::IsItemHovered())
-				desc = options_descs[DISABLE_SPLASH];
+				desc = lang_strings[STR_SPLASH_SKIP_DESC];
 			ImGui::Separator();
-			ImGui::Checkbox("Run with Debug Mode", &hovered->debug_mode);
+			ImGui::Checkbox(lang_strings[STR_DEBUG_MODE], &hovered->debug_mode);
 			if (ImGui::IsItemHovered())
-				desc = options_descs[DEBUG_MODE];
-			ImGui::Checkbox("Run with Shaders Debug Mode", &hovered->debug_shaders);
+				desc = lang_strings[STR_DEBUG_MODE_DESC];
+			ImGui::Checkbox(lang_strings[STR_DEBUG_SHADERS], &hovered->debug_shaders);
 			if (ImGui::IsItemHovered())
-				desc = options_descs[DEBUG_SHADERS];
+				desc = lang_strings[STR_DEBUG_SHADERS_DESC];
 			ImGui::Separator();
-			if (ImGui::Button("Optimize Apk")) {
+			if (ImGui::Button(lang_strings[STR_OPTIMIZE])) {
 				if (!extracting)
 					OptimizeApk(hovered->name);
 			}
 			if (ImGui::IsItemHovered())
-				desc = options_descs[OPTIMIZE_APK];
+				desc = lang_strings[STR_OPTIMIZE_DESC];
 			if (saved_size != -1.0f) {
 				ImGui::Text(" ");
-				ImGui::Text("Optimization completed!");
-				ImGui::Text("Reduced apk size by %.2f MBs!", saved_size);
+				ImGui::Text(lang_strings[STR_OPTIMIZE_END]);
+				ImGui::Text("%s %.2f MBs!", lang_strings[STR_REDUCED], saved_size);
 				if (extracting)
 					hovered->size -= saved_size;
 				extracting = false;
 			} else if (extracting) {
 				ImGui::Text(" ");
-				ImGui::Text("Optimization in progress, please wait...");
+				ImGui::Text(lang_strings[STR_OPTIMIZATION]);
 				if (tot_idx > 0)
 					ImGui::ProgressBar((float)cur_idx / float(tot_idx), ImVec2(200, 0));
 				else
@@ -947,49 +962,53 @@ int main(int argc, char *argv[]) {
 				ImGui::SetCursorPos(ImVec2(preview_x + PREVIEW_PADDING, preview_y + PREVIEW_PADDING));
 				ImGui::Image((void*)preview_icon, ImVec2(preview_width, preview_height));
 			}
-			ImGui::Text("Game ID: %s", hovered->game_id);
-			ImGui::Text("APK Size: %.2f MBs", hovered->size);
+			ImGui::Text("%s: %s", lang_strings[STR_GAME_ID], hovered->game_id);
+			ImGui::Text("%s: %.2f MBs", lang_strings[STR_SIZE], hovered->size);
 			if (hovered->status) {
 				if (hovered->status->playable) {
 					ImGui::SameLine();
-					ImGui::SetCursorPosX(345);
-					ImGui::TextColored(ImVec4(0, 0.75f, 0, 1.0f), "Playable");
+					ImVec2 tsize = ImGui::CalcTextSize(lang_strings[STR_PLAYABLE]);
+					ImGui::SetCursorPosX(395 - tsize.x);
+					ImGui::TextColored(ImVec4(0, 0.75f, 0, 1.0f), lang_strings[STR_PLAYABLE]);
 				} else if (hovered->status->ingame_plus) {
 					ImGui::SameLine();
-					ImGui::SetCursorPosX(345);
-					ImGui::TextColored(ImVec4(1.0f, 1.0f, 0, 1.0f), "Ingame +");
+					ImVec2 tsize = ImGui::CalcTextSize(lang_strings[STR_INGAME_PLUS]);
+					ImGui::SetCursorPosX(395 - tsize.x);
+					ImGui::TextColored(ImVec4(1.0f, 1.0f, 0, 1.0f), lang_strings[STR_INGAME_PLUS]);
 				} else if (hovered->status->ingame_low) {
 					ImGui::SameLine();
-					ImGui::SetCursorPosX(345);
-					ImGui::TextColored(ImVec4(1.0f, 0.5f, 0.25f, 1.0f), "Ingame -");
+					ImVec2 tsize = ImGui::CalcTextSize(lang_strings[STR_INGAME_MINUS]);
+					ImGui::SetCursorPosX(395 - tsize.x);
+					ImGui::TextColored(ImVec4(1.0f, 0.5f, 0.25f, 1.0f), lang_strings[STR_INGAME_MINUS]);
 				} else if (hovered->status->crash) {
 					ImGui::SameLine();
-					ImGui::SetCursorPosX(345);
-					ImGui::TextColored(ImVec4(1.0f, 0, 0, 1.0f), "   Crash");
+					ImVec2 tsize = ImGui::CalcTextSize(lang_strings[STR_CRASH]);
+					ImGui::SetCursorPosX(395 - tsize.x);
+					ImGui::TextColored(ImVec4(1.0f, 0, 0, 1.0f), lang_strings[STR_CRASH]);
 				}
 			}
 			ImGui::Separator();
-			ImGui::Text("Force GLES1 Mode: %s", hovered->gles1 ? "Yes" : "No");
-			ImGui::Text("Fake Windows as Platform: %s", hovered->fake_win_mode ? "Yes" : "No");
-			ImGui::Text("Run with Extended Mem Mode: %s", hovered->mem_extended ? "Yes" : "No");
-			ImGui::Text("Run with Extended Runner Pool: %s", hovered->newlib_extended ? "Yes" : "No");
-			ImGui::Text("Run with Mem Squeezing: %s", hovered->squeeze_mem ? "Yes" : "No");
-			ImGui::Text("Enable Video Player: %s", hovered->video_support ? "Yes" : "No");
-			ImGui::Text("Enable Network Features: %s", hovered->has_net ? "Yes" : "No");
+			ImGui::Text("%s: %s", lang_strings[STR_GLES1], hovered->gles1 ? lang_strings[STR_YES] : lang_strings[STR_NO]);
+			ImGui::Text("%s: %s", lang_strings[STR_FAKE_WIN], hovered->fake_win_mode ? lang_strings[STR_YES] : lang_strings[STR_NO]);
+			ImGui::Text("%s: %s", lang_strings[STR_EXTRA_MEM], hovered->mem_extended ? lang_strings[STR_YES] : lang_strings[STR_NO]);
+			ImGui::Text("%s: %s", lang_strings[STR_EXTRA_POOL], hovered->newlib_extended ? lang_strings[STR_YES] : lang_strings[STR_NO]);
+			ImGui::Text("%s: %s", lang_strings[STR_SQUEEZE], hovered->squeeze_mem ? lang_strings[STR_YES] : lang_strings[STR_NO]);
+			ImGui::Text("%s: %s", lang_strings[STR_VIDEO_PLAYER], hovered->video_support ? lang_strings[STR_YES] : lang_strings[STR_NO]);
+			ImGui::Text("%s: %s", lang_strings[STR_NETWORK], hovered->has_net ? lang_strings[STR_YES] : lang_strings[STR_NO]);
 			ImGui::Separator();
-			ImGui::Text("Force Bilinear Filtering: %s", hovered->bilinear ? "Yes" : "No");
-			ImGui::Text("Compress Textures: %s", hovered->compress_textures ? "Yes" : "No");
+			ImGui::Text("%s: %s", lang_strings[STR_BILINEAR], hovered->bilinear ? lang_strings[STR_YES] : lang_strings[STR_NO]);
+			ImGui::Text("%s: %s", lang_strings[STR_COMPRESS], hovered->compress_textures ? lang_strings[STR_YES] : lang_strings[STR_NO]);
 			ImGui::Separator();
-			ImGui::Text("Skip Splashscreen at Boot: %s", hovered->skip_splash ? "Yes" : "No");
+			ImGui::Text("%s: %s", lang_strings[STR_SPLASH_SKIP], hovered->skip_splash ? lang_strings[STR_YES] : lang_strings[STR_NO]);
 			ImGui::Separator();
-			ImGui::Text("Run with Debug Mode: %s", hovered->debug_mode ? "Yes" : "No");
-			ImGui::Text("Run with Shaders Debug Mode: %s", hovered->debug_shaders ? "Yes" : "No");
-			ImGui::TextColored(ImVec4(0.702f, 0.863f, 0.067f, 1.00f), "Press Triangle to change settings");
+			ImGui::Text("%s: %s", lang_strings[STR_DEBUG_MODE], hovered->debug_mode ? lang_strings[STR_YES] : lang_strings[STR_NO]);
+			ImGui::Text("%s: %s", lang_strings[STR_DEBUG_SHADERS], hovered->debug_shaders ? lang_strings[STR_YES] : lang_strings[STR_NO]);
+			ImGui::TextColored(ImVec4(0.702f, 0.863f, 0.067f, 1.00f), lang_strings[STR_SETTINGS_INSTR]);
 		}
 		ImGui::SetCursorPosY(470);
-		ImGui::Text("Sort Mode: %s", sort_modes_str[sort_idx]);
-		ImGui::TextColored(ImVec4(0.702f, 0.863f, 0.067f, 1.00f), "Press L/R to change sorting mode");
-		ImGui::TextColored(ImVec4(0.702f, 0.863f, 0.067f, 1.00f), "Press Square to update banners collection");
+		ImGui::Text("%s: %s", lang_strings[STR_SORT], sort_modes_str[sort_idx]);
+		ImGui::TextColored(ImVec4(0.702f, 0.863f, 0.067f, 1.00f), lang_strings[STR_SORT_INSTR]);
+		ImGui::TextColored(ImVec4(0.702f, 0.863f, 0.067f, 1.00f), lang_strings[STR_BANNERS_INSTR]);
 		ImGui::End();
 		
 		glViewport(0, 0, static_cast<int>(ImGui::GetIO().DisplaySize.x), static_cast<int>(ImGui::GetIO().DisplaySize.y));

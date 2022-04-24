@@ -5,6 +5,8 @@
 #include <vitaGL.h>
 #include <imgui_vita.h>
 
+#include "strings.h"
+
 #define SCR_WIDTH 960
 #define SCR_HEIGHT 544
 
@@ -71,7 +73,7 @@ void DrawExtractorDialog(int index, float file_extracted_bytes, float extracted_
 	ImGui_ImplVitaGL_NewFrame();
 	
 	char msg1[256], msg2[256];
-	sprintf(msg1, "%s (%d / %d)", "Extracting archive", index, num_files);
+	sprintf(msg1, "%s (%d / %d)", lang_strings[STR_EXTRACTING], index, num_files);
 	sprintf(msg2, "%s (%.2f %s / %.2f %s)", filename, format(file_extracted_bytes), sizes[quota(file_extracted_bytes)], format(file_total_bytes), sizes[quota(file_total_bytes)]);
 	ImVec2 pos1 = ImGui::CalcTextSize(msg1);
 	ImVec2 pos2 = ImGui::CalcTextSize(msg2);
@@ -99,7 +101,7 @@ void DrawExtrapolatorDialog(char *game) {
 	ImGui_ImplVitaGL_NewFrame();
 	
 	char msg1[256], msg2[256];
-	sprintf(msg1, "%s", "Extracting missing Game IDs");
+	sprintf(msg1, "%s", lang_strings[STR_GAME_ID_EXTR]);
 	sprintf(msg2, "%s", game);
 	ImVec2 pos1 = ImGui::CalcTextSize(msg1);
 	ImVec2 pos2 = ImGui::CalcTextSize(msg2);
@@ -171,7 +173,7 @@ void DrawChangeListDialog(FILE *f) {
 		ImGui::GetIO().MouseDrawCursor = false;
 		ImGui::SetNextWindowPos(ImVec2(30.0f, 10.0f), ImGuiSetCond_Always);
 		ImGui::SetNextWindowSize(ImVec2(900.0f, 524.0f), ImGuiSetCond_Always);
-		ImGui::Begin("What's New", nullptr, ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoBringToFrontOnFocus);
+		ImGui::Begin(lang_strings[STR_NEWS], nullptr, ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoBringToFrontOnFocus);
 	
 		ChangeList *l = lst;
 		while (l) {
@@ -180,7 +182,7 @@ void DrawChangeListDialog(FILE *f) {
 		}
 		
 		ImGui::Separator();
-		if (ImGui::Button("Continue"))
+		if (ImGui::Button(lang_strings[STR_CONTINUE]))
 			show_list = false;
 	
 		ImGui::End();
