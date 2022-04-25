@@ -628,6 +628,10 @@ void setTranslation(int idx) {
 	case SCE_SYSTEM_PARAM_LANG_GERMAN:
 		sprintf(langFile, "app0:lang/German.ini");
 		break;
+	case SCE_SYSTEM_PARAM_LANG_PORTUGUESE_PT: // FIXME: Temporarily using Brazilian one
+	case SCE_SYSTEM_PARAM_LANG_PORTUGUESE_BR:
+		sprintf(langFile, "app0:lang/Portuguese_BR.ini");
+		break;
 	case SCE_SYSTEM_PARAM_LANG_RUSSIAN:
 		sprintf(langFile, "app0:lang/Russian.ini");
 		break;

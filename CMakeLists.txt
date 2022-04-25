@@ -143,6 +143,7 @@ vita_create_vpk(YoYoLoader.vpk ${VITA_TITLEID} eboot.bin
        ${CMAKE_SOURCE_DIR}/translations/Italian.ini lang/Italian.ini
        ${CMAKE_SOURCE_DIR}/translations/Spanish.ini lang/Spanish.ini
        ${CMAKE_SOURCE_DIR}/translations/Russian.ini lang/Russian.ini
+       ${CMAKE_SOURCE_DIR}/translations/Portuguese_BR.ini lang/Portuguese_BR.ini
        ${CMAKE_SOURCE_DIR}/Roboto.ttf Roboto.ttf
 )
 endif()
