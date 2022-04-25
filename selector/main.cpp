@@ -53,6 +53,7 @@ static CURL *curl_handle = NULL;
 static volatile uint64_t total_bytes = 0xFFFFFFFF;
 static volatile uint64_t downloaded_bytes = 0;
 static volatile uint8_t downloader_pass = 1;
+static bool anim_download_request = false;
 uint8_t *downloader_mem_buffer = nullptr;
 static FILE *fh;
 char *bytes_string;
@@ -496,6 +497,37 @@ static int bannerThread(unsigned int args, void *arg) {
 	return sceKernelExitDeleteThread(0);
 }
 
+static int animBannerThread(unsigned int args, void *arg) {
+	char *argv = (char *)arg;
+	char url[512], final_url[512] = "";
+	curl_handle = curl_easy_init();
+	sprintf(url, "https://github.com/Rinnegatamante/yoyoloader_vita_trailers/blob/main/trailers/%s.mp4?raw=true", argv);
+	char *space = strstr(url, " ");
+	char *s = url;
+	while (space) {
+		space[0] = 0;
+		sprintf(final_url, "%s%s%%20", final_url, s);
+		space[0] = ' ';
+		s = space + 1;
+		space = strstr(s, " ");
+	}
+	sprintf(final_url, "%s%s", final_url, s);
+	downloaded_bytes = 0;
+	total_bytes = 20 * 1024; /* 20 KB */
+	startDownload(final_url);
+	int response_code;
+	curl_easy_getinfo(curl_handle, CURLINFO_RESPONSE_CODE, &response_code);
+	
+	if (response_code == 200) {
+		sprintf(url, "ux0:data/gms/shared/anim/%s.mp4", argv);
+		fh = fopen(url, "wb");
+		fwrite((const void*)downloader_mem_buffer, 1, downloaded_bytes, fh);
+		fclose(fh);
+	}
+	curl_easy_cleanup(curl_handle);
+	return sceKernelExitDeleteThread(0);
+}
+
 static char fname[512], ext_fname[512], read_buffer[8192];
 
 void recursive_mkdir(char *dir) {
@@ -560,6 +592,7 @@ int file_exists(const char *path) {
 }
 
 static bool is_downloading_banners = false;
+static bool is_downloading_anim_banner = false;
 static bool has_preview_icon = false;
 static int preview_width, preview_height, preview_x, preview_y;
 GLuint preview_icon = 0;
@@ -583,7 +616,13 @@ void LoadAnimatedPreview(GameSelection *game) {
 		if (f) {
 			fclose(f);
 			video_open(banner_path);
+		} else if (anim_download_request) {
+			is_downloading_anim_banner = true;
+			banner_thid = sceKernelCreateThread("Anim Banners Downloader", &animBannerThread, 0x10000100, 0x100000, 0, 0, NULL);
+			sceKernelStartThread(banner_thid, strlen(game->game_id) + 1, game->game_id);
 		}
+		
+		anim_download_request = false;
 	}
 }
 
@@ -737,6 +776,7 @@ int main(int argc, char *argv[]) {
 	style.Colors[ImGuiCol_PlotHistogramHovered]  = ImVec4(col_main.x, col_main.y, col_main.z, 1.00f);
 	style.Colors[ImGuiCol_TextSelectedBg]        = ImVec4(col_main.x, col_main.y, col_main.z, 0.43f);
 	style.Colors[ImGuiCol_NavHighlight]          = ImVec4(col_main.x, col_main.y, col_main.z, 0.86f);
+	ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0, 2));
 	ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f);
 	ImGui::GetIO().MouseDrawCursor = false;
 	
@@ -906,11 +946,11 @@ int main(int argc, char *argv[]) {
 		
 		SceCtrlData pad;
 		sceCtrlPeekBufferPositive(0, &pad, 1);
-		if (pad.buttons & SCE_CTRL_TRIANGLE && !(oldpad & SCE_CTRL_TRIANGLE) && hovered && !extracting && !is_downloading_banners) {
+		if (pad.buttons & SCE_CTRL_TRIANGLE && !(oldpad & SCE_CTRL_TRIANGLE) && hovered && !extracting && !is_downloading_banners && !is_downloading_anim_banner) {
 			is_config_invoked = !is_config_invoked;
 			sprintf(settings_str, "%s - %s", hovered->name, lang_strings[STR_SETTINGS]);
 			saved_size = -1.0f;
-		} else if (pad.buttons & SCE_CTRL_SQUARE && !(oldpad & SCE_CTRL_SQUARE) && !is_config_invoked && !is_downloading_banners) {
+		} else if (pad.buttons & SCE_CTRL_SQUARE && !(oldpad & SCE_CTRL_SQUARE) && !is_config_invoked && !is_downloading_banners && !is_downloading_anim_banner) {
 			is_downloading_banners = true;
 			banner_thid = sceKernelCreateThread("Banners Downloader", &bannerThread, 0x10000100, 0x100000, 0, 0, NULL);
 			sceKernelStartThread(banner_thid, 0, NULL);
@@ -923,6 +963,7 @@ int main(int argc, char *argv[]) {
 		} else if (pad.buttons & SCE_CTRL_SELECT && !(oldpad & SCE_CTRL_SELECT)) {
 			video_close();
 			animated_preview_delayer = ANIMATED_PREVIEW_DELAY;
+			anim_download_request = true;
 		}
 		oldpad = pad.buttons;
 		
@@ -939,6 +980,18 @@ int main(int argc, char *argv[]) {
 				is_downloading_banners = false;
 			} else {
 				DrawDownloaderDialog(1, downloaded_bytes, total_bytes, lang_strings[STR_BANNERS], 1, false);
+			}
+		} else if (is_downloading_anim_banner) {
+			res = sceKernelGetThreadInfo(banner_thid, &info);
+			if (info.status > SCE_THREAD_DORMANT || res < 0) {
+				glViewport(0, 0, static_cast<int>(ImGui::GetIO().DisplaySize.x), static_cast<int>(ImGui::GetIO().DisplaySize.y));
+				ImGui::Render();
+				ImGui_ImplVitaGL_RenderDrawData(ImGui::GetDrawData());
+				vglSwapBuffers(GL_FALSE);
+				ImGui_ImplVitaGL_NewFrame();
+				is_downloading_anim_banner = false;
+			} else {
+				DrawDownloaderDialog(1, downloaded_bytes, total_bytes, lang_strings[STR_ANIM_BANNER], 1, false);
 			}
 		} else if (is_config_invoked) {
 			const char *desc = nullptr;
@@ -1071,6 +1124,7 @@ int main(int argc, char *argv[]) {
 			ImGui::Text("%s: %s", lang_strings[STR_DEBUG_MODE], hovered->debug_mode ? lang_strings[STR_YES] : lang_strings[STR_NO]);
 			ImGui::Text("%s: %s", lang_strings[STR_DEBUG_SHADERS], hovered->debug_shaders ? lang_strings[STR_YES] : lang_strings[STR_NO]);
 			ImGui::TextColored(ImVec4(0.702f, 0.863f, 0.067f, 1.00f), lang_strings[STR_SETTINGS_INSTR]);
+			ImGui::TextColored(ImVec4(0.702f, 0.863f, 0.067f, 1.00f), lang_strings[STR_ANIM_BANNER_INSTR]);
 		}
 		ImGui::SetCursorPosY(470);
 		ImGui::Text("%s: %s", lang_strings[STR_SORT], sort_modes_str[sort_idx]);

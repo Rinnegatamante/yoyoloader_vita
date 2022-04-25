@@ -59,5 +59,7 @@ char lang_strings[LANG_STRINGS_NUM][LANG_STR_SIZE] = {
 	"Extracting archive", // STR_EXTRACTING
 	"Extracting missing Game IDs", // STR_GAME_ID_EXTR
 	"What's New", // STR_NEWS
-	"Continue" // STR_CONTINUE
+	"Continue", // STR_CONTINUE
+	"Downloading animated banner", // STR_ANIM_BANNER
+	"Press Select to download animated banner or restart it" // STR_ANIM_BANNER_INSTR
 };
