@@ -628,6 +628,13 @@ void setTranslation(int idx) {
 	case SCE_SYSTEM_PARAM_LANG_GERMAN:
 		sprintf(langFile, "app0:lang/German.ini");
 		break;
+	case SCE_SYSTEM_PARAM_LANG_PORTUGUESE_PT: // FIXME: Temporarily using Brazilian one
+	case SCE_SYSTEM_PARAM_LANG_PORTUGUESE_BR:
+		sprintf(langFile, "app0:lang/Portuguese_BR.ini");
+		break;
+	case SCE_SYSTEM_PARAM_LANG_RUSSIAN:
+		sprintf(langFile, "app0:lang/Russian.ini");
+		break;
 	default:
 		sprintf(langFile, "app0:lang/English.ini");
 		break;
@@ -681,6 +688,20 @@ int main(int argc, char *argv[]) {
 	GameSelection *hovered = nullptr;
 	vglInitExtended(0, 960, 544, 0x1800000, SCE_GXM_MULTISAMPLE_4X);
 	ImGui::CreateContext();
+	
+	static const ImWchar ranges[] = { // All languages except chinese
+		0x0020, 0x00FF, // Basic Latin + Latin Supplement
+		0x0100, 0x024F, // Latin Extended
+		0x0370, 0x03FF, // Greek
+		0x0400, 0x052F, // Cyrillic + Cyrillic Supplement
+		0x0590, 0x05FF, // Hebrew
+		0x1E00, 0x1EFF, // Latin Extended Additional
+		0x2DE0, 0x2DFF, // Cyrillic Extended-A
+		0xA640, 0xA69F, // Cyrillic Extended-B
+		0,
+	};
+	ImGui::GetIO().Fonts->AddFontFromFileTTF("app0:/Roboto.ttf", 14.0f, NULL, ranges);
+	
 	ImGui_ImplVitaGL_Init();
 	ImGui_ImplVitaGL_TouchUsage(false);
 	ImGui_ImplVitaGL_GamepadUsage(true);

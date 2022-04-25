@@ -70,5 +70,7 @@ After all these requirements are met, you can compile the loader similarly to ho
 - Once13One for the Livearea assets and the README showcase image.
 - hatoving for the German translation.
 - BetterWinds and SofyUchiha for the Spanish translation.
+- gl33ntwine for the Russian and Ukrainian translations.
+- Titi Clash for the Brazilian Portuguese translation.
 - CatoTheYounger for providing most of the banners used in the game selector.
 - Everyone who contributed, tested and provided support over Vita Nuova Discord channel.
