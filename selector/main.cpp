@@ -707,7 +707,7 @@ int main(int argc, char *argv[]) {
 	
 	sceIoMkdir("ux0:data/gms", 0777);
 	sceIoMkdir("ux0:data/gms/shared", 0777);
-	sceIoMkdir("ux0:data/gms/shared/banners", 0777);
+	sceIoMkdir("ux0:data/gms/shared/anim", 0777);
 	sceIoMkdir("ux0:data/gms/shared/lang", 0777);
 	
 	if (!file_exists("ur0:/data/libshacccg.suprx") && !file_exists("ur0:/data/external/libshacccg.suprx"))
