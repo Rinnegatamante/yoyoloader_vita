@@ -23,7 +23,7 @@
 #define MIN(x, y) (x) < (y) ? (x) : (y)
 
 #define NUM_OPTIONS 12
-#define NUM_DB_CHUNKS 2
+#define NUM_DB_CHUNKS 3
 
 extern void video_open(const char *path);
 extern GLuint video_get_frame(int *width, int *height);
