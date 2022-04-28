@@ -90,6 +90,8 @@ int get_index = 0;
 void (*Function_Add)(const char *name, intptr_t func, int argc, char ret);
 
 double jni_double = 0.0f;
+GLuint main_fb, main_tex = 0xDEADBEEF;
+int is_portrait = 0;
 
 char data_path[256];
 char apk_path[256];
@@ -533,12 +535,48 @@ void main_loop() {
 			}
 		}
 		
+		SceMotionSensorState sensor;
+		sceMotionGetSensorState(&sensor, 1);
+		SceMotionState state;
+		sceMotionGetState(&state);
+		float orientation[3];
+		sceMotionGetBasicOrientation(orientation);
+		is_portrait = (int)orientation[0];
+		if (is_portrait) {
+			if (main_tex == 0xDEADBEEF) {
+				glGenTextures(1, &main_tex);
+				glBindTexture(GL_TEXTURE_2D, main_tex);
+				glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, SCREEN_H, SCREEN_W, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+				glGenFramebuffers(1, &main_fb);
+				glBindFramebuffer(GL_FRAMEBUFFER, main_fb);
+				glFramebufferTexture(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, main_tex, 0);
+			}
+			glBindFramebuffer(GL_FRAMEBUFFER, main_fb);
+			glViewport(0, 0, SCREEN_H, SCREEN_W);
+			glScissor(0, 0, SCREEN_H, SCREEN_W);
+		} else {
+			glBindFramebuffer(GL_FRAMEBUFFER, 0);
+			glViewport(0, 0, SCREEN_W, SCREEN_H);
+			glScissor(0, 0, SCREEN_W, SCREEN_H);
+		}
+
 		SceTouchData touch;
 		sceTouchPeek(SCE_TOUCH_PORT_FRONT, &touch, 1);
 		for (int i = 0; i < SCE_TOUCH_MAX_REPORT; i++) {
 			if (i < touch.reportNum) {
-				int x = (int)((float)touch.report[i].x * (float)SCREEN_W / 1920.0f);
-				int y = (int)((float)touch.report[i].y * (float)SCREEN_H / 1088.0f);
+				int x, y;
+				if (is_portrait) {
+					y = (int)((float)touch.report[i].x * (float)SCREEN_W / 1920.0f);
+					x = (int)((float)touch.report[i].y * (float)SCREEN_H / 1088.0f);
+					if (is_portrait > 0) {
+						y = SCREEN_W - y;
+					} else {
+						x = SCREEN_H - x;
+					}
+				} else {
+					x = (int)((float)touch.report[i].x * (float)SCREEN_W / 1920.0f);
+					y = (int)((float)touch.report[i].y * (float)SCREEN_H / 1088.0f);
+				}
 
 				if (lastX[i] == -1 || lastY[i] == -1)
 					Java_com_yoyogames_runner_RunnerJNILib_TouchEvent(fake_env, 0, TOUCH_DOWN, i, x, y);
@@ -558,11 +596,47 @@ void main_loop() {
 		if (*g_IOFrameCount >= 1) {
 			GamePadUpdate();
 		}
-		
-		SceMotionSensorState sensor;
-		sceMotionGetSensorState(&sensor, 1);
-		Java_com_yoyogames_runner_RunnerJNILib_Process(fake_env, 0, SCREEN_W, SCREEN_H, sensor.accelerometer.x, sensor.accelerometer.y, sensor.accelerometer.z, 0, 0, 60.0f);
+
+		if (!is_portrait)
+			Java_com_yoyogames_runner_RunnerJNILib_Process(fake_env, 0, SCREEN_W, SCREEN_H, sensor.accelerometer.x, sensor.accelerometer.y, sensor.accelerometer.z, 0, 0, 60.0f);
+		else
+			Java_com_yoyogames_runner_RunnerJNILib_Process(fake_env, 0, SCREEN_H, SCREEN_W, sensor.accelerometer.x, sensor.accelerometer.y, sensor.accelerometer.z, 0, 0x3FF00000, 60.0f);	
 		if (!Java_com_yoyogames_runner_RunnerJNILib_canFlip || Java_com_yoyogames_runner_RunnerJNILib_canFlip()) {
+			if (is_portrait) {
+				int prog;
+				glGetIntegerv(GL_CURRENT_PROGRAM, &prog);
+				glUseProgram(0);
+				glEnable(GL_TEXTURE_2D);
+				glEnableClientState(GL_VERTEX_ARRAY);
+				glEnableClientState(GL_TEXTURE_COORD_ARRAY);
+				glViewport(0, 0, SCREEN_W, SCREEN_H);
+				glDisable(GL_SCISSOR_TEST);
+				glMatrixMode(GL_PROJECTION);
+				glLoadIdentity();
+				glOrtho(0, SCREEN_W, SCREEN_H, 0, -1, 1);
+				glMatrixMode(GL_MODELVIEW);
+				glLoadIdentity();
+				float fb_vertices[] = {
+             SCREEN_W, SCREEN_H, 0,
+				    0, SCREEN_H, 0,
+				    0,        0, 0,
+			 SCREEN_W,        0, 0,
+				};
+				float fb_texcoords[] = {1, 1, 1, 0, 0, 0, 0, 1};
+				float fb_texcoords_flipped[] = {0, 0, 0, 1, 1, 1, 1, 0};
+				if (is_portrait > 0)
+					glTexCoordPointer(2, GL_FLOAT, 0, fb_texcoords);
+				else
+					glTexCoordPointer(2, GL_FLOAT, 0, fb_texcoords_flipped);
+				glVertexPointer(3, GL_FLOAT, 0, fb_vertices);
+				
+				glBindTexture(GL_TEXTURE_2D, main_tex);
+				glBindFramebuffer(GL_FRAMEBUFFER, 0);
+				glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
+				glDisableClientState(GL_VERTEX_ARRAY);
+				glDisableClientState(GL_TEXTURE_COORD_ARRAY);
+				glUseProgram(prog);
+			}
 			if (ime_active) {
 				char *r = get_ime_dialog_result();
 				if (r) {
@@ -859,6 +933,13 @@ void *retJNI(int dummy) {
 	return fake_env;
 }
 
+void glBindFramebufferHook(GLenum target, GLuint framebuffer) {
+	if (!framebuffer && is_portrait) {
+		framebuffer = main_fb;
+	}
+	glBindFramebuffer(target, framebuffer);
+}
+
 const char *gl_ret0[] = {
 	"glCompileShader",
 	"glDeleteRenderbuffers",
@@ -880,6 +961,7 @@ static so_default_dynlib gl_hook[] = {
 	{"glTexImage2D", (uintptr_t)&glTexImage2DHook},
 	{"glTexParameterf", (uintptr_t)&glTexParameterfHook},
 	{"glTexParameteri", (uintptr_t)&glTexParameteriHook},
+	{"glBindFramebuffer", (uintptr_t)&glBindFramebufferHook},
 };
 static size_t gl_numhook = sizeof(gl_hook) / sizeof(*gl_hook);
 
@@ -1444,15 +1526,16 @@ int check_kubridge(void) {
 
 enum MethodIDs {
 	UNKNOWN = 0,
-	INIT,
-	GET_UDID,
-	SHOW_MESSAGE,
-	INPUT_STRING_ASYNC,
-	SHOW_MESSAGE_ASYNC,
 	CALL_EXTENSION_FUNCTION,
 	DOUBLE_VALUE,
+	GET_UDID,
+	GET_DEFAULT_FRAMEBUFFER,
 	HTTP_POST,
-	HTTP_GET
+	HTTP_GET,
+	INIT,
+	INPUT_STRING_ASYNC,
+	SHOW_MESSAGE,
+	SHOW_MESSAGE_ASYNC,
 } MethodIDs;
 
 typedef struct {
@@ -1462,14 +1545,15 @@ typedef struct {
 
 static NameToMethodID name_to_method_ids[] = {
 	{ "<init>", INIT },
-	{ "GetUDID", GET_UDID },
-	{ "ShowMessage", SHOW_MESSAGE },
-	{ "InputStringAsync", INPUT_STRING_ASYNC },
-	{ "ShowMessageAsync", SHOW_MESSAGE_ASYNC },
 	{ "CallExtensionFunction", CALL_EXTENSION_FUNCTION },
 	{ "doubleValue", DOUBLE_VALUE },
+	{ "GetUDID", GET_UDID },
+	{ "GetDefaultFrameBuffer", GET_DEFAULT_FRAMEBUFFER },
 	{ "HttpGet", HTTP_GET },
-	{ "HttpPost", HTTP_POST }
+	{ "HttpPost", HTTP_POST },
+	{ "InputStringAsync", INPUT_STRING_ASYNC },
+	{ "ShowMessage", SHOW_MESSAGE },
+	{ "ShowMessageAsync", SHOW_MESSAGE_ASYNC }
 };
 
 int GetMethodID(void *env, void *class, const char *name, const char *sig) {
@@ -1670,6 +1754,8 @@ void *CallStaticObjectMethodV(void *env, void *obj, int methodID, uintptr_t *arg
 
 int CallStaticIntMethodV(void *env, void *obj, int methodID, uintptr_t *args) {
 	switch (methodID) {
+	case GET_DEFAULT_FRAMEBUFFER:
+		return 0;
 	default:
 		if (methodID != UNKNOWN)
 			debugPrintf("CallStaticIntMethodV(%d)\n", methodID);
@@ -1799,6 +1885,7 @@ int main(int argc, char **argv)
 	sceTouchSetSamplingState(SCE_TOUCH_PORT_FRONT, SCE_TOUCH_SAMPLING_STATE_START);
 	sceTouchSetSamplingState(SCE_TOUCH_PORT_BACK, SCE_TOUCH_SAMPLING_STATE_START);
 	sceCtrlSetSamplingModeExt(SCE_CTRL_MODE_ANALOG_WIDE);
+	sceMotionReset();
 	sceMotionStartSampling();
 
 	// Maximizing clocks
@@ -2007,9 +2094,7 @@ int main(int argc, char **argv)
 			SCREEN_W, SCREEN_H, 0,
 			       0, SCREEN_H, 0
 		};
-		float splash_texcoords[] = {
-			0, 0, 1, 0, 1, 1, 0, 1
-		};
+		float splash_texcoords[] = {0, 0, 1, 0, 1, 1, 0, 1};
 		glVertexPointer(3, GL_FLOAT, 0, splash_vertices);
 		glTexCoordPointer(2, GL_FLOAT, 0, splash_texcoords);
 		glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
