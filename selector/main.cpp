@@ -24,6 +24,7 @@
 
 #define NUM_OPTIONS 12
 #define NUM_DB_CHUNKS 3
+#define MEM_BUFFER_SIZE (32 * 1024 * 1024)
 
 extern void video_open(const char *path);
 extern GLuint video_get_frame(int *width, int *height);
@@ -371,18 +372,21 @@ int optimizer_thread(unsigned int argc, void *argv) {
 	for (uint32_t zip_idx = 0; zip_idx < global_info.number_entry; ++zip_idx) {
 		unzGetCurrentFileInfo(src_file, &file_info, fname, 512, NULL, 0, NULL, 0);
 		if ((strstr(fname, "assets/") && fname[strlen(fname) - 1] != '/') || !strcmp(fname, "lib/armeabi-v7a/libyoyo.so")) {
-			void *buffer = malloc(file_info.uncompressed_size);
-			unzOpenCurrentFile(src_file);
-			unzReadCurrentFile(src_file, buffer, file_info.uncompressed_size);
-			unzCloseCurrentFile(src_file);
 			if (strstr(fname, ".ogg") || strstr(fname, ".mp4")) {
 				zipOpenNewFileInZip(dst_file, fname, NULL, NULL, 0, NULL, 0, NULL, 0, Z_NO_COMPRESSION);
 			} else {
 				zipOpenNewFileInZip(dst_file, fname, NULL, NULL, 0, NULL, 0, NULL, Z_DEFLATED, Z_DEFAULT_COMPRESSION);
 			}
-			zipWriteInFileInZip(dst_file, buffer, file_info.uncompressed_size);
+			uint32_t executed_bytes = 0;
+			unzOpenCurrentFile(src_file);
+			while (executed_bytes < file_info.uncompressed_size) {
+				uint32_t read_size = (file_info.uncompressed_size - executed_bytes) > MEM_BUFFER_SIZE ? MEM_BUFFER_SIZE : (file_info.uncompressed_size - executed_bytes);
+				unzReadCurrentFile(src_file, downloader_mem_buffer, read_size);
+				zipWriteInFileInZip(dst_file, downloader_mem_buffer, read_size);
+				executed_bytes += read_size;
+			}
+			unzCloseCurrentFile(src_file);
 			zipCloseFileInZip(dst_file);
-			free(buffer);
 		}
 		unzGoToNextFile(src_file);
 		cur_idx++;
@@ -777,7 +781,7 @@ int main(int argc, char *argv[]) {
 	loadSelectorConfig();
 	
 	// Initializing sceNet
-	downloader_mem_buffer = (uint8_t*)malloc(32 * 1024 * 1024);
+	downloader_mem_buffer = (uint8_t*)malloc(MEM_BUFFER_SIZE);
 	sceSysmoduleLoadModule(SCE_SYSMODULE_NET);
 	int ret = sceNetShowNetstat();
 	SceNetInitParam initparam;
@@ -939,9 +943,9 @@ int main(int argc, char *argv[]) {
 				uint32_t offs;
 				unzReadCurrentFile(apk_file, &offs, 4);
 				uint32_t target = offs - 28;
-				while (target > 32 * 1024 * 1024) {
-					unzReadCurrentFile(apk_file, downloader_mem_buffer, 32 * 1024 * 1024);
-					target -= 32 * 1024 * 1024;
+				while (target > MEM_BUFFER_SIZE) {
+					unzReadCurrentFile(apk_file, downloader_mem_buffer, MEM_BUFFER_SIZE);
+					target -= MEM_BUFFER_SIZE;
 				}
 				unzReadCurrentFile(apk_file, downloader_mem_buffer, target);
 				unzReadCurrentFile(apk_file, &offs, 4);
