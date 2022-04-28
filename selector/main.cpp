@@ -54,6 +54,7 @@ static volatile uint64_t total_bytes = 0xFFFFFFFF;
 static volatile uint64_t downloaded_bytes = 0;
 static volatile uint8_t downloader_pass = 1;
 static bool anim_download_request = false;
+static bool needs_extended_font = false;
 uint8_t *downloader_mem_buffer = nullptr;
 static FILE *fh;
 char *bytes_string;
@@ -497,6 +498,25 @@ static int bannerThread(unsigned int args, void *arg) {
 	return sceKernelExitDeleteThread(0);
 }
 
+static int fontThread(unsigned int args, void *arg) {
+	char url[512];
+	curl_handle = curl_easy_init();
+	sprintf(url, "https://github.com/Rinnegatamante/yoyoloader_vita/blob/main/Roboto_ext.ttf?raw=true");
+	downloaded_bytes = 0;
+	total_bytes = 20 * 1024; /* 20 KB */
+	startDownload(url);
+	int response_code;
+	curl_easy_getinfo(curl_handle, CURLINFO_RESPONSE_CODE, &response_code);
+	
+	if (response_code == 200) {
+		fh = fopen("ux0:data/gms/shared/Roboto_ext.ttf", "wb");
+		fwrite((const void*)downloader_mem_buffer, 1, downloaded_bytes, fh);
+		fclose(fh);
+	}
+	curl_easy_cleanup(curl_handle);
+	return sceKernelExitDeleteThread(0);
+}
+
 static int animBannerThread(unsigned int args, void *arg) {
 	char *argv = (char *)arg;
 	char url[512], final_url[512] = "";
@@ -674,6 +694,10 @@ void setTranslation(int idx) {
 	case SCE_SYSTEM_PARAM_LANG_RUSSIAN:
 		sprintf(langFile, "app0:lang/Russian.ini");
 		break;
+	case SCE_SYSTEM_PARAM_LANG_JAPANESE:
+		sprintf(langFile, "app0:lang/Japanese.ini");
+		needs_extended_font = true;
+		break;	
 	default:
 		sprintf(langFile, "app0:lang/English.ini");
 		break;
@@ -702,48 +726,7 @@ void setTranslation(int idx) {
 	}
 }
 
-int main(int argc, char *argv[]) {
-	sceSysmoduleLoadModule(SCE_SYSMODULE_AVPLAYER);
-	
-	sceIoMkdir("ux0:data/gms", 0777);
-	sceIoMkdir("ux0:data/gms/shared", 0777);
-	sceIoMkdir("ux0:data/gms/shared/anim", 0777);
-	sceIoMkdir("ux0:data/gms/shared/lang", 0777);
-	
-	if (!file_exists("ur0:/data/libshacccg.suprx") && !file_exists("ur0:/data/external/libshacccg.suprx"))
-		fatal_error(lang_strings[STR_SHACCCG_ERROR]);
-
-	loadSelectorConfig();
-	
-	// Initializing sceAppUtil
-	SceAppUtilInitParam appUtilParam;
-	SceAppUtilBootParam appUtilBootParam;
-	memset(&appUtilParam, 0, sizeof(SceAppUtilInitParam));
-	memset(&appUtilBootParam, 0, sizeof(SceAppUtilBootParam));
-	sceAppUtilInit(&appUtilParam, &appUtilBootParam);
-	sceAppUtilSystemParamGetInt(SCE_SYSTEM_PARAM_ID_LANG, &console_language);
-	setTranslation(console_language);
-	
-	GameSelection *hovered = nullptr;
-	vglInitExtended(0, 960, 544, 0x1800000, SCE_GXM_MULTISAMPLE_4X);
-	ImGui::CreateContext();
-	
-	static const ImWchar ranges[] = { // All languages except chinese
-		0x0020, 0x00FF, // Basic Latin + Latin Supplement
-		0x0100, 0x024F, // Latin Extended
-		0x0370, 0x03FF, // Greek
-		0x0400, 0x052F, // Cyrillic + Cyrillic Supplement
-		0x0590, 0x05FF, // Hebrew
-		0x1E00, 0x1EFF, // Latin Extended Additional
-		0x2DE0, 0x2DFF, // Cyrillic Extended-A
-		0xA640, 0xA69F, // Cyrillic Extended-B
-		0,
-	};
-	ImGui::GetIO().Fonts->AddFontFromFileTTF("app0:/Roboto.ttf", 14.0f, NULL, ranges);
-	
-	ImGui_ImplVitaGL_Init();
-	ImGui_ImplVitaGL_TouchUsage(false);
-	ImGui_ImplVitaGL_GamepadUsage(true);
+void setImguiTheme() {
 	ImGui::StyleColorsDark();
 	ImGuiStyle& style = ImGui::GetStyle();
 	ImVec4 col_area = ImVec4(0.047f, 0.169f, 0.059f, 0.44f);
@@ -779,10 +762,99 @@ int main(int argc, char *argv[]) {
 	ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0, 2));
 	ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f);
 	ImGui::GetIO().MouseDrawCursor = false;
+}
+
+int main(int argc, char *argv[]) {
+	sceSysmoduleLoadModule(SCE_SYSMODULE_AVPLAYER);
 	
+	sceIoMkdir("ux0:data/gms", 0777);
+	sceIoMkdir("ux0:data/gms/shared", 0777);
+	sceIoMkdir("ux0:data/gms/shared/anim", 0777);
+	
+	if (!file_exists("ur0:/data/libshacccg.suprx") && !file_exists("ur0:/data/external/libshacccg.suprx"))
+		fatal_error(lang_strings[STR_SHACCCG_ERROR]);
+
+	loadSelectorConfig();
+	
+	// Initializing sceNet
+	downloader_mem_buffer = (uint8_t*)malloc(32 * 1024 * 1024);
+	sceSysmoduleLoadModule(SCE_SYSMODULE_NET);
+	int ret = sceNetShowNetstat();
+	SceNetInitParam initparam;
+	if (ret == SCE_NET_ERROR_ENOTINIT) {
+		initparam.memory = malloc(1024 * 1024);
+		initparam.size = 1024 * 1024;
+		initparam.flags = 0;
+		sceNetInit(&initparam);
+	}
+	
+	// Initializing sceAppUtil
+	SceAppUtilInitParam appUtilParam;
+	SceAppUtilBootParam appUtilBootParam;
+	memset(&appUtilParam, 0, sizeof(SceAppUtilInitParam));
+	memset(&appUtilBootParam, 0, sizeof(SceAppUtilBootParam));
+	sceAppUtilInit(&appUtilParam, &appUtilBootParam);
+	sceAppUtilSystemParamGetInt(SCE_SYSTEM_PARAM_ID_LANG, &console_language);
+	setTranslation(console_language);
+	
+	GameSelection *hovered = nullptr;
+	vglInitExtended(0, 960, 544, 0x1800000, SCE_GXM_MULTISAMPLE_4X);
+	ImGui::CreateContext();
 	SceKernelThreadInfo info;
 	info.size = sizeof(SceKernelThreadInfo);
 	int res = 0;
+	
+	if (needs_extended_font) {
+		static const ImWchar ranges[] = { // All languages with chinese included
+			0x0020, 0x00FF, // Basic Latin + Latin Supplement
+			0x0100, 0x024F, // Latin Extended
+			0x0370, 0x03FF, // Greek
+			0x0400, 0x052F, // Cyrillic + Cyrillic Supplement
+			0x0590, 0x05FF, // Hebrew
+			0x1E00, 0x1EFF, // Latin Extended Additional
+			0x2000, 0x206F, // General Punctuation
+			0x2DE0, 0x2DFF, // Cyrillic Extended-A
+			0x3000, 0x30FF, // CJK Symbols and Punctuations, Hiragana, Katakana
+			0x31F0, 0x31FF, // Katakana Phonetic Extensions
+			0x4E00, 0x9FAF, // CJK Ideograms
+			0xA640, 0xA69F, // Cyrillic Extended-B
+			0xFF00, 0xFFEF, // Half-width characters
+			0,
+		};
+		SceIoStat stat;
+		if (sceIoGetstat("ux0:data/gms/shared/Roboto_ext.ttf", &stat)) {
+			ImGui_ImplVitaGL_Init();
+			setImguiTheme();
+			SceUID thd = sceKernelCreateThread("Font Downloader", &fontThread, 0x10000100, 0x100000, 0, 0, NULL);
+			sceKernelStartThread(thd, 0, NULL);
+			do {
+				DrawDownloaderDialog(1, downloaded_bytes, total_bytes, "Downloading required font, please wait...", 1, true);
+				res = sceKernelGetThreadInfo(thd, &info);
+			} while (info.status <= SCE_THREAD_DORMANT && res >= 0);
+			ImGui::GetIO().Fonts->Clear();
+			ImGui_ImplVitaGL_InvalidateDeviceObjects();
+		} else
+			ImGui_ImplVitaGL_Init();
+		ImGui::GetIO().Fonts->AddFontFromFileTTF("ux0:/data/gms/shared/Roboto_ext.ttf", 14.0f, NULL, ranges);
+	} else {
+		ImGui_ImplVitaGL_Init();
+		static const ImWchar ranges[] = { // All languages except chinese
+			0x0020, 0x00FF, // Basic Latin + Latin Supplement
+			0x0100, 0x024F, // Latin Extended
+			0x0370, 0x03FF, // Greek
+			0x0400, 0x052F, // Cyrillic + Cyrillic Supplement
+			0x0590, 0x05FF, // Hebrew
+			0x1E00, 0x1EFF, // Latin Extended Additional
+			0x2DE0, 0x2DFF, // Cyrillic Extended-A
+			0xA640, 0xA69F, // Cyrillic Extended-B
+			0,
+		};
+		ImGui::GetIO().Fonts->AddFontFromFileTTF("app0:/Roboto.ttf", 14.0f, NULL, ranges);
+	}
+	
+	ImGui_ImplVitaGL_TouchUsage(false);
+	ImGui_ImplVitaGL_GamepadUsage(true);
+	setImguiTheme();
 	FILE *f;
 	
 	// Check if YoYo Loader has been launched with a custom bubble
@@ -795,16 +867,6 @@ int main(int argc, char *argv[]) {
 	}
 	
 	// Checking for updates
-	downloader_mem_buffer = (uint8_t*)malloc(32 * 1024 * 1024);
-	sceSysmoduleLoadModule(SCE_SYSMODULE_NET);
-	int ret = sceNetShowNetstat();
-	SceNetInitParam initparam;
-	if (ret == SCE_NET_ERROR_ENOTINIT) {
-		initparam.memory = malloc(1024 * 1024);
-		initparam.size = 1024 * 1024;
-		initparam.flags = 0;
-		sceNetInit(&initparam);
-	}
 	if (!skip_updates_check) {
 		SceUID thd = sceKernelCreateThread("Auto Updater", &updaterThread, 0x10000100, 0x100000, 0, 0, NULL);
 		sceKernelStartThread(thd, 0, NULL);

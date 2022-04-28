@@ -617,9 +617,9 @@ void main_loop() {
 				glMatrixMode(GL_MODELVIEW);
 				glLoadIdentity();
 				float fb_vertices[] = {
-             SCREEN_W, SCREEN_H, 0,
-				    0, SCREEN_H, 0,
-				    0,        0, 0,
+			 SCREEN_W, SCREEN_H, 0,
+			        0, SCREEN_H, 0,
+			        0,        0, 0,
 			 SCREEN_W,        0, 0,
 				};
 				float fb_texcoords[] = {1, 1, 1, 0, 0, 0, 0, 1};
