@@ -17,7 +17,7 @@ jobs:
       run: |
         cp stubs/libkubridge_stub.a /home/user/vitasdk/arm-vita-eabi/lib
         cp stubs/libkubridge_stub_weak.a /home/user/vitasdk/arm-vita-eabi/lib
-        git clone -b vita-1.19.1 --single-branch https://github.com/isage/openal-soft.git
+        git clone -b vgl --single-branch https://github.com/Rinnegatamante/openal-soft.git
         cd openal-soft/build
         cmake -DCMAKE_TOOLCHAIN_FILE=${VITASDK}/share/vita.toolchain.cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_FLAGS=-mfloat-abi=softfp .. && make -j$(nproc) install
         cd ../..
