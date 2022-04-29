@@ -982,7 +982,9 @@ void *dlsym_hook( void *handle, const char *symbol) {
 FILE *fopen_hook(char *file, char *mode) {
 	char *s = strstr(file, "/ux0:");
 	if (s)
-		return fopen(&s[1], mode);
+		file = s + 1;
+	if (mode[0] == 'w')
+		recursive_mkdir(file);
 	return fopen(file, mode);
 }
 
