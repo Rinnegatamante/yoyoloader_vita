@@ -380,7 +380,24 @@ int optimizer_thread(unsigned int argc, void *argv) {
 			if (strstr(fname, ".ogg") || strstr(fname, ".mp4")) {
 				zipOpenNewFileInZip(dst_file, fname, NULL, NULL, 0, NULL, 0, NULL, 0, Z_NO_COMPRESSION);
 			} else {
-				zipOpenNewFileInZip(dst_file, fname, NULL, NULL, 0, NULL, 0, NULL, Z_DEFLATED, Z_DEFAULT_COMPRESSION);
+				/*
+				 * HACK: There's some issue in zlib seemingly that makes zip_fread to fail after some reads on some specific files.
+				 * if they are compressed. Until a proper solution is found, we hack those files to be only stored to bypass the issue.
+				 */
+				bool needs_hack = false;
+				const char *blacklist[] = {
+					"english.ini", // AM2R
+					"yugothib.ttf" // JackQuest
+				};
+				for (int i = 0; i < (sizeof(blacklist) / sizeof(blacklist[0])); i++) {
+					if (strstr(fname, blacklist[i])) {
+						zipOpenNewFileInZip(dst_file, fname, NULL, NULL, 0, NULL, 0, NULL, 0, Z_NO_COMPRESSION);
+						needs_hack = true;
+						break;
+					}
+				}
+				if (!needs_hack)
+					zipOpenNewFileInZip(dst_file, fname, NULL, NULL, 0, NULL, 0, NULL, Z_DEFLATED, Z_DEFAULT_COMPRESSION);
 			}
 			uint32_t executed_bytes = 0;
 			unzOpenCurrentFile(src_file);
