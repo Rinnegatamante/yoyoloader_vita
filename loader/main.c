@@ -74,6 +74,7 @@ int forceWinMode = 0;
 int forceBilinear = 0;
 int compressTextures = 0;
 int has_net = 0;
+int post_processing = 1;
 extern int maximizeMem;
 int debugShaders = 0;
 int squeeze_mem = 0;
@@ -173,7 +174,7 @@ int file_exists(const char *path) {
 	return sceIoGetstat(path, &stat) >= 0;
 }
 
-#if 1
+#if 0
 int debugPrintf(char *text, ...) {
 	if (!debugMode)
 		return 0;
@@ -504,12 +505,18 @@ void main_loop() {
 	int (*Java_com_yoyogames_runner_RunnerJNILib_InputResult) (void *env, int a2, char *string, int state, int id) = (void *)so_symbol(&yoyoloader_mod, "Java_com_yoyogames_runner_RunnerJNILib_InputResult");
 	int (*Java_com_yoyogames_runner_RunnerJNILib_HttpResult) (void *env, int a2, void *result, int responde_code, int id, char *url, void *header) = (void *)so_symbol(&yoyoloader_mod, "Java_com_yoyogames_runner_RunnerJNILib_HttpResult");
 	int (*Java_com_yoyogames_runner_RunnerJNILib_canFlip) (void) = (void *)so_symbol(&yoyoloader_mod, "Java_com_yoyogames_runner_RunnerJNILib_canFlip");
+	int (*Java_com_yoyogames_runner_RunnerJNILib_getGuiHeight)(void *env) = (void *)so_symbol(&yoyoloader_mod, "Java_com_yoyogames_runner_RunnerJNILib_getGuiHeight");
+	int (*Java_com_yoyogames_runner_RunnerJNILib_getGuiWidth)(void *env) = (void *)so_symbol(&yoyoloader_mod, "Java_com_yoyogames_runner_RunnerJNILib_getGuiWidth");
 	int *g_IOFrameCount = (int *)so_symbol(&yoyoloader_mod, "g_IOFrameCount");
 	
 	int lastX[SCE_TOUCH_MAX_REPORT] = {-1, -1, -1, -1, -1, -1, -1, -1};
 	int lastY[SCE_TOUCH_MAX_REPORT] = {-1, -1, -1, -1, -1, -1, -1, -1};
 	
+	int old_native_w = 0, old_native_h = 0;
 	for (;;) {
+		int native_w = Java_com_yoyogames_runner_RunnerJNILib_getGuiWidth(fake_env);
+		int native_h = Java_com_yoyogames_runner_RunnerJNILib_getGuiHeight(fake_env);
+		
 		if (post_active) {
 			SceKernelThreadInfo info;
 			info.size = sizeof(SceKernelThreadInfo);
@@ -542,22 +549,41 @@ void main_loop() {
 		float orientation[3];
 		sceMotionGetBasicOrientation(orientation);
 		is_portrait = (int)orientation[0];
-		if (is_portrait) {
-			if (main_tex == 0xDEADBEEF) {
+		if (post_processing) {
+			if (old_native_w != native_w || old_native_h != native_h) {
+				if (main_tex != 0xDEADBEEF)
+					glDeleteTextures(1, &main_tex);
+				else
+					glGenFramebuffers(1, &main_fb);
 				glGenTextures(1, &main_tex);
 				glBindTexture(GL_TEXTURE_2D, main_tex);
-				glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, SCREEN_H, SCREEN_W, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
-				glGenFramebuffers(1, &main_fb);
+				glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, native_w, native_h, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
 				glBindFramebuffer(GL_FRAMEBUFFER, main_fb);
 				glFramebufferTexture(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, main_tex, 0);
 			}
 			glBindFramebuffer(GL_FRAMEBUFFER, main_fb);
-			glViewport(0, 0, SCREEN_H, SCREEN_W);
-			glScissor(0, 0, SCREEN_H, SCREEN_W);
+			glViewport(0, 0, native_w, native_h);
+			glScissor(0, 0, native_w, native_h);
+			old_native_w = native_w;
+			old_native_h = native_h;
 		} else {
-			glBindFramebuffer(GL_FRAMEBUFFER, 0);
-			glViewport(0, 0, SCREEN_W, SCREEN_H);
-			glScissor(0, 0, SCREEN_W, SCREEN_H);
+			if (is_portrait) {
+				if (main_tex == 0xDEADBEEF) {
+					glGenTextures(1, &main_tex);
+					glBindTexture(GL_TEXTURE_2D, main_tex);
+					glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, SCREEN_H, SCREEN_W, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+					glGenFramebuffers(1, &main_fb);
+					glBindFramebuffer(GL_FRAMEBUFFER, main_fb);
+					glFramebufferTexture(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, main_tex, 0);
+				}
+				glBindFramebuffer(GL_FRAMEBUFFER, main_fb);
+				glViewport(0, 0, SCREEN_H, SCREEN_W);
+				glScissor(0, 0, SCREEN_H, SCREEN_W);
+			} else {
+				glBindFramebuffer(GL_FRAMEBUFFER, 0);
+				glViewport(0, 0, native_w, native_h);
+				glScissor(0, 0, native_w, native_h);
+			}
 		}
 
 		SceTouchData touch;
@@ -596,11 +622,15 @@ void main_loop() {
 		if (*g_IOFrameCount >= 1) {
 			GamePadUpdate();
 		}
-
-		if (!is_portrait)
-			Java_com_yoyogames_runner_RunnerJNILib_Process(fake_env, 0, SCREEN_W, SCREEN_H, sensor.accelerometer.x, sensor.accelerometer.y, sensor.accelerometer.z, 0, 0, 60.0f);
-		else
-			Java_com_yoyogames_runner_RunnerJNILib_Process(fake_env, 0, SCREEN_H, SCREEN_W, sensor.accelerometer.x, sensor.accelerometer.y, sensor.accelerometer.z, 0, 0x3FF00000, 60.0f);	
+		
+		if (post_processing) 
+			Java_com_yoyogames_runner_RunnerJNILib_Process(fake_env, 0, native_w, native_h, sensor.accelerometer.x, sensor.accelerometer.y, sensor.accelerometer.z, 0, 0, 60.0f);
+		else {
+			if (!is_portrait)
+				Java_com_yoyogames_runner_RunnerJNILib_Process(fake_env, 0, SCREEN_W, SCREEN_H, sensor.accelerometer.x, sensor.accelerometer.y, sensor.accelerometer.z, 0, 0, 60.0f);
+			else
+				Java_com_yoyogames_runner_RunnerJNILib_Process(fake_env, 0, SCREEN_H, SCREEN_W, sensor.accelerometer.x, sensor.accelerometer.y, sensor.accelerometer.z, 0, 0x3FF00000, 60.0f);
+		}
 		if (!Java_com_yoyogames_runner_RunnerJNILib_canFlip || Java_com_yoyogames_runner_RunnerJNILib_canFlip()) {
 			if (is_portrait) {
 				int prog;
@@ -628,6 +658,36 @@ void main_loop() {
 					glTexCoordPointer(2, GL_FLOAT, 0, fb_texcoords);
 				else
 					glTexCoordPointer(2, GL_FLOAT, 0, fb_texcoords_flipped);
+				glVertexPointer(3, GL_FLOAT, 0, fb_vertices);
+				
+				glBindTexture(GL_TEXTURE_2D, main_tex);
+				glBindFramebuffer(GL_FRAMEBUFFER, 0);
+				glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
+				glDisableClientState(GL_VERTEX_ARRAY);
+				glDisableClientState(GL_TEXTURE_COORD_ARRAY);
+				glUseProgram(prog);
+			} else if (post_processing) {
+				int prog;
+				glGetIntegerv(GL_CURRENT_PROGRAM, &prog);
+				glUseProgram(0);
+				glEnable(GL_TEXTURE_2D);
+				glEnableClientState(GL_VERTEX_ARRAY);
+				glEnableClientState(GL_TEXTURE_COORD_ARRAY);
+				glViewport(0, 0, SCREEN_W, SCREEN_H);
+				glDisable(GL_SCISSOR_TEST);
+				glMatrixMode(GL_PROJECTION);
+				glLoadIdentity();
+				glOrtho(0, SCREEN_W, SCREEN_H, 0, -1, 1);
+				glMatrixMode(GL_MODELVIEW);
+				glLoadIdentity();
+				float fb_vertices[] = {
+			       0,        0, 0,
+			SCREEN_W,        0, 0,
+			SCREEN_W, SCREEN_H, 0,
+			       0, SCREEN_H, 0
+				};
+				float fb_texcoords[] = {0, 1, 1, 1, 1, 0, 0, 0};
+				glTexCoordPointer(2, GL_FLOAT, 0, fb_texcoords);
 				glVertexPointer(3, GL_FLOAT, 0, fb_vertices);
 				
 				glBindTexture(GL_TEXTURE_2D, main_tex);
@@ -667,11 +727,60 @@ double GetPlatform() {
 	return forceWinMode ? 0.0f : 4.0f;
 }
 
+int zip_fopen_cache[4];
+
+int zip_fopen_hook(int a1, const char *a2, int a3, int a4) {
+	int (*zip_name_locate_hook)(int a1, const char *a2, int a3) = so_symbol(&yoyoloader_mod, "zip_name_locate");
+	int (*zip_fopen_index_hook)(int a1, int a2, int a3, int a4) = so_symbol(&yoyoloader_mod, "zip_fopen_index");
+	
+	
+	
+	printf("zip_fopen %s\n", a2);
+	int v6 = zip_name_locate_hook(a1, a2, a3);
+	if (v6 < 0) {
+		printf("file doesn't exist\n");
+		return 0;
+	} else {
+		int r = zip_fopen_index_hook(a1, v6, a3, a4);
+		printf("zip_fopen_index_hook %x\n", r);
+		return r;
+	}
+}
+
+int zip_stat_hook(int a1, const char *a2, int a3, int a4) {
+	int (*zip_name_locate_hook)(int a1, const char *a2, int a3) = so_symbol(&yoyoloader_mod, "zip_name_locate");
+	int (*zip_stat_index_hook)(int a1, int a2, int a3, int a4) = so_symbol(&yoyoloader_mod, "zip_stat_index");
+	
+	
+	
+	printf("zip_stat %s\n", a2);
+	int v6 = zip_name_locate_hook(a1, a2, a3);
+	if (v6 < 0) {
+		printf("file doesn't exist\n");
+		return 0;
+	} else {
+		int r = zip_stat_index_hook(a1, v6, a3, a4);
+		printf("zip_stat_index %x\n", r);
+		return r;
+	}
+}
+
+int _zip_error_set_hook(void *a1, int a2, int a3) {
+	printf("zip error set %x %x %x\n", a1, a2, a3);
+	return 0;
+}
+
 void patch_runner(void) {
+	printf("ulong is %X\n", sizeof(uLong));
+	printf("uint is %X\n", sizeof(uInt));
 	hook_addr(so_symbol(&yoyoloader_mod, "_Z30PackageManagerHasSystemFeaturePKc"), (uintptr_t)&ret0);
 	hook_addr(so_symbol(&yoyoloader_mod, "_Z17alBufferDebugNamejPKc"), (uintptr_t)&ret0);
 	hook_addr(so_symbol(&yoyoloader_mod, "_ZN13MemoryManager10DumpMemoryEP7__sFILE"), (uintptr_t)&ret0);
 	hook_addr(so_symbol(&yoyoloader_mod, "_ZN13MemoryManager10DumpMemoryEPvS0_"), (uintptr_t)&ret0);
+	
+	hook_addr(so_symbol(&yoyoloader_mod, "zip_fopen"), (uintptr_t)&zip_fopen_hook);
+	hook_addr(so_symbol(&yoyoloader_mod, "zip_stat"), (uintptr_t)&zip_stat_hook);
+	hook_addr(so_symbol(&yoyoloader_mod, "_Z14_zip_error_setP9zip_errorii"), (uintptr_t)&_zip_error_set_hook);
 
 	hook_addr(so_symbol(&yoyoloader_mod, "_Z23YoYo_GetPlatform_DoWorkv"), (uintptr_t)&GetPlatform);
 	hook_addr(so_symbol(&yoyoloader_mod, "_Z20GET_YoYo_GetPlatformP9CInstanceiP6RValue"), (uintptr_t)&GetPlatformInstance);
@@ -934,7 +1043,7 @@ void *retJNI(int dummy) {
 }
 
 void glBindFramebufferHook(GLenum target, GLuint framebuffer) {
-	if (!framebuffer && is_portrait) {
+	if (!framebuffer && (is_portrait || post_processing)) {
 		framebuffer = main_fb;
 	}
 	glBindFramebuffer(target, framebuffer);
@@ -1106,6 +1215,15 @@ int munmap(void *addr, size_t length) {
 int nanosleep_hook(const struct timespec *req, struct timespec *rem) {
 	const uint32_t usec = req->tv_sec * 1000 * 1000 + req->tv_nsec / 1000;
 	return sceKernelDelayThreadCB(usec);
+}
+
+int printf_hook(const char *restrict format, ... ) {
+	if (!strcmp(format, "read underflow detected")) {
+		int *g_pAPK = (int *)so_symbol(&yoyoloader_mod, "g_pAPK");
+		char (*zip_strerror_hook)(int a1) = so_symbol(&yoyoloader_mod, "zip_strerror");
+		printf("zip errored with %s\n", zip_strerror_hook(*g_pAPK));
+	}
+	return 0;
 }
 
 static so_default_dynlib default_dynlib[] = {
@@ -1410,7 +1528,7 @@ static so_default_dynlib default_dynlib[] = {
 	{ "open", (uintptr_t)&open },
 	{ "pow", (uintptr_t)&pow },
 	{ "powf", (uintptr_t)&powf },
-	{ "printf", (uintptr_t)&debugPrintf },
+	{ "printf", (uintptr_t)&printf_hook },
 	{ "pthread_attr_destroy", (uintptr_t)&ret0 },
 	{ "pthread_attr_init", (uintptr_t)&ret0 },
 	{ "pthread_attr_setdetachstate", (uintptr_t)&ret0 },
@@ -1877,7 +1995,7 @@ int main(int argc, char **argv)
 		sceIoRemove(LAUNCH_FILE_PATH);
 		game_name[size] = 0;
 	} else {
-		strcpy(game_name, "AM2R"); // Debug
+		strcpy(game_name, "Thunder"); // Debug
 	}
 #else
 	sceAppMgrAppParamGetString(0, 12, game_name, 256);
