@@ -48,7 +48,7 @@ You can find a precompiled version here: https://github.com/vitasdk/buildscripts
 Additionally, you'll need some libraries normally included in vdpm compiled with softfp. You can get most of the required ones here: https://github.com/Rinnegatamante/vitasdk-packages-softfp/releases.
 Finally, you'll need to recompile the few missing ones on your own:
 
-- [openal-soft](https://github.com/isage/openal-soft/tree/vita-1.19.1)
+- [openal-soft](https://github.com/Rinnegatamante/openal-soft/tree/vgl)
 
     ```bash
     cd build
@@ -72,5 +72,6 @@ After all these requirements are met, you can compile the loader similarly to ho
 - BetterWinds and SofyUchiha for the Spanish translation.
 - gl33ntwine for the Russian and Ukrainian translations.
 - Titi Clash for the Brazilian Portuguese translation.
+- kuragehime for the Japanese translation.
 - CatoTheYounger for providing most of the banners used in the game selector.
 - Everyone who contributed, tested and provided support over Vita Nuova Discord channel.

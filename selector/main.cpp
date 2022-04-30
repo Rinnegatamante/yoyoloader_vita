@@ -23,7 +23,12 @@
 #define MIN(x, y) (x) < (y) ? (x) : (y)
 
 #define NUM_OPTIONS 12
-#define NUM_DB_CHUNKS 2
+#define NUM_DB_CHUNKS 3
+#define MEM_BUFFER_SIZE (32 * 1024 * 1024)
+
+enum {
+	SCE_SYSTEM_PARAM_LANG_UKRAINIAN = 20,
+};
 
 extern void video_open(const char *path);
 extern GLuint video_get_frame(int *width, int *height);
@@ -54,7 +59,8 @@ static volatile uint64_t total_bytes = 0xFFFFFFFF;
 static volatile uint64_t downloaded_bytes = 0;
 static volatile uint8_t downloader_pass = 1;
 static bool anim_download_request = false;
-uint8_t *downloader_mem_buffer = nullptr;
+static bool needs_extended_font = false;
+uint8_t *generic_mem_buffer = nullptr;
 static FILE *fh;
 char *bytes_string;
 SceUID banner_thid;
@@ -196,7 +202,7 @@ void *__wrap_memset(void *s, int c, size_t n) {
 
 static size_t write_cb(void *ptr, size_t size, size_t nmemb, void *stream)
 {
-	uint8_t *dst = &downloader_mem_buffer[downloaded_bytes];
+	uint8_t *dst = &generic_mem_buffer[downloaded_bytes];
 	downloaded_bytes += nmemb;
 	if (total_bytes < downloaded_bytes) total_bytes = downloaded_bytes;
 	sceClibMemcpy(dst, ptr, nmemb);
@@ -284,6 +290,7 @@ void loadSelectorConfig() {
 	if (config) {
 		while (EOF != fscanf(config, "%[^=]=%d\n", buffer, &value)) {
 			if (strcmp("sortMode", buffer) == 0) sort_idx = value;
+			else if (strcmp("language", buffer) == 0) console_language = value;
 		}
 		fclose(config);
 	}
@@ -370,18 +377,38 @@ int optimizer_thread(unsigned int argc, void *argv) {
 	for (uint32_t zip_idx = 0; zip_idx < global_info.number_entry; ++zip_idx) {
 		unzGetCurrentFileInfo(src_file, &file_info, fname, 512, NULL, 0, NULL, 0);
 		if ((strstr(fname, "assets/") && fname[strlen(fname) - 1] != '/') || !strcmp(fname, "lib/armeabi-v7a/libyoyo.so")) {
-			void *buffer = malloc(file_info.uncompressed_size);
-			unzOpenCurrentFile(src_file);
-			unzReadCurrentFile(src_file, buffer, file_info.uncompressed_size);
-			unzCloseCurrentFile(src_file);
 			if (strstr(fname, ".ogg") || strstr(fname, ".mp4")) {
 				zipOpenNewFileInZip(dst_file, fname, NULL, NULL, 0, NULL, 0, NULL, 0, Z_NO_COMPRESSION);
 			} else {
-				zipOpenNewFileInZip(dst_file, fname, NULL, NULL, 0, NULL, 0, NULL, Z_DEFLATED, Z_DEFAULT_COMPRESSION);
+				/*
+				 * HACK: There's some issue in zlib seemingly that makes zip_fread to fail after some reads on some specific files.
+				 * if they are compressed. Until a proper solution is found, we hack those files to be only stored to bypass the issue.
+				 */
+				bool needs_hack = false;
+				const char *blacklist[] = {
+					"english.ini", // AM2R
+					"yugothib.ttf" // JackQuest
+				};
+				for (int i = 0; i < (sizeof(blacklist) / sizeof(blacklist[0])); i++) {
+					if (strstr(fname, blacklist[i])) {
+						zipOpenNewFileInZip(dst_file, fname, NULL, NULL, 0, NULL, 0, NULL, 0, Z_NO_COMPRESSION);
+						needs_hack = true;
+						break;
+					}
+				}
+				if (!needs_hack)
+					zipOpenNewFileInZip(dst_file, fname, NULL, NULL, 0, NULL, 0, NULL, Z_DEFLATED, Z_DEFAULT_COMPRESSION);
 			}
-			zipWriteInFileInZip(dst_file, buffer, file_info.uncompressed_size);
+			uint32_t executed_bytes = 0;
+			unzOpenCurrentFile(src_file);
+			while (executed_bytes < file_info.uncompressed_size) {
+				uint32_t read_size = (file_info.uncompressed_size - executed_bytes) > MEM_BUFFER_SIZE ? MEM_BUFFER_SIZE : (file_info.uncompressed_size - executed_bytes);
+				unzReadCurrentFile(src_file, generic_mem_buffer, read_size);
+				zipWriteInFileInZip(dst_file, generic_mem_buffer, read_size);
+				executed_bytes += read_size;
+			}
+			unzCloseCurrentFile(src_file);
 			zipCloseFileInZip(dst_file);
-			free(buffer);
 		}
 		unzGoToNextFile(src_file);
 		cur_idx++;
@@ -414,7 +441,7 @@ static int compatListThread(unsigned int args, void *arg) {
 
 		if (downloaded_bytes > 12 * 1024) {
 			fh = fopen(dbname, "wb");
-			fwrite(downloader_mem_buffer, 1, downloaded_bytes, fh);
+			fwrite(generic_mem_buffer, 1, downloaded_bytes, fh);
 			fclose(fh);
 		}
 		downloaded_bytes = total_bytes;
@@ -453,14 +480,14 @@ static int updaterThread(unsigned int args, void *arg) {
 		if (downloaded_bytes > 4 * 1024) {
 			if (i == UPDATER_CHECK_UPDATES) {
 				char target_commit[7];
-				snprintf(target_commit, 6, strstr((char*)downloader_mem_buffer, "body") + 10);
+				snprintf(target_commit, 6, strstr((char*)generic_mem_buffer, "body") + 10);
 				if (strncmp(target_commit, stringify(GIT_VERSION), 5)) {
 					sprintf(url, "https://api.github.com/repos/Rinnegatamante/yoyoloader_vita/compare/%s...%s", stringify(GIT_VERSION), target_commit);
 					update_detected = true;
 				}
 			} else if (i == UPDATER_DOWNLOAD_CHANGELIST) {
 				fh = fopen(LOG_DOWNLOAD_NAME, "wb");
-				fwrite((const void*)downloader_mem_buffer, 1, downloaded_bytes, fh);
+				fwrite((const void*)generic_mem_buffer, 1, downloaded_bytes, fh);
 				fclose(fh);
 #ifdef STABLE_BUILD
 				sprintf(url, "https://github.com/Rinnegatamante/yoyoloader_vita/releases/download/Stable/YoYoLoader.vpk");
@@ -473,7 +500,7 @@ static int updaterThread(unsigned int args, void *arg) {
 	if (update_detected) {
 		if (downloaded_bytes > 12 * 1024) {
 			fh = fopen(TEMP_DOWNLOAD_NAME, "wb");
-			fwrite((const void*)downloader_mem_buffer, 1, downloaded_bytes, fh);
+			fwrite((const void*)generic_mem_buffer, 1, downloaded_bytes, fh);
 			fclose(fh);
 		}
 	}
@@ -490,7 +517,26 @@ static int bannerThread(unsigned int args, void *arg) {
 	startDownload(url);
 	if (downloaded_bytes > 4 * 1024) {
 		fh = fopen(TEMP_DOWNLOAD_NAME, "wb");
-		fwrite((const void*)downloader_mem_buffer, 1, downloaded_bytes, fh);
+		fwrite((const void*)generic_mem_buffer, 1, downloaded_bytes, fh);
+		fclose(fh);
+	}
+	curl_easy_cleanup(curl_handle);
+	return sceKernelExitDeleteThread(0);
+}
+
+static int fontThread(unsigned int args, void *arg) {
+	char url[512];
+	curl_handle = curl_easy_init();
+	sprintf(url, "https://github.com/Rinnegatamante/yoyoloader_vita/blob/main/Roboto_ext.ttf?raw=true");
+	downloaded_bytes = 0;
+	total_bytes = 20 * 1024; /* 20 KB */
+	startDownload(url);
+	int response_code;
+	curl_easy_getinfo(curl_handle, CURLINFO_RESPONSE_CODE, &response_code);
+	
+	if (response_code == 200) {
+		fh = fopen("ux0:data/gms/shared/Roboto_ext.ttf", "wb");
+		fwrite((const void*)generic_mem_buffer, 1, downloaded_bytes, fh);
 		fclose(fh);
 	}
 	curl_easy_cleanup(curl_handle);
@@ -521,7 +567,7 @@ static int animBannerThread(unsigned int args, void *arg) {
 	if (response_code == 200) {
 		sprintf(url, "ux0:data/gms/shared/anim/%s.mp4", argv);
 		fh = fopen(url, "wb");
-		fwrite((const void*)downloader_mem_buffer, 1, downloaded_bytes, fh);
+		fwrite((const void*)generic_mem_buffer, 1, downloaded_bytes, fh);
 		fclose(fh);
 	}
 	curl_easy_cleanup(curl_handle);
@@ -674,6 +720,13 @@ void setTranslation(int idx) {
 	case SCE_SYSTEM_PARAM_LANG_RUSSIAN:
 		sprintf(langFile, "app0:lang/Russian.ini");
 		break;
+	case SCE_SYSTEM_PARAM_LANG_JAPANESE:
+		sprintf(langFile, "app0:lang/Japanese.ini");
+		needs_extended_font = true;
+		break;
+	case SCE_SYSTEM_PARAM_LANG_UKRAINIAN:
+		sprintf(langFile, "app0:lang/Ukrainian.ini");
+		break;
 	default:
 		sprintf(langFile, "app0:lang/English.ini");
 		break;
@@ -702,48 +755,7 @@ void setTranslation(int idx) {
 	}
 }
 
-int main(int argc, char *argv[]) {
-	sceSysmoduleLoadModule(SCE_SYSMODULE_AVPLAYER);
-	
-	sceIoMkdir("ux0:data/gms", 0777);
-	sceIoMkdir("ux0:data/gms/shared", 0777);
-	sceIoMkdir("ux0:data/gms/shared/anim", 0777);
-	sceIoMkdir("ux0:data/gms/shared/lang", 0777);
-	
-	if (!file_exists("ur0:/data/libshacccg.suprx") && !file_exists("ur0:/data/external/libshacccg.suprx"))
-		fatal_error(lang_strings[STR_SHACCCG_ERROR]);
-
-	loadSelectorConfig();
-	
-	// Initializing sceAppUtil
-	SceAppUtilInitParam appUtilParam;
-	SceAppUtilBootParam appUtilBootParam;
-	memset(&appUtilParam, 0, sizeof(SceAppUtilInitParam));
-	memset(&appUtilBootParam, 0, sizeof(SceAppUtilBootParam));
-	sceAppUtilInit(&appUtilParam, &appUtilBootParam);
-	sceAppUtilSystemParamGetInt(SCE_SYSTEM_PARAM_ID_LANG, &console_language);
-	setTranslation(console_language);
-	
-	GameSelection *hovered = nullptr;
-	vglInitExtended(0, 960, 544, 0x1800000, SCE_GXM_MULTISAMPLE_4X);
-	ImGui::CreateContext();
-	
-	static const ImWchar ranges[] = { // All languages except chinese
-		0x0020, 0x00FF, // Basic Latin + Latin Supplement
-		0x0100, 0x024F, // Latin Extended
-		0x0370, 0x03FF, // Greek
-		0x0400, 0x052F, // Cyrillic + Cyrillic Supplement
-		0x0590, 0x05FF, // Hebrew
-		0x1E00, 0x1EFF, // Latin Extended Additional
-		0x2DE0, 0x2DFF, // Cyrillic Extended-A
-		0xA640, 0xA69F, // Cyrillic Extended-B
-		0,
-	};
-	ImGui::GetIO().Fonts->AddFontFromFileTTF("app0:/Roboto.ttf", 14.0f, NULL, ranges);
-	
-	ImGui_ImplVitaGL_Init();
-	ImGui_ImplVitaGL_TouchUsage(false);
-	ImGui_ImplVitaGL_GamepadUsage(true);
+void setImguiTheme() {
 	ImGui::StyleColorsDark();
 	ImGuiStyle& style = ImGui::GetStyle();
 	ImVec4 col_area = ImVec4(0.047f, 0.169f, 0.059f, 0.44f);
@@ -779,10 +791,99 @@ int main(int argc, char *argv[]) {
 	ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0, 2));
 	ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f);
 	ImGui::GetIO().MouseDrawCursor = false;
+}
+
+int main(int argc, char *argv[]) {
+	sceSysmoduleLoadModule(SCE_SYSMODULE_AVPLAYER);
 	
+	sceIoMkdir("ux0:data/gms", 0777);
+	sceIoMkdir("ux0:data/gms/shared", 0777);
+	sceIoMkdir("ux0:data/gms/shared/anim", 0777);
+	
+	if (!file_exists("ur0:/data/libshacccg.suprx") && !file_exists("ur0:/data/external/libshacccg.suprx"))
+		fatal_error(lang_strings[STR_SHACCCG_ERROR]);
+		
+	// Initializing sceAppUtil
+	SceAppUtilInitParam appUtilParam;
+	SceAppUtilBootParam appUtilBootParam;
+	memset(&appUtilParam, 0, sizeof(SceAppUtilInitParam));
+	memset(&appUtilBootParam, 0, sizeof(SceAppUtilBootParam));
+	sceAppUtilInit(&appUtilParam, &appUtilBootParam);
+	sceAppUtilSystemParamGetInt(SCE_SYSTEM_PARAM_ID_LANG, &console_language);
+
+	loadSelectorConfig();
+	setTranslation(console_language);
+	
+	// Initializing sceNet
+	generic_mem_buffer = (uint8_t*)malloc(MEM_BUFFER_SIZE);
+	sceSysmoduleLoadModule(SCE_SYSMODULE_NET);
+	int ret = sceNetShowNetstat();
+	SceNetInitParam initparam;
+	if (ret == SCE_NET_ERROR_ENOTINIT) {
+		initparam.memory = malloc(1024 * 1024);
+		initparam.size = 1024 * 1024;
+		initparam.flags = 0;
+		sceNetInit(&initparam);
+	}
+	
+	GameSelection *hovered = nullptr;
+	vglInitExtended(0, 960, 544, 0x1800000, SCE_GXM_MULTISAMPLE_4X);
+	ImGui::CreateContext();
 	SceKernelThreadInfo info;
 	info.size = sizeof(SceKernelThreadInfo);
 	int res = 0;
+	
+	if (needs_extended_font) {
+		static const ImWchar ranges[] = { // All languages with chinese included
+			0x0020, 0x00FF, // Basic Latin + Latin Supplement
+			0x0100, 0x024F, // Latin Extended
+			0x0370, 0x03FF, // Greek
+			0x0400, 0x052F, // Cyrillic + Cyrillic Supplement
+			0x0590, 0x05FF, // Hebrew
+			0x1E00, 0x1EFF, // Latin Extended Additional
+			0x2000, 0x206F, // General Punctuation
+			0x2DE0, 0x2DFF, // Cyrillic Extended-A
+			0x3000, 0x30FF, // CJK Symbols and Punctuations, Hiragana, Katakana
+			0x31F0, 0x31FF, // Katakana Phonetic Extensions
+			0x4E00, 0x9FAF, // CJK Ideograms
+			0xA640, 0xA69F, // Cyrillic Extended-B
+			0xFF00, 0xFFEF, // Half-width characters
+			0,
+		};
+		SceIoStat stat;
+		if (sceIoGetstat("ux0:data/gms/shared/Roboto_ext.ttf", &stat)) {
+			ImGui_ImplVitaGL_Init();
+			setImguiTheme();
+			SceUID thd = sceKernelCreateThread("Font Downloader", &fontThread, 0x10000100, 0x100000, 0, 0, NULL);
+			sceKernelStartThread(thd, 0, NULL);
+			do {
+				DrawDownloaderDialog(1, downloaded_bytes, total_bytes, "Downloading required font, please wait...", 1, true);
+				res = sceKernelGetThreadInfo(thd, &info);
+			} while (info.status <= SCE_THREAD_DORMANT && res >= 0);
+			ImGui::GetIO().Fonts->Clear();
+			ImGui_ImplVitaGL_InvalidateDeviceObjects();
+		} else
+			ImGui_ImplVitaGL_Init();
+		ImGui::GetIO().Fonts->AddFontFromFileTTF("ux0:/data/gms/shared/Roboto_ext.ttf", 14.0f, NULL, ranges);
+	} else {
+		ImGui_ImplVitaGL_Init();
+		static const ImWchar ranges[] = { // All languages except chinese
+			0x0020, 0x00FF, // Basic Latin + Latin Supplement
+			0x0100, 0x024F, // Latin Extended
+			0x0370, 0x03FF, // Greek
+			0x0400, 0x052F, // Cyrillic + Cyrillic Supplement
+			0x0590, 0x05FF, // Hebrew
+			0x1E00, 0x1EFF, // Latin Extended Additional
+			0x2DE0, 0x2DFF, // Cyrillic Extended-A
+			0xA640, 0xA69F, // Cyrillic Extended-B
+			0,
+		};
+		ImGui::GetIO().Fonts->AddFontFromFileTTF("app0:/Roboto.ttf", 14.0f, NULL, ranges);
+	}
+	
+	ImGui_ImplVitaGL_TouchUsage(false);
+	ImGui_ImplVitaGL_GamepadUsage(true);
+	setImguiTheme();
 	FILE *f;
 	
 	// Check if YoYo Loader has been launched with a custom bubble
@@ -795,23 +896,16 @@ int main(int argc, char *argv[]) {
 	}
 	
 	// Checking for updates
-	downloader_mem_buffer = (uint8_t*)malloc(32 * 1024 * 1024);
-	sceSysmoduleLoadModule(SCE_SYSMODULE_NET);
-	int ret = sceNetShowNetstat();
-	SceNetInitParam initparam;
-	if (ret == SCE_NET_ERROR_ENOTINIT) {
-		initparam.memory = malloc(1024 * 1024);
-		initparam.size = 1024 * 1024;
-		initparam.flags = 0;
-		sceNetInit(&initparam);
-	}
 	if (!skip_updates_check) {
 		SceUID thd = sceKernelCreateThread("Auto Updater", &updaterThread, 0x10000100, 0x100000, 0, 0, NULL);
 		sceKernelStartThread(thd, 0, NULL);
 		do {
-			if (downloader_pass == UPDATER_CHECK_UPDATES) DrawDownloaderDialog(downloader_pass + 1, downloaded_bytes, total_bytes, lang_strings[STR_SEARCH_UPDATES], NUM_UPDATE_PASSES, true);
-			else if (downloader_pass == UPDATER_DOWNLOAD_CHANGELIST) DrawDownloaderDialog(downloader_pass + 1, downloaded_bytes, total_bytes, lang_strings[STR_CHANGELIST], NUM_UPDATE_PASSES, true);
-			else DrawDownloaderDialog(downloader_pass + 1, downloaded_bytes, total_bytes, lang_strings[STR_UPDATE], NUM_UPDATE_PASSES, true);
+			if (downloader_pass == UPDATER_CHECK_UPDATES)
+				DrawDownloaderDialog(downloader_pass + 1, downloaded_bytes, total_bytes, lang_strings[STR_SEARCH_UPDATES], NUM_UPDATE_PASSES, true);
+			else if (downloader_pass == UPDATER_DOWNLOAD_CHANGELIST)
+				DrawDownloaderDialog(downloader_pass + 1, downloaded_bytes, total_bytes, lang_strings[STR_CHANGELIST], NUM_UPDATE_PASSES, true);
+			else
+				DrawDownloaderDialog(downloader_pass + 1, downloaded_bytes, total_bytes, lang_strings[STR_UPDATE], NUM_UPDATE_PASSES, true);
 			res = sceKernelGetThreadInfo(thd, &info);
 		} while (info.status <= SCE_THREAD_DORMANT && res >= 0);
 		total_bytes = 0xFFFFFFFF;
@@ -873,20 +967,20 @@ int main(int argc, char *argv[]) {
 				unzFile apk_file = unzOpen(apk_name);
 				unzLocateFile(apk_file, "assets/game.droid", NULL);
 				unzOpenCurrentFile(apk_file);
-				unzReadCurrentFile(apk_file, downloader_mem_buffer, 20);
+				unzReadCurrentFile(apk_file, generic_mem_buffer, 20);
 				uint32_t offs;
 				unzReadCurrentFile(apk_file, &offs, 4);
 				uint32_t target = offs - 28;
-				while (target > 32 * 1024 * 1024) {
-					unzReadCurrentFile(apk_file, downloader_mem_buffer, 32 * 1024 * 1024);
-					target -= 32 * 1024 * 1024;
+				while (target > MEM_BUFFER_SIZE) {
+					unzReadCurrentFile(apk_file, generic_mem_buffer, MEM_BUFFER_SIZE);
+					target -= MEM_BUFFER_SIZE;
 				}
-				unzReadCurrentFile(apk_file, downloader_mem_buffer, target);
+				unzReadCurrentFile(apk_file, generic_mem_buffer, target);
 				unzReadCurrentFile(apk_file, &offs, 4);
 				unzReadCurrentFile(apk_file, g->game_id, offs + 1);
 				if (!strcmp(g->game_id, "Runner")) {
 					unzReadCurrentFile(apk_file, &offs, 4);
-					unzReadCurrentFile(apk_file, downloader_mem_buffer, offs + 1);
+					unzReadCurrentFile(apk_file, generic_mem_buffer, offs + 1);
 					unzReadCurrentFile(apk_file, &offs, 4);
 					unzReadCurrentFile(apk_file, g->game_id, offs + 1);
 				}
@@ -1162,6 +1256,7 @@ int main(int argc, char *argv[]) {
 	sprintf(config_path, "ux0:data/gms/shared/yyl.cfg");
 	f = fopen(config_path, "w+");
 	fprintf(f, "%s=%d\n", "sortMode", sort_idx);
+	fprintf(f, "%s=%d\n", "language", console_language);
 	fclose(f);
 
 	sceAppMgrLoadExec(hovered->video_support ? "app0:/loader2.bin" : "app0:/loader.bin", NULL, NULL);
