@@ -509,6 +509,7 @@ void main_loop() {
 	int lastX[SCE_TOUCH_MAX_REPORT] = {-1, -1, -1, -1, -1, -1, -1, -1};
 	int lastY[SCE_TOUCH_MAX_REPORT] = {-1, -1, -1, -1, -1, -1, -1, -1};
 	
+	glReleaseShaderCompiler();
 	for (;;) {
 		if (post_active) {
 			SceKernelThreadInfo info;
