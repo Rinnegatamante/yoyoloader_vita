@@ -88,6 +88,7 @@ int get_active = 0;
 int get_index = 0;
 
 void (*Function_Add)(const char *name, intptr_t func, int argc, char ret);
+int (*Java_com_yoyogames_runner_RunnerJNILib_CreateVersionDSMap) (void *env, int a2, int sdk_ver, char *release_version, char *model, char *device, char *manufacturer, char *cpu_abi, char *cpu_abi2, char *bootloader, char *board, char *version, char *region, char *version_name, int has_keyboard);
 
 double jni_double = 0.0f;
 GLuint main_fb, main_tex = 0xDEADBEEF;
@@ -816,6 +817,10 @@ void glShaderSourceHook(GLuint shader, GLsizei count, const GLchar **string, con
 	SHA1_CTX ctx;
 	
 	int size = length ? *length : strlen(*string);
+	if (size == 0) {
+		debugPrintf("Attempt to load an empty shader, may be an unsupported platform target\n");
+		return;
+	}
 	sha1_init(&ctx);
 	sha1_update(&ctx, (uint8_t *)*string, size);
 	sha1_final(&ctx, (uint8_t *)sha1);
@@ -1536,6 +1541,7 @@ enum MethodIDs {
 	HTTP_POST,
 	HTTP_GET,
 	INIT,
+	OS_GET_INFO,
 	INPUT_STRING_ASYNC,
 	SHOW_MESSAGE,
 	SHOW_MESSAGE_ASYNC,
@@ -1555,6 +1561,7 @@ static NameToMethodID name_to_method_ids[] = {
 	{ "HttpGet", HTTP_GET },
 	{ "HttpPost", HTTP_POST },
 	{ "InputStringAsync", INPUT_STRING_ASYNC },
+	{ "OsGetInfo", OS_GET_INFO },
 	{ "ShowMessage", SHOW_MESSAGE },
 	{ "ShowMessageAsync", SHOW_MESSAGE_ASYNC }
 };
@@ -1759,6 +1766,8 @@ int CallStaticIntMethodV(void *env, void *obj, int methodID, uintptr_t *args) {
 	switch (methodID) {
 	case GET_DEFAULT_FRAMEBUFFER:
 		return 0;
+	case OS_GET_INFO:
+		return Java_com_yoyogames_runner_RunnerJNILib_CreateVersionDSMap(fake_env, 0, 7, "1.0", "PSVita", "PSVita", "Sony Computer Entertainment", "", "", "", "", "1.0", "EU", "1.0", 0);
 	default:
 		if (methodID != UNKNOWN)
 			debugPrintf("CallStaticIntMethodV(%d)\n", methodID);
@@ -2071,6 +2080,7 @@ int main(int argc, char **argv)
 	*(uintptr_t *)(fake_env + 0x394) = (uintptr_t)NewWeakGlobalRef;
 	
 	int (*Java_com_yoyogames_runner_RunnerJNILib_Startup) (void *env, int a2, char *apk_path, char *save_dir, char *pkg_dir, int sleep_margin) = (void *)so_symbol(&yoyoloader_mod, "Java_com_yoyogames_runner_RunnerJNILib_Startup");
+	Java_com_yoyogames_runner_RunnerJNILib_CreateVersionDSMap = (void *)so_symbol(&yoyoloader_mod, "Java_com_yoyogames_runner_RunnerJNILib_CreateVersionDSMap");
 	
 	// Displaying splash screen
 	if (splash_buf) {
