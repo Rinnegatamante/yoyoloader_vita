@@ -904,13 +904,13 @@ void glShaderSourceHook(GLuint shader, GLsizei count, const GLchar **string, con
 		shaderSize = ftell(file);
 		fseek(file, 0, SEEK_SET);
 
-		shaderBuf = malloc(shaderSize);
+		shaderBuf = vglMalloc(shaderSize);
 		fread(shaderBuf, 1, shaderSize, file);
 		fclose(file);
 
 		glShaderBinary(1, &shader, 0, shaderBuf, shaderSize);
 
-		free(shaderBuf);
+		vglFree(shaderBuf);
 	}
 }
 
@@ -1239,7 +1239,7 @@ static so_default_dynlib default_dynlib[] = {
 	{ "atoi", (uintptr_t)&atoi },
 	{ "atol", (uintptr_t)&atol },
 	{ "atoll", (uintptr_t)&atoll },
-	//{ "bind", (uintptr_t)&bind },
+	{ "bind", (uintptr_t)&bind },
 	{ "bsearch", (uintptr_t)&bsearch },
 	{ "btowc", (uintptr_t)&btowc },
 	{ "calloc", (uintptr_t)&calloc },
@@ -1363,6 +1363,7 @@ static so_default_dynlib default_dynlib[] = {
 	{ "inflateInit_", (uintptr_t)&inflateInit_ },
 	{ "inflateInit2_", (uintptr_t)&inflateInit2_ },
 	{ "inflateReset", (uintptr_t)&inflateReset },
+	{ "ioctl", (uintptr_t)&ret0 },
 	{ "isalnum", (uintptr_t)&isalnum },
 	{ "isalpha", (uintptr_t)&isalpha },
 	{ "iscntrl", (uintptr_t)&iscntrl },
@@ -1445,6 +1446,7 @@ static so_default_dynlib default_dynlib[] = {
 	//{ "recv", (uintptr_t)&recv },
 	//{ "recvfrom", (uintptr_t)&recvfrom },
 	{ "remove", (uintptr_t)&sceIoRemove },
+	{ "rename", (uintptr_t)&sceIoRename },
 	{ "rint", (uintptr_t)&rint },
 	{ "scandir", (uintptr_t)&scandir_hook },
 	//{ "send", (uintptr_t)&send },
@@ -1459,7 +1461,7 @@ static so_default_dynlib default_dynlib[] = {
 	{ "sinf", (uintptr_t)&sinf },
 	{ "sinh", (uintptr_t)&sinh },
 	{ "snprintf", (uintptr_t)&snprintf },
-	//{ "socket", (uintptr_t)&socket },
+	{ "socket", (uintptr_t)&socket },
 	{ "sprintf", (uintptr_t)&sprintf },
 	{ "sqrt", (uintptr_t)&sqrt },
 	{ "sqrtf", (uintptr_t)&sqrtf },
