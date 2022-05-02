@@ -1114,6 +1114,11 @@ int nanosleep_hook(const struct timespec *req, struct timespec *rem) {
 	return sceKernelDelayThreadCB(usec);
 }
 
+static so_default_dynlib net_dynlib[] = {
+	{ "bind", (uintptr_t)&bind },
+	{ "socket", (uintptr_t)&socket },
+};
+
 static so_default_dynlib default_dynlib[] = {
 	{ "AAssetManager_open", (uintptr_t)&AAssetManager_open},
 	{ "AAsset_close", (uintptr_t)&AAsset_close},
@@ -2004,6 +2009,8 @@ int main(int argc, char **argv)
 	// Patching the executable
 	so_relocate(&yoyoloader_mod);
 	so_resolve(&yoyoloader_mod, default_dynlib, sizeof(default_dynlib), 0);
+	if (!has_net)
+		so_resolve_with_dummy(&yoyoloader_mod, net_dynlib, sizeof(net_dynlib), 0);
 	patch_openal();
 	patch_runner();
 #ifdef HAS_VIDEO_PLAYBACK_SUPPORT
