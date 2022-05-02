@@ -17,7 +17,7 @@ This enables to run potentially any game made with GameMaker Studio.
 | PC/Console Bytecode  | ![#1589f0](https://via.placeholder.com/15/1589f0/000000?text=+) `Yes`    |
 | PC/Console YYC       | ![#f03c15](https://via.placeholder.com/15/f03c15/000000?text=+) `No`     |
 
-For PC/Console exported games, you will need to perform an assets swap with a blank Android exported project with a Game Maker Studio version similar or equal of the one of the game you want to attempt to run.
+For PC/Console exported games, you will need to perform an assets swap with a blank Android exported project with a Game Maker Studio version similar or equal of the one of the game you want to attempt to run. You can find a small guide on how to perform an Asset Swap here: https://gist.github.com/CatoTheYounger97/fa47e7eef92f772e4004d4dac22f9bdb
 
 Note that patches to the bytecode may still be required in order to fix resolution, inputs or performances issues. Any game reported as ![#c5f015](https://via.placeholder.com/15/c5f015/000000?text=+) `Native`, instead, will work with simple drag'n'drop of the apk.
 
