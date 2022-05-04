@@ -25,6 +25,22 @@
 #define NUM_OPTIONS 12
 #define NUM_DB_CHUNKS 3
 #define MEM_BUFFER_SIZE (32 * 1024 * 1024)
+#define FILTER_MODES_NUM 6
+
+int init_interactive_msg_dialog(const char *msg) {
+	SceMsgDialogUserMessageParam msg_param;
+	memset(&msg_param, 0, sizeof(msg_param));
+	msg_param.buttonType = SCE_MSG_DIALOG_BUTTON_TYPE_YESNO;
+	msg_param.msg = (SceChar8 *)msg;
+
+	SceMsgDialogParam param;
+	sceMsgDialogParamInit(&param);
+	_sceCommonDialogSetMagicNumber(&param.commonParam);
+	param.mode = SCE_MSG_DIALOG_MODE_USER_MSG;
+	param.userMsgParam = &msg_param;
+
+	return sceMsgDialogInit(&param);
+}
 
 enum {
 	SCE_SYSTEM_PARAM_LANG_UKRAINIAN = 20,
@@ -98,6 +114,40 @@ struct GameSelection {
 
 static CompatibilityList *comp = nullptr;
 static GameSelection *old_hovered = NULL;
+
+int filter_idx = 0;
+const char *filter_modes[] = {
+	lang_strings[STR_NO_FILTER],
+	lang_strings[STR_PLAYABLE],
+	lang_strings[STR_INGAME_PLUS],
+	lang_strings[STR_INGAME_MINUS],
+	lang_strings[STR_CRASH],
+	lang_strings[STR_NO_TAGS]
+};
+
+// Filter modes enum
+enum {
+	FILTER_DISABLED,
+	FILTER_PLAYABLE,
+	FILTER_INGAME_PLUS,
+	FILTER_INGAME_MINUS,
+	FILTER_CRASH,
+	FILTER_NO_TAGS
+};
+
+bool filterGames(GameSelection *p) {
+	if (!p->status) return filter_idx != FILTER_NO_TAGS;
+	else {
+		if (filter_idx == FILTER_NO_TAGS) return true;
+		else if ((!p->status->playable && filter_idx == FILTER_PLAYABLE) ||
+			(!p->status->ingame_plus && filter_idx == FILTER_INGAME_PLUS) ||
+			(!p->status->ingame_low && filter_idx == FILTER_INGAME_MINUS) ||
+			(!p->status->crash && filter_idx == FILTER_CRASH)) {
+			return true;
+		}
+	}
+	return false;
+}
 
 void AppendCompatibilityDatabase(const char *file) {
 	FILE *f = fopen(file, "rb");
@@ -810,6 +860,13 @@ int main(int argc, char *argv[]) {
 	memset(&appUtilBootParam, 0, sizeof(SceAppUtilBootParam));
 	sceAppUtilInit(&appUtilParam, &appUtilBootParam);
 	sceAppUtilSystemParamGetInt(SCE_SYSTEM_PARAM_ID_LANG, &console_language);
+	
+	// Initializing sceCommonDialog
+	SceCommonDialogConfigParam cmnDlgCfgParam;
+	sceCommonDialogConfigParamInit(&cmnDlgCfgParam);
+	cmnDlgCfgParam.language = (SceSystemParamLang)console_language;
+	sceAppUtilSystemParamGetInt(SCE_SYSTEM_PARAM_ID_ENTER_BUTTON, (int *)&cmnDlgCfgParam.enterButtonAssign);
+	sceCommonDialogSetConfigParam(&cmnDlgCfgParam);
 
 	loadSelectorConfig();
 	setTranslation(console_language);
@@ -1025,9 +1082,30 @@ int main(int argc, char *argv[]) {
 		ImGui::SetNextWindowSize(ImVec2(553, 524), ImGuiSetCond_Always);
 		ImGui::Begin("##main", nullptr, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoBringToFrontOnFocus);
 		
+		ImGui::AlignTextToFramePadding();
+		ImGui::Text(lang_strings[STR_FILTER_BY]);
+		ImGui::SameLine();
+		ImGui::PushItemWidth(-1.0f);
+		if (ImGui::BeginCombo("##combo", filter_modes[filter_idx])) {
+			for (int n = 0; n < FILTER_MODES_NUM; n++) {
+				bool is_selected = filter_idx == n;
+				if (ImGui::Selectable(filter_modes[n], is_selected))
+					filter_idx = n;
+				if (is_selected)
+					ImGui::SetItemDefaultFocus();
+			}
+			ImGui::EndCombo();
+		}
+		ImGui::PopItemWidth();
+		ImGui::Separator();
+		
 		GameSelection *g = games;
 		ImVec2 config_pos;
 		while (g) {
+			if (filter_idx != FILTER_DISABLED && filterGames(g)) {
+				g = g->next;
+				continue;
+			}
 			if (ImGui::Button(g->name, ImVec2(-1.0f, 0.0f))) {
 				launch_item = g->name;
 			}
@@ -1258,6 +1336,45 @@ int main(int argc, char *argv[]) {
 	fprintf(f, "%s=%d\n", "sortMode", sort_idx);
 	fprintf(f, "%s=%d\n", "language", console_language);
 	fclose(f);
+	
+	sprintf(config_path, "ux0:data/gms/%s/keys.ini", launch_item);
+	SceIoStat stat;
+	if (sceIoGetstat(config_path, &stat)) {
+		char url[512], final_url[512] = "";
+		curl_handle = curl_easy_init();
+		sprintf(url, "https://github.com/Rinnegatamante/yoyoloader_vita/blob/main/keymaps/%s.ini?raw=true", launch_item);
+		char *space = strstr(url, " ");
+		char *s = url;
+		while (space) {
+			space[0] = 0;
+			sprintf(final_url, "%s%s%%20", final_url, s);
+			space[0] = ' ';
+			s = space + 1;
+			space = strstr(s, " ");
+		}
+		sprintf(final_url, "%s%s", final_url, s);
+		downloaded_bytes = 0;
+		total_bytes = 20 * 1024; /* 20 KB */
+		startDownload(final_url);
+		int response_code;
+		curl_easy_getinfo(curl_handle, CURLINFO_RESPONSE_CODE, &response_code);
+		if (response_code == 200) {
+			init_interactive_msg_dialog(lang_strings[STR_KEYMAP]);
+			while (sceMsgDialogGetStatus() != SCE_COMMON_DIALOG_STATUS_FINISHED) {
+				vglSwapBuffers(GL_TRUE);
+			}
+			SceMsgDialogResult res;
+			memset(&res, 0, sizeof(SceMsgDialogResult));
+			sceMsgDialogGetResult(&res);
+			if (res.buttonId == SCE_MSG_DIALOG_BUTTON_ID_YES) {
+				fh = fopen(config_path, "wb");
+				fwrite((const void*)generic_mem_buffer, 1, downloaded_bytes, fh);
+				fclose(fh);
+			}
+			sceMsgDialogTerm();		
+		}
+		curl_easy_cleanup(curl_handle);
+	}
 
 	sceAppMgrLoadExec(hovered->video_support ? "app0:/loader2.bin" : "app0:/loader.bin", NULL, NULL);
 	return 0;

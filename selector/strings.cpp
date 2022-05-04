@@ -61,5 +61,9 @@ char lang_strings[LANG_STRINGS_NUM][LANG_STR_SIZE] = {
 	"What's New", // STR_NEWS
 	"Continue", // STR_CONTINUE
 	"Downloading animated banner", // STR_ANIM_BANNER
-	"Press Select to download animated banner or restart it" // STR_ANIM_BANNER_INSTR
+	"Press Select to download animated banner or restart it", // STR_ANIM_BANNER_INSTR
+	"Filter by: ", // STR_FILTER_BY
+	"No Filter", // STR_NO_FILTER
+	"No Tags", // STR_NO_TAGS
+	"This game has a community keymap available. Do you wish to install it?" // STR_KEYMAP
 };

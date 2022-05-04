@@ -428,11 +428,6 @@ int so_resolve(so_module *mod, so_default_dynlib *default_dynlib, int size_defau
 
 				for (int j = 0; j < size_default_dynlib / sizeof(so_default_dynlib); j++) {
 					if (strcmp(mod->dynstr + sym->st_name, default_dynlib[j].symbol) == 0) {
-						if (resolved) {
-							// debugPrintf("Overriden: %s\n", mod->dynstr + sym->st_name);
-						} else {
-							// debugPrintf("Resolved manually: %s\n", mod->dynstr + sym->st_name);
-						}
 						*ptr = default_dynlib[j].func;
 						resolved = 1;
 						break;
@@ -446,6 +441,37 @@ int so_resolve(so_module *mod, so_default_dynlib *default_dynlib, int size_defau
 					}
 					else {
 						fatal_error("Unresolved import: %s\n", mod->dynstr + sym->st_name);
+					}
+				}
+			}
+
+			break;
+		}
+		default:
+			break;
+		}
+	}
+
+	return 0;
+}
+
+int so_resolve_with_dummy(so_module *mod, so_default_dynlib *default_dynlib, int size_default_dynlib, int default_dynlib_only) {
+	for (int i = 0; i < mod->num_reldyn + mod->num_relplt; i++) {
+		Elf32_Rel *rel = i < mod->num_reldyn ? &mod->reldyn[i] : &mod->relplt[i - mod->num_reldyn];
+		Elf32_Sym *sym = &mod->dynsym[ELF32_R_SYM(rel->r_info)];
+		uintptr_t *ptr = (uintptr_t *)(mod->text_base + rel->r_offset);
+
+		int type = ELF32_R_TYPE(rel->r_info);
+		switch (type) {
+		case R_ARM_ABS32:
+		case R_ARM_GLOB_DAT:
+		case R_ARM_JUMP_SLOT:
+		{
+			if (sym->st_shndx == SHN_UNDEF) {
+				for (int j = 0; j < size_default_dynlib / sizeof(so_default_dynlib); j++) {
+					if (strcmp(mod->dynstr + sym->st_name, default_dynlib[j].symbol) == 0) {
+						*ptr = &ret0;
+						break;
 					}
 				}
 			}

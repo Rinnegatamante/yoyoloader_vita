@@ -17,16 +17,91 @@
 #include "main.h"
 #include "so_util.h"
 
+#define NUM_BUTTONS 16
+
 #define IS_AXIS_BOUNDS (axis >= 0 && axis < 4)
-#define IS_BTN_BOUNDS (btn >= 0 && btn	< 16)
+#define IS_BTN_BOUNDS (btn >= 0 && btn < NUM_BUTTONS)
 #define IS_CONTROLLER_BOUNDS (id >= 0 && id < 4)
 
 extern so_module yoyoloader_mod;
 extern uint8_t forceWinMode;
+extern char fake_env[0x1000];
 
-int (*CreateDsMap)(int a1, char *type, int a3, int a4, char *desc, char *type2, double id, int a8);
-void (*CreateAsynEventWithDSMap)(int dsMap, int a2);
+int (*CreateDsMap) (int a1, char *type, int a3, int a4, char *desc, char *type2, double id, int a8);
+void (*CreateAsynEventWithDSMap) (int dsMap, int a2);
+int (*Java_com_yoyogames_runner_RunnerJNILib_KeyEvent) (void *env, int a2, int state, int key_code, int unicode_key, int source);
 extern void (*Function_Add)(const char *name, intptr_t func, int argc, char ret);
+
+int has_kb_mapping = 0;
+char keyboard_mapping[NUM_BUTTONS];
+int is_key_pressed[NUM_BUTTONS] = {0};
+enum {
+	CROSS_BTN,
+	CIRCLE_BTN,
+	SQUARE_BTN,
+	TRIANGLE_BTN,
+	L1_BTN,
+	R1_BTN,
+	L2_BTN,
+	R2_BTN,
+	SELECT_BTN,
+	START_BTN,
+	L3_BTN,
+	R3_BTN,
+	UP_BTN,
+	DOWN_BTN,
+	LEFT_BTN,
+	RIGHT_BTN,
+	UNK_BTN = 0xFF
+};
+
+typedef struct {
+	char key_name[32];
+	char key_value;
+} key_map;
+
+key_map special_keys[] = {
+	{"ENTER", 13},
+	{"SHIFT", 16},
+	{"CTRL", 17},
+	{"ALT", 18},
+	{"ESC", 27},
+	{"BACKSPACE", 8},
+	{"TAB", 9},
+	{"PRINTSCREEN", 44},
+	{"LEFT", 21},
+	{"RIGHT", 22},
+	{"UP", 19},
+	{"DOWN", 20},
+	{"HOME", 36},
+	{"END", 35},
+	{"DEL", 46},
+	{"INS", 45},
+	{"PAGEUP", 33},
+	{"PAGEDOWN", 34},
+	{"F1", 112},
+	{"F2", 113},
+	{"F3", 114},
+	{"F4", 115},
+	{"F5", 116},
+	{"F6", 117},
+	{"F7", 118},
+	{"F8", 119},
+	{"F9", 120},
+	{"F10", 121},
+	{"F11", 122},
+	{"F12", 123},
+	{"NUMPAD0", 96},
+	{"NUMPAD1", 97},
+	{"NUMPAD2", 98},
+	{"NUMPAD3", 99},
+	{"NUMPAD4", 100},
+	{"NUMPAD5", 101},
+	{"NUMPAD6", 102},
+	{"NUMPAD7", 103},
+	{"NUMPAD8", 104},
+	{"NUMPAD9", 105}
+};
 
 typedef enum GamepadButtonState {
 	GAMEPAD_BUTTON_STATE_UP = -1,
@@ -299,7 +374,7 @@ void GamePadUpdate() {
 		int port = (num_controllers == 1 && i == (forceWinMode ? 0 : 1)) ? 0 : (i + 1);
 		sceCtrlPeekBufferPositiveExt2(port, &pad, 1);
 	
-		uint8_t new_states[16] = {
+		uint8_t new_states[NUM_BUTTONS] = {
 			pad.buttons & SCE_CTRL_CROSS ? 1 : 0,
 			pad.buttons & SCE_CTRL_CIRCLE ? 1 : 0,
 			pad.buttons & SCE_CTRL_SQUARE ? 1 : 0,
@@ -319,7 +394,7 @@ void GamePadUpdate() {
 		};
 		
 #ifndef STANDALONE_MODE
-		if (new_states[8] && new_states[9] && new_states[4] && new_states[5])
+		if (new_states[SELECT_BTN] && new_states[START_BTN] && new_states[L1_BTN] && new_states[R1_BTN])
 			sceAppMgrLoadExec("app0:eboot.bin", NULL, NULL);
 #endif
 
@@ -332,22 +407,35 @@ void GamePadUpdate() {
 				int y = touch.report[j].y;
 				if (x > 960) {
 					if (y > 544) {
-						new_states[11] = 1; // R3
+						new_states[R3_BTN] = 1;
 					} else {
-						new_states[7] = 1; // R2
+						new_states[R2_BTN] = 1;
 					}
 				} else {
 					if (y > 544) {
-						new_states[10] = 1; // L3
+						new_states[L3_BTN] = 1;
 					} else {
-						new_states[6] = 1; // L2
+						new_states[L2_BTN] = 1;
 					}
 				}
 			}
 		}
 		
-		for (int j = 0; j < 16; j++) {
-			yoyo_gamepads[i].buttons[j] = (double)update_button(new_states[j], (int)yoyo_gamepads[i].buttons[j]);
+		if (has_kb_mapping) {
+			for (int j = 0; j < NUM_BUTTONS; j++) {
+				if (keyboard_mapping[j] != UNK_BTN) {
+					if (is_key_pressed[j] || new_states[j]) {
+						is_key_pressed[j] = new_states[j];
+						Java_com_yoyogames_runner_RunnerJNILib_KeyEvent(fake_env, 0, !is_key_pressed[j], keyboard_mapping[j], keyboard_mapping[j], 0x101);
+					}
+				} else {
+					yoyo_gamepads[i].buttons[j] = (double)update_button(new_states[j], (int)yoyo_gamepads[i].buttons[j]);
+				}
+			}
+		} else {
+			for (int j = 0; j < NUM_BUTTONS; j++) {
+				yoyo_gamepads[i].buttons[j] = (double)update_button(new_states[j], (int)yoyo_gamepads[i].buttons[j]);
+			}
 		}
 	
 		yoyo_gamepads[i].axis[0] = (double)((int)pad.lx - 127) / 127.0f;
@@ -357,9 +445,25 @@ void GamePadUpdate() {
 	}
 }
 
-void patch_gamepad() {
+void map_key(int key, const char *val) {
+	if (strlen(val) > 2) { // Doing > 2 cause of \r handling
+		for (int i = 0; i < sizeof(special_keys) / sizeof(special_keys[0]); i++) {
+			if (strncmp(special_keys[i].key_name, val, strlen(special_keys[i].key_name)) == 0) {
+				keyboard_mapping[key] = special_keys[i].key_value;
+				debugPrintf("Mapped button id %d to key '%s'\n", key, special_keys[i].key_name);
+				break;
+			}
+		}
+	} else {
+		keyboard_mapping[key] = val[0];
+		debugPrintf("Mapped button id %d to key '%c'\n", key, val[0]);
+	}
+}
+
+void patch_gamepad(const char *game_name) {
 	CreateDsMap = (void *)so_symbol(&yoyoloader_mod, "_Z11CreateDsMapiz");
 	CreateAsynEventWithDSMap = (void *)so_symbol(&yoyoloader_mod, "_Z24CreateAsynEventWithDSMapii");
+	Java_com_yoyogames_runner_RunnerJNILib_KeyEvent = (void *)so_symbol(&yoyoloader_mod, "Java_com_yoyogames_runner_RunnerJNILib_KeyEvent");
 	GamePadCheck(1);
 	
 	Function_Add("gamepad_is_supported", (intptr_t)gamepad_is_supported, 0, 1);
@@ -381,4 +485,37 @@ void patch_gamepad() {
 	Function_Add("gamepad_set_color", (intptr_t)gamepad_set_colour, 2, 1);
 	Function_Add("gamepad_set_colour", (intptr_t)gamepad_set_colour, 2, 1);
 	hook_addr(so_symbol(&yoyoloader_mod, "_Z14GamePadRestartv"), (intptr_t)GamePadRestart);
+	
+#ifdef STANDALONE_MODE
+	FILE *f = fopen("app0:keys.ini", "r");
+#else
+	char fname[512];
+	sprintf(fname, "ux0:data/gms/%s/keys.ini", game_name);
+	FILE *f = fopen(fname, "r");
+#endif
+	if (f) {
+		debugPrintf("Keyboard mapping file found!\n");
+		sceClibMemset(keyboard_mapping, UNK_BTN, NUM_BUTTONS);
+		char buffer[30], buffer2[30];
+		while (EOF != fscanf(f, "%[^=]=%[^\n]\n", buffer, buffer2)) {
+			if (strcmp("CROSS", buffer) == 0) map_key(CROSS_BTN, buffer2);
+			else if (strcmp("CIRCLE", buffer) == 0) map_key(CIRCLE_BTN, buffer2);
+			else if (strcmp("SQUARE", buffer) == 0) map_key(SQUARE_BTN, buffer2);
+			else if (strcmp("TRIANGLE", buffer) == 0) map_key(TRIANGLE_BTN, buffer2);
+			else if (strcmp("UP", buffer) == 0) map_key(UP_BTN, buffer2);
+			else if (strcmp("DOWN", buffer) == 0) map_key(DOWN_BTN, buffer2);
+			else if (strcmp("LEFT", buffer) == 0) map_key(LEFT_BTN, buffer2);
+			else if (strcmp("RIGHT", buffer) == 0) map_key(RIGHT_BTN, buffer2);
+			else if (strcmp("SELECT", buffer) == 0) map_key(SELECT_BTN, buffer2);
+			else if (strcmp("START", buffer) == 0) map_key(START_BTN, buffer2);
+			else if (strcmp("L1", buffer) == 0) map_key(L1_BTN, buffer2);
+			else if (strcmp("R1", buffer) == 0) map_key(R1_BTN, buffer2);
+			else if (strcmp("L2", buffer) == 0) map_key(L2_BTN, buffer2);
+			else if (strcmp("R2", buffer) == 0) map_key(R2_BTN, buffer2);
+			else if (strcmp("L3", buffer) == 0) map_key(L3_BTN, buffer2);
+			else if (strcmp("R3", buffer) == 0) map_key(R3_BTN, buffer2);
+		}
+		fclose(f);
+		has_kb_mapping = 1;
+	}
 }

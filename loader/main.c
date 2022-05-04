@@ -88,6 +88,7 @@ int get_active = 0;
 int get_index = 0;
 
 void (*Function_Add)(const char *name, intptr_t func, int argc, char ret);
+int (*Java_com_yoyogames_runner_RunnerJNILib_CreateVersionDSMap) (void *env, int a2, int sdk_ver, char *release_version, char *model, char *device, char *manufacturer, char *cpu_abi, char *cpu_abi2, char *bootloader, char *board, char *version, char *region, char *version_name, int has_keyboard);
 
 double jni_double = 0.0f;
 GLuint main_fb, main_tex = 0xDEADBEEF;
@@ -150,7 +151,7 @@ ALCdevice *ALDevice;
 ALvoid *ALContext;
 
 static char fake_vm[0x1000];
-static char fake_env[0x1000];
+char fake_env[0x1000];
 
 unsigned int _pthread_stack_default_user = 1 * 1024 * 1024;
 
@@ -509,6 +510,7 @@ void main_loop() {
 	int lastX[SCE_TOUCH_MAX_REPORT] = {-1, -1, -1, -1, -1, -1, -1, -1};
 	int lastY[SCE_TOUCH_MAX_REPORT] = {-1, -1, -1, -1, -1, -1, -1, -1};
 	
+	glReleaseShaderCompiler();
 	for (;;) {
 		if (post_active) {
 			SceKernelThreadInfo info;
@@ -815,6 +817,10 @@ void glShaderSourceHook(GLuint shader, GLsizei count, const GLchar **string, con
 	SHA1_CTX ctx;
 	
 	int size = length ? *length : strlen(*string);
+	if (size == 0) {
+		debugPrintf("Attempt to load an empty shader, may be an unsupported platform target\n");
+		return;
+	}
 	sha1_init(&ctx);
 	sha1_update(&ctx, (uint8_t *)*string, size);
 	sha1_final(&ctx, (uint8_t *)sha1);
@@ -898,13 +904,13 @@ void glShaderSourceHook(GLuint shader, GLsizei count, const GLchar **string, con
 		shaderSize = ftell(file);
 		fseek(file, 0, SEEK_SET);
 
-		shaderBuf = malloc(shaderSize);
+		shaderBuf = vglMalloc(shaderSize);
 		fread(shaderBuf, 1, shaderSize, file);
 		fclose(file);
 
 		glShaderBinary(1, &shader, 0, shaderBuf, shaderSize);
 
-		free(shaderBuf);
+		vglFree(shaderBuf);
 	}
 }
 
@@ -1108,6 +1114,11 @@ int nanosleep_hook(const struct timespec *req, struct timespec *rem) {
 	return sceKernelDelayThreadCB(usec);
 }
 
+static so_default_dynlib net_dynlib[] = {
+	{ "bind", (uintptr_t)&bind },
+	{ "socket", (uintptr_t)&socket },
+};
+
 static so_default_dynlib default_dynlib[] = {
 	{ "AAssetManager_open", (uintptr_t)&AAssetManager_open},
 	{ "AAsset_close", (uintptr_t)&AAsset_close},
@@ -1233,7 +1244,7 @@ static so_default_dynlib default_dynlib[] = {
 	{ "atoi", (uintptr_t)&atoi },
 	{ "atol", (uintptr_t)&atol },
 	{ "atoll", (uintptr_t)&atoll },
-	//{ "bind", (uintptr_t)&bind },
+	{ "bind", (uintptr_t)&bind },
 	{ "bsearch", (uintptr_t)&bsearch },
 	{ "btowc", (uintptr_t)&btowc },
 	{ "calloc", (uintptr_t)&calloc },
@@ -1357,6 +1368,7 @@ static so_default_dynlib default_dynlib[] = {
 	{ "inflateInit_", (uintptr_t)&inflateInit_ },
 	{ "inflateInit2_", (uintptr_t)&inflateInit2_ },
 	{ "inflateReset", (uintptr_t)&inflateReset },
+	{ "ioctl", (uintptr_t)&ret0 },
 	{ "isalnum", (uintptr_t)&isalnum },
 	{ "isalpha", (uintptr_t)&isalpha },
 	{ "iscntrl", (uintptr_t)&iscntrl },
@@ -1439,6 +1451,7 @@ static so_default_dynlib default_dynlib[] = {
 	//{ "recv", (uintptr_t)&recv },
 	//{ "recvfrom", (uintptr_t)&recvfrom },
 	{ "remove", (uintptr_t)&sceIoRemove },
+	{ "rename", (uintptr_t)&sceIoRename },
 	{ "rint", (uintptr_t)&rint },
 	{ "scandir", (uintptr_t)&scandir_hook },
 	//{ "send", (uintptr_t)&send },
@@ -1453,7 +1466,7 @@ static so_default_dynlib default_dynlib[] = {
 	{ "sinf", (uintptr_t)&sinf },
 	{ "sinh", (uintptr_t)&sinh },
 	{ "snprintf", (uintptr_t)&snprintf },
-	//{ "socket", (uintptr_t)&socket },
+	{ "socket", (uintptr_t)&socket },
 	{ "sprintf", (uintptr_t)&sprintf },
 	{ "sqrt", (uintptr_t)&sqrt },
 	{ "sqrtf", (uintptr_t)&sqrtf },
@@ -1535,6 +1548,7 @@ enum MethodIDs {
 	HTTP_POST,
 	HTTP_GET,
 	INIT,
+	OS_GET_INFO,
 	INPUT_STRING_ASYNC,
 	SHOW_MESSAGE,
 	SHOW_MESSAGE_ASYNC,
@@ -1554,6 +1568,7 @@ static NameToMethodID name_to_method_ids[] = {
 	{ "HttpGet", HTTP_GET },
 	{ "HttpPost", HTTP_POST },
 	{ "InputStringAsync", INPUT_STRING_ASYNC },
+	{ "OsGetInfo", OS_GET_INFO },
 	{ "ShowMessage", SHOW_MESSAGE },
 	{ "ShowMessageAsync", SHOW_MESSAGE_ASYNC }
 };
@@ -1758,6 +1773,8 @@ int CallStaticIntMethodV(void *env, void *obj, int methodID, uintptr_t *args) {
 	switch (methodID) {
 	case GET_DEFAULT_FRAMEBUFFER:
 		return 0;
+	case OS_GET_INFO:
+		return Java_com_yoyogames_runner_RunnerJNILib_CreateVersionDSMap(fake_env, 0, 7, "1.0", "PSVita", "PSVita", "Sony Computer Entertainment", "", "", "", "", "1.0", "EU", "1.0", 0);
 	default:
 		if (methodID != UNKNOWN)
 			debugPrintf("CallStaticIntMethodV(%d)\n", methodID);
@@ -1992,6 +2009,8 @@ int main(int argc, char **argv)
 	// Patching the executable
 	so_relocate(&yoyoloader_mod);
 	so_resolve(&yoyoloader_mod, default_dynlib, sizeof(default_dynlib), 0);
+	if (!has_net)
+		so_resolve_with_dummy(&yoyoloader_mod, net_dynlib, sizeof(net_dynlib), 0);
 	patch_openal();
 	patch_runner();
 #ifdef HAS_VIDEO_PLAYBACK_SUPPORT
@@ -2007,7 +2026,7 @@ int main(int argc, char **argv)
 	
 	Function_Add("game_end", game_end, 1, 1);
 	
-	patch_gamepad();
+	patch_gamepad(game_name);
 	so_flush_caches(&yoyoloader_mod);
 	
 	// Initializing vitaGL
@@ -2070,6 +2089,7 @@ int main(int argc, char **argv)
 	*(uintptr_t *)(fake_env + 0x394) = (uintptr_t)NewWeakGlobalRef;
 	
 	int (*Java_com_yoyogames_runner_RunnerJNILib_Startup) (void *env, int a2, char *apk_path, char *save_dir, char *pkg_dir, int sleep_margin) = (void *)so_symbol(&yoyoloader_mod, "Java_com_yoyogames_runner_RunnerJNILib_Startup");
+	Java_com_yoyogames_runner_RunnerJNILib_CreateVersionDSMap = (void *)so_symbol(&yoyoloader_mod, "Java_com_yoyogames_runner_RunnerJNILib_CreateVersionDSMap");
 	
 	// Displaying splash screen
 	if (splash_buf) {
