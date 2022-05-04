@@ -446,12 +446,17 @@ void GamePadUpdate() {
 }
 
 void map_key(int key, const char *val) {
-	if (strlen(val) > 1 && val[1] != '\r') { // Doing > 2 cause of \r handling
-		for (int i = 0; i < sizeof(special_keys) / sizeof(special_keys[0]); i++) {
-			if (strncmp(special_keys[i].key_name, val, strlen(special_keys[i].key_name)) == 0) {
-				keyboard_mapping[key] = special_keys[i].key_value;
-				debugPrintf("Mapped button id %d to key '%s'\n", key, special_keys[i].key_name);
-				break;
+	if (strlen(val) > 1 && val[1] != '\r') {
+		if (strncmp("CODE", val, 4) == 0) {
+			keyboard_mapping[key] = (char)strtol(&val[4], NULL, 10);
+			debugPrintf("Mapped button id %d to keycode %hhd\n", key, keyboard_mapping[key]);
+		} else {
+			for (int i = 0; i < sizeof(special_keys) / sizeof(special_keys[0]); i++) {
+				if (strncmp(special_keys[i].key_name, val, strlen(special_keys[i].key_name)) == 0) {
+					keyboard_mapping[key] = special_keys[i].key_value;
+					debugPrintf("Mapped button id %d to key '%s'\n", key, special_keys[i].key_name);
+					break;
+				}
 			}
 		}
 	} else {
