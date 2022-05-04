@@ -34,6 +34,7 @@ extern void (*Function_Add)(const char *name, intptr_t func, int argc, char ret)
 
 int has_kb_mapping = 0;
 char keyboard_mapping[NUM_BUTTONS];
+int is_key_pressed[NUM_BUTTONS] = {0};
 enum {
 	CROSS_BTN,
 	CIRCLE_BTN,
@@ -422,10 +423,13 @@ void GamePadUpdate() {
 		
 		if (has_kb_mapping) {
 			for (int j = 0; j < NUM_BUTTONS; j++) {
-				int new_key_state = update_button(new_states[j], (int)yoyo_gamepads[i].buttons[j]);
-				yoyo_gamepads[i].buttons[j] = (double)new_key_state;
-				if (keyboard_mapping[j] != UNK_BTN && (new_key_state == GAMEPAD_BUTTON_STATE_DOWN || new_key_state == GAMEPAD_BUTTON_STATE_UP || new_key_state == GAMEPAD_BUTTON_STATE_HELD)) {
-					Java_com_yoyogames_runner_RunnerJNILib_KeyEvent(fake_env, 0, new_key_state == GAMEPAD_BUTTON_STATE_UP, keyboard_mapping[j], keyboard_mapping[j], 0x101);
+				if (keyboard_mapping[j] != UNK_BTN) {
+					if (is_key_pressed[j] || new_states[j]) {
+						is_key_pressed[j] = new_states[j];
+						Java_com_yoyogames_runner_RunnerJNILib_KeyEvent(fake_env, 0, !is_key_pressed[j], keyboard_mapping[j], keyboard_mapping[j], 0x101);
+					}
+				} else {
+					yoyo_gamepads[i].buttons[j] = (double)update_button(new_states[j], (int)yoyo_gamepads[i].buttons[j]);
 				}
 			}
 		} else {
