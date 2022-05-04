@@ -151,7 +151,7 @@ ALCdevice *ALDevice;
 ALvoid *ALContext;
 
 static char fake_vm[0x1000];
-static char fake_env[0x1000];
+char fake_env[0x1000];
 
 unsigned int _pthread_stack_default_user = 1 * 1024 * 1024;
 
@@ -2026,7 +2026,7 @@ int main(int argc, char **argv)
 	
 	Function_Add("game_end", game_end, 1, 1);
 	
-	patch_gamepad();
+	patch_gamepad(game_name);
 	so_flush_caches(&yoyoloader_mod);
 	
 	// Initializing vitaGL
