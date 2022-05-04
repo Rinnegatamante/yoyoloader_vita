@@ -23,6 +23,12 @@ Note that patches to the bytecode may still be required in order to fix resoluti
 
 A comprehensive Compatibility List can be found here: https://yoyo.rinnegatamante.it. You can contribute to it by opening an Issue here: https://github.com/Rinnegatamante/YoYo-Loader-Vita-Compatibility/issues.
 
+## Keyboard keys emulation
+
+YoYo Loader supports mapping of physical buttons to keyboard keys for those games that have not working controller code. It may be especially useful for PC asset swapped games.
+
+A guide on how to set it up can be found here: https://gist.github.com/CatoTheYounger97/ce19685d349d913f9a2f097464453c97
+
 ## Setup Instructions (For End Users)
 
 In order to properly install the loader, you'll have to follow these steps precisely:
