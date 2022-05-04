@@ -25,6 +25,7 @@
 #define NUM_OPTIONS 12
 #define NUM_DB_CHUNKS 3
 #define MEM_BUFFER_SIZE (32 * 1024 * 1024)
+#define FILTER_MODES_NUM 6
 
 enum {
 	SCE_SYSTEM_PARAM_LANG_UKRAINIAN = 20,
@@ -98,6 +99,40 @@ struct GameSelection {
 
 static CompatibilityList *comp = nullptr;
 static GameSelection *old_hovered = NULL;
+
+int filter_idx = 0;
+const char *filter_modes[] = {
+	lang_strings[STR_NO_FILTER],
+	lang_strings[STR_PLAYABLE],
+	lang_strings[STR_INGAME_PLUS],
+	lang_strings[STR_INGAME_MINUS],
+	lang_strings[STR_CRASH],
+	lang_strings[STR_NO_TAGS]
+};
+
+// Filter modes enum
+enum {
+	FILTER_DISABLED,
+	FILTER_PLAYABLE,
+	FILTER_INGAME_PLUS,
+	FILTER_INGAME_MINUS,
+	FILTER_CRASH,
+	FILTER_NO_TAGS
+};
+
+bool filterGames(GameSelection *p) {
+	if (!p->status) return filter_idx != FILTER_NO_TAGS;
+	else {
+		if (filter_idx == FILTER_NO_TAGS) return true;
+		else if ((!p->status->playable && filter_idx == FILTER_PLAYABLE) ||
+			(!p->status->ingame_plus && filter_idx == FILTER_INGAME_PLUS) ||
+			(!p->status->ingame_low && filter_idx == FILTER_INGAME_MINUS) ||
+			(!p->status->crash && filter_idx == FILTER_CRASH)) {
+			return true;
+		}
+	}
+	return false;
+}
 
 void AppendCompatibilityDatabase(const char *file) {
 	FILE *f = fopen(file, "rb");
@@ -1025,9 +1060,30 @@ int main(int argc, char *argv[]) {
 		ImGui::SetNextWindowSize(ImVec2(553, 524), ImGuiSetCond_Always);
 		ImGui::Begin("##main", nullptr, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoBringToFrontOnFocus);
 		
+		ImGui::AlignTextToFramePadding();
+		ImGui::Text(lang_strings[STR_FILTER_BY]);
+		ImGui::SameLine();
+		ImGui::PushItemWidth(-1.0f);
+		if (ImGui::BeginCombo("##combo", filter_modes[filter_idx])) {
+			for (int n = 0; n < FILTER_MODES_NUM; n++) {
+				bool is_selected = filter_idx == n;
+				if (ImGui::Selectable(filter_modes[n], is_selected))
+					filter_idx = n;
+				if (is_selected)
+					ImGui::SetItemDefaultFocus();
+			}
+			ImGui::EndCombo();
+		}
+		ImGui::PopItemWidth();
+		ImGui::Separator();
+		
 		GameSelection *g = games;
 		ImVec2 config_pos;
 		while (g) {
+			if (filter_idx != FILTER_DISABLED && filterGames(g)) {
+				g = g->next;
+				continue;
+			}
 			if (ImGui::Button(g->name, ImVec2(-1.0f, 0.0f))) {
 				launch_item = g->name;
 			}
