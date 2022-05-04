@@ -27,6 +27,21 @@
 #define MEM_BUFFER_SIZE (32 * 1024 * 1024)
 #define FILTER_MODES_NUM 6
 
+int init_interactive_msg_dialog(const char *msg) {
+	SceMsgDialogUserMessageParam msg_param;
+	memset(&msg_param, 0, sizeof(msg_param));
+	msg_param.buttonType = SCE_MSG_DIALOG_BUTTON_TYPE_YESNO;
+	msg_param.msg = (SceChar8 *)msg;
+
+	SceMsgDialogParam param;
+	sceMsgDialogParamInit(&param);
+	_sceCommonDialogSetMagicNumber(&param.commonParam);
+	param.mode = SCE_MSG_DIALOG_MODE_USER_MSG;
+	param.userMsgParam = &msg_param;
+
+	return sceMsgDialogInit(&param);
+}
+
 enum {
 	SCE_SYSTEM_PARAM_LANG_UKRAINIAN = 20,
 };
@@ -845,6 +860,13 @@ int main(int argc, char *argv[]) {
 	memset(&appUtilBootParam, 0, sizeof(SceAppUtilBootParam));
 	sceAppUtilInit(&appUtilParam, &appUtilBootParam);
 	sceAppUtilSystemParamGetInt(SCE_SYSTEM_PARAM_ID_LANG, &console_language);
+	
+	// Initializing sceCommonDialog
+	SceCommonDialogConfigParam cmnDlgCfgParam;
+	sceCommonDialogConfigParamInit(&cmnDlgCfgParam);
+	cmnDlgCfgParam.language = (SceSystemParamLang)console_language;
+	sceAppUtilSystemParamGetInt(SCE_SYSTEM_PARAM_ID_ENTER_BUTTON, (int *)&cmnDlgCfgParam.enterButtonAssign);
+	sceCommonDialogSetConfigParam(&cmnDlgCfgParam);
 
 	loadSelectorConfig();
 	setTranslation(console_language);
@@ -1314,6 +1336,45 @@ int main(int argc, char *argv[]) {
 	fprintf(f, "%s=%d\n", "sortMode", sort_idx);
 	fprintf(f, "%s=%d\n", "language", console_language);
 	fclose(f);
+	
+	sprintf(config_path, "ux0:data/gms/%s/keys.ini", launch_item);
+	SceIoStat stat;
+	if (sceIoGetstat(config_path, &stat)) {
+		char url[512], final_url[512] = "";
+		curl_handle = curl_easy_init();
+		sprintf(url, "https://github.com/Rinnegatamante/yoyoloader_vita/blob/main/keymaps/%s.ini?raw=true", launch_item);
+		char *space = strstr(url, " ");
+		char *s = url;
+		while (space) {
+			space[0] = 0;
+			sprintf(final_url, "%s%s%%20", final_url, s);
+			space[0] = ' ';
+			s = space + 1;
+			space = strstr(s, " ");
+		}
+		sprintf(final_url, "%s%s", final_url, s);
+		downloaded_bytes = 0;
+		total_bytes = 20 * 1024; /* 20 KB */
+		startDownload(final_url);
+		int response_code;
+		curl_easy_getinfo(curl_handle, CURLINFO_RESPONSE_CODE, &response_code);
+		if (response_code == 200) {
+			init_interactive_msg_dialog(lang_strings[STR_KEYMAP]);
+			while (sceMsgDialogGetStatus() != SCE_COMMON_DIALOG_STATUS_FINISHED) {
+				vglSwapBuffers(GL_TRUE);
+			}
+			SceMsgDialogResult res;
+			memset(&res, 0, sizeof(SceMsgDialogResult));
+			sceMsgDialogGetResult(&res);
+			if (res.buttonId == SCE_MSG_DIALOG_BUTTON_ID_YES) {
+				fh = fopen(config_path, "wb");
+				fwrite((const void*)generic_mem_buffer, 1, downloaded_bytes, fh);
+				fclose(fh);
+			}
+			sceMsgDialogTerm();		
+		}
+		curl_easy_cleanup(curl_handle);
+	}
 
 	sceAppMgrLoadExec(hovered->video_support ? "app0:/loader2.bin" : "app0:/loader.bin", NULL, NULL);
 	return 0;
