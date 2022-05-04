@@ -1057,7 +1057,6 @@ int main(int argc, char *argv[]) {
 	}
 	sceIoDclose(fd);
 	
-	GameSelection *g = nullptr;
 	while (!launch_item) {
 		if (old_sort_idx != sort_idx) {
 			old_sort_idx = sort_idx;
@@ -1101,6 +1100,7 @@ int main(int argc, char *argv[]) {
 		ImGui::Separator();
 
 		ImVec2 config_pos;
+		GameSelection *g = games;
 		while (g) {
 			if (filter_idx != FILTER_DISABLED && filterGames(g)) {
 				g = g->next;
@@ -1339,10 +1339,10 @@ int main(int argc, char *argv[]) {
 	
 	sprintf(config_path, "ux0:data/gms/%s/keys.ini", launch_item);
 	SceIoStat stat;
-	if (g && sceIoGetstat(config_path, &stat)) {
+	if (hovered && sceIoGetstat(config_path, &stat)) {
 		char url[512], final_url[512] = "";
 		curl_handle = curl_easy_init();
-		sprintf(url, "https://github.com/Rinnegatamante/yoyoloader_vita/blob/main/keymaps/%s.ini?raw=true", g->game_id);
+		sprintf(url, "https://github.com/Rinnegatamante/yoyoloader_vita/blob/main/keymaps/%s.ini?raw=true", hovered->game_id);
 		char *space = strstr(url, " ");
 		char *s = url;
 		while (space) {
