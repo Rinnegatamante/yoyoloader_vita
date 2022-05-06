@@ -877,8 +877,8 @@ int main(int argc, char *argv[]) {
 	int ret = sceNetShowNetstat();
 	SceNetInitParam initparam;
 	if (ret == SCE_NET_ERROR_ENOTINIT) {
-		initparam.memory = malloc(1024 * 1024);
-		initparam.size = 1024 * 1024;
+		initparam.memory = malloc(141 * 1024);
+		initparam.size = 141 * 1024;
 		initparam.flags = 0;
 		sceNetInit(&initparam);
 	}
