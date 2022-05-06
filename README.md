@@ -23,6 +23,8 @@ Note that patches to the bytecode may still be required in order to fix resoluti
 
 A comprehensive Compatibility List can be found here: https://yoyo.rinnegatamante.it. You can contribute to it by opening an Issue here: https://github.com/Rinnegatamante/YoYo-Loader-Vita-Compatibility/issues.
 
+If a game seems to be running out of memory, you can try to fix this issue by applying pngquant on images inside game.droid or by externalizing musics and sounds loading. (A guide about music externalization can be found here: https://gist.github.com/CatoTheYounger97/517db5d15589fa3d20c7fa999dd4d9ef )
+
 ## Keyboard keys emulation
 
 YoYo Loader supports mapping of physical buttons to keyboard keys for those games that have not working controller code. It may be especially useful for PC asset swapped games.
