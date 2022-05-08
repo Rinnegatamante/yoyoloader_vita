@@ -561,7 +561,11 @@ void main_loop() {
 			glViewport(0, 0, SCREEN_W, SCREEN_H);
 			glScissor(0, 0, SCREEN_W, SCREEN_H);
 		}
-
+		
+		if (*g_IOFrameCount >= 1) {
+			GamePadUpdate();
+		}
+		
 		SceTouchData touch;
 		sceTouchPeek(SCE_TOUCH_PORT_FRONT, &touch, 1);
 		for (int i = 0; i < SCE_TOUCH_MAX_REPORT; i++) {
@@ -593,10 +597,6 @@ void main_loop() {
 					lastY[i] = -1;
 				}
 			}
-		}
-		
-		if (*g_IOFrameCount >= 1) {
-			GamePadUpdate();
 		}
 
 		if (!is_portrait)
@@ -681,22 +681,22 @@ void patch_runner(void) {
 	so_symbol_fix_ldmia(&yoyoloader_mod, "_Z11Shader_LoadPhjS_");
 	so_symbol_fix_ldmia(&yoyoloader_mod, "_Z10YYGetInt32PK6RValuei");
 
-	// Debug
 	if (debugMode) {
 		hook_addr(so_symbol(&yoyoloader_mod, "_ZN11TRelConsole6OutputEPKcz"), (uintptr_t)&DebugPrintf);
 		hook_addr(so_symbol(&yoyoloader_mod, "_ZN17TErrStreamConsole6OutputEPKcz"), (uintptr_t)&DebugPrintf);
 		hook_addr(so_symbol(&yoyoloader_mod, "_Z7YYErrorPKcz"), (uintptr_t)&debugPrintf);
+	} else {
+		hook_addr(so_symbol(&yoyoloader_mod, "_ZN11TRelConsole6OutputEPKcz"), (uintptr_t)&ret0);
+		hook_addr(so_symbol(&yoyoloader_mod, "_ZN17TErrStreamConsole6OutputEPKcz"), (uintptr_t)&ret0);
+		hook_addr(so_symbol(&yoyoloader_mod, "_Z7YYErrorPKcz"), (uintptr_t)&ret0);
 	}
 }
 
 void patch_runner_post_init(void) {
-	// Debug
-	if (debugMode) {
-		int *dbg_csol = (int *)so_symbol(&yoyoloader_mod, "_dbg_csol");
-		if (dbg_csol) {
-			kuKernelCpuUnrestrictedMemcpy((void *)(*(int *)so_symbol(&yoyoloader_mod, "_dbg_csol") + 0x0C), (void *)(so_symbol(&yoyoloader_mod, "_ZTV11TRelConsole") + 0x14), 4);
-			kuKernelCpuUnrestrictedMemcpy((void *)(*(int *)so_symbol(&yoyoloader_mod, "_rel_csol") + 0x0C), (void *)(so_symbol(&yoyoloader_mod, "_ZTV11TRelConsole") + 0x14), 4);
-		}
+	int *dbg_csol = (int *)so_symbol(&yoyoloader_mod, "_dbg_csol");
+	if (dbg_csol) {
+		kuKernelCpuUnrestrictedMemcpy((void *)(*(int *)so_symbol(&yoyoloader_mod, "_dbg_csol") + 0x0C), (void *)(so_symbol(&yoyoloader_mod, "_ZTV11TRelConsole") + 0x14), 4);
+		kuKernelCpuUnrestrictedMemcpy((void *)(*(int *)so_symbol(&yoyoloader_mod, "_rel_csol") + 0x0C), (void *)(so_symbol(&yoyoloader_mod, "_ZTV11TRelConsole") + 0x14), 4);
 	}
 }
 
@@ -1253,6 +1253,7 @@ static so_default_dynlib default_dynlib[] = {
 	{ "clearerr", (uintptr_t)&clearerr },
 	{ "clock_gettime", (uintptr_t)&clock_gettime },
 	{ "close", (uintptr_t)&close },
+	{ "compress", (uintptr_t)&compress },	
 	//{ "connect", (uintptr_t)&connect },
 	{ "cos", (uintptr_t)&cos },
 	{ "cosf", (uintptr_t)&cosf },
@@ -1758,6 +1759,9 @@ void *CallStaticObjectMethodV(void *env, void *obj, int methodID, uintptr_t *arg
 					recursive_mkdir(r);
 					return f->object_array;
 				}
+			} else if (!strcmp(f->module_name, "NOTCH")) {
+				jni_double = 0.0f;
+				return &jni_double;
 			}
 			debugPrintf("Called undefined extension function from module %s with name %s\n", f->module_name, f->method_name);
 			return NULL;

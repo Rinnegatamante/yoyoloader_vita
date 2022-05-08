@@ -23,15 +23,21 @@
 #define IS_BTN_BOUNDS (btn >= 0 && btn < NUM_BUTTONS)
 #define IS_CONTROLLER_BOUNDS (id >= 0 && id < 4)
 
+#define ANALOG_DEADZONE 30
+
 extern so_module yoyoloader_mod;
 extern uint8_t forceWinMode;
 extern char fake_env[0x1000];
 
+int (*YYGetInt32) (void *args, int idx);
 int (*CreateDsMap) (int a1, char *type, int a3, int a4, char *desc, char *type2, double id, int a8);
 void (*CreateAsynEventWithDSMap) (int dsMap, int a2);
 int (*Java_com_yoyogames_runner_RunnerJNILib_KeyEvent) (void *env, int a2, int state, int key_code, int unicode_key, int source);
 extern void (*Function_Add)(const char *name, intptr_t func, int argc, char ret);
+int *g_MousePosX, *g_MousePosY;
 
+int analog_as_mouse = 0;
+int analog_as_keys = 0;
 int has_kb_mapping = 0;
 char keyboard_mapping[NUM_BUTTONS];
 int is_key_pressed[NUM_BUTTONS] = {0};
@@ -52,6 +58,8 @@ enum {
 	DOWN_BTN,
 	LEFT_BTN,
 	RIGHT_BTN,
+	LEFT_ANALOG,
+	RIGHT_ANALOG,
 	UNK_BTN = 0xFF
 };
 
@@ -311,6 +319,21 @@ void gamepad_set_vibration(retval_t *ret, void *self, void *other, int argc, ret
 void gamepad_set_colour(retval_t *ret, void *self, void *other, int argc, retval_t *args) {
 }
 
+void mouse_set(retval_t *ret, void *self, void *other, int argc, retval_t *args) {
+	*g_MousePosX = YYGetInt32(args, 0);
+    *g_MousePosY = YYGetInt32(args, 1);
+}
+
+void mouse_get_x(retval_t *ret, void *self, void *other, int argc, retval_t *args) {
+	ret->kind = VALUE_REAL;
+	ret->rvalue.val = *g_MousePosX;
+}
+
+void mouse_get_y(retval_t *ret, void *self, void *other, int argc, retval_t *args) {
+	ret->kind = VALUE_REAL;
+	ret->rvalue.val = *g_MousePosY;
+}
+
 int GamePadCheck(int startup) {
 	if (sceCtrlIsMultiControllerSupported() && forceWinMode) {
 		int num_controllers = 0;
@@ -424,7 +447,18 @@ void GamePadUpdate() {
 		if (has_kb_mapping) {
 			for (int j = 0; j < NUM_BUTTONS; j++) {
 				if (keyboard_mapping[j] != UNK_BTN) {
-					if (is_key_pressed[j] || new_states[j]) {
+					if (analog_as_keys && j >= UP_BTN && j <= RIGHT_BTN) {
+						if ((j == LEFT_BTN && pad.lx < 127 - ANALOG_DEADZONE) ||
+							(j == RIGHT_BTN && pad.lx > 127 + ANALOG_DEADZONE) ||
+							(j == UP_BTN && pad.ly < 127 - ANALOG_DEADZONE) ||
+							(j == DOWN_BTN && pad.ly > 127 + ANALOG_DEADZONE)) {
+							is_key_pressed[j] = 1;
+							Java_com_yoyogames_runner_RunnerJNILib_KeyEvent(fake_env, 0, !is_key_pressed[j], keyboard_mapping[j], keyboard_mapping[j], 0x101);
+						} else if (is_key_pressed[j] || new_states[j]) {
+							is_key_pressed[j] = new_states[j];
+							Java_com_yoyogames_runner_RunnerJNILib_KeyEvent(fake_env, 0, !is_key_pressed[j], keyboard_mapping[j], keyboard_mapping[j], 0x101);
+						}
+					} else if (is_key_pressed[j] || new_states[j]) {
 						is_key_pressed[j] = new_states[j];
 						Java_com_yoyogames_runner_RunnerJNILib_KeyEvent(fake_env, 0, !is_key_pressed[j], keyboard_mapping[j], keyboard_mapping[j], 0x101);
 					}
@@ -442,6 +476,17 @@ void GamePadUpdate() {
 		yoyo_gamepads[i].axis[1] = (double)((int)pad.ly - 127) / 127.0f;
 		yoyo_gamepads[i].axis[2] = (double)((int)pad.rx - 127) / 127.0f;
 		yoyo_gamepads[i].axis[3] = (double)((int)pad.ry - 127) / 127.0f;
+		
+		if (analog_as_mouse) {
+			if (pad.rx > 127 - ANALOG_DEADZONE && pad.rx < 127 + ANALOG_DEADZONE)
+				*g_MousePosX = SCREEN_W / 2;
+			else
+				*g_MousePosX = (pad.rx * SCREEN_W) / 255;
+			if (pad.ry > 127 - ANALOG_DEADZONE && pad.ry < 127 + ANALOG_DEADZONE)
+				*g_MousePosY = SCREEN_H / 2;
+			else
+				*g_MousePosY = (pad.ry * SCREEN_H) / 255;
+		}
 	}
 }
 
@@ -462,6 +507,15 @@ void map_key(int key, const char *val) {
 	} else {
 		keyboard_mapping[key] = val[0];
 		debugPrintf("Mapped button id %d to key '%c'\n", key, val[0]);
+	}
+}
+
+void map_analog(int idx, const char *val) {
+	if (strncmp("ON", val, 2) == 0) {
+		if (idx == LEFT_ANALOG)
+			analog_as_keys = 1;
+		else
+			analog_as_mouse = 1;
 	}
 }
 
@@ -491,6 +545,17 @@ void patch_gamepad(const char *game_name) {
 	Function_Add("gamepad_set_colour", (intptr_t)gamepad_set_colour, 2, 1);
 	hook_addr(so_symbol(&yoyoloader_mod, "_Z14GamePadRestartv"), (intptr_t)GamePadRestart);
 	
+	YYGetInt32 = (void *)so_symbol(&yoyoloader_mod, "_Z10YYGetInt32PK6RValuei");
+	g_MousePosX = (int *)so_symbol(&yoyoloader_mod, "g_MousePosX");
+	g_MousePosY = (int *)so_symbol(&yoyoloader_mod, "g_MousePosY");
+	
+	Function_Add("display_mouse_set", (intptr_t)mouse_set, 2, 0);
+	Function_Add("window_mouse_set", (intptr_t)mouse_set, 2, 0);
+	Function_Add("display_mouse_get_x", (intptr_t)mouse_get_x, 1, 0);
+	Function_Add("display_mouse_get_y", (intptr_t)mouse_get_y, 1, 0);
+	Function_Add("window_mouse_get_x", (intptr_t)mouse_get_x, 1, 0);
+	Function_Add("window_mouse_get_y", (intptr_t)mouse_get_y, 1, 0);
+	
 #ifdef STANDALONE_MODE
 	FILE *f = fopen("app0:keys.ini", "r");
 #else
@@ -519,6 +584,8 @@ void patch_gamepad(const char *game_name) {
 			else if (strcmp("R2", buffer) == 0) map_key(R2_BTN, buffer2);
 			else if (strcmp("L3", buffer) == 0) map_key(L3_BTN, buffer2);
 			else if (strcmp("R3", buffer) == 0) map_key(R3_BTN, buffer2);
+			else if (strcmp("RANALOG", buffer) == 0) map_analog(RIGHT_ANALOG, buffer2);
+			else if (strcmp("LANALOG", buffer) == 0) map_analog(LEFT_ANALOG, buffer2);
 		}
 		fclose(f);
 		has_kb_mapping = 1;
