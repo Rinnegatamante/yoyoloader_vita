@@ -1759,6 +1759,9 @@ void *CallStaticObjectMethodV(void *env, void *obj, int methodID, uintptr_t *arg
 					recursive_mkdir(r);
 					return f->object_array;
 				}
+			} else if (!strcmp(f->module_name, "NOTCH")) {
+				jni_double = 0.0f;
+				return &jni_double;
 			}
 			debugPrintf("Called undefined extension function from module %s with name %s\n", f->module_name, f->method_name);
 			return NULL;
