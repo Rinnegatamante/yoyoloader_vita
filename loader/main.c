@@ -561,7 +561,11 @@ void main_loop() {
 			glViewport(0, 0, SCREEN_W, SCREEN_H);
 			glScissor(0, 0, SCREEN_W, SCREEN_H);
 		}
-
+		
+		if (*g_IOFrameCount >= 1) {
+			GamePadUpdate();
+		}
+		
 		SceTouchData touch;
 		sceTouchPeek(SCE_TOUCH_PORT_FRONT, &touch, 1);
 		for (int i = 0; i < SCE_TOUCH_MAX_REPORT; i++) {
@@ -593,10 +597,6 @@ void main_loop() {
 					lastY[i] = -1;
 				}
 			}
-		}
-		
-		if (*g_IOFrameCount >= 1) {
-			GamePadUpdate();
 		}
 
 		if (!is_portrait)
