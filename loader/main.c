@@ -1253,6 +1253,7 @@ static so_default_dynlib default_dynlib[] = {
 	{ "clearerr", (uintptr_t)&clearerr },
 	{ "clock_gettime", (uintptr_t)&clock_gettime },
 	{ "close", (uintptr_t)&close },
+	{ "compress", (uintptr_t)&compress },	
 	//{ "connect", (uintptr_t)&connect },
 	{ "cos", (uintptr_t)&cos },
 	{ "cosf", (uintptr_t)&cosf },
