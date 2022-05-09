@@ -32,6 +32,7 @@ extern char fake_env[0x1000];
 int (*YYGetInt32) (void *args, int idx);
 int (*CreateDsMap) (int a1, char *type, int a3, int a4, char *desc, char *type2, double id, int a8);
 void (*CreateAsynEventWithDSMap) (int dsMap, int a2);
+void (*CheckKeyPressed) (retval_t *ret, void *self, void *other, int argc, retval_t *args);
 int (*Java_com_yoyogames_runner_RunnerJNILib_KeyEvent) (void *env, int a2, int state, int key_code, int unicode_key, int source);
 extern void (*Function_Add)(const char *name, intptr_t func, int argc, char ret);
 int *g_MousePosX, *g_MousePosY;
@@ -124,44 +125,6 @@ typedef struct Gamepad {
 	double deadzone;
 	double axis[4];
 } Gamepad;
-
-typedef enum retval_type {
-	VALUE_REAL = 0,
-	VALUE_STRING = 1,
-	VALUE_ARRAY = 2,
-	VALUE_PTR = 3,
-	VALUE_VEC3 = 4,
-	VALUE_UNDEFINED = 5,
-	VALUE_OBJECT = 6,
-	VALUE_INT32 = 7,
-	VALUE_VEC4 = 8,
-	VALUE_MATRIX = 9,
-	VALUE_INT64 = 10,
-	VALUE_ACCESSOR = 11,
-	VALUE_JSNULL = 12,
-	VALUE_BOOL = 13,
-	VALUE_ITERATOR = 14,
-	VALUE_REF = 15,
-	VALUE_UNSET = 0x0ffffff
-} retval_type;
-
-typedef struct ref_t {
-	void *m_thing;
-	int m_refCount;
-	int m_size;
-} ref_t;
-
-typedef struct retval_t {
-	union {
-		int v32;
-		long long v64;
-		double val;
-		ref_t *str;
-	} rvalue;
-
-	int flags;
-	retval_type kind;
-} retval_t;
 
 Gamepad yoyo_gamepads[4];
 
@@ -505,7 +468,10 @@ void map_key(int key, const char *val) {
 			}
 		}
 	} else {
-		keyboard_mapping[key] = val[0];
+		if (val[0] == 'C') // C somehow doesn't seem to get properly detected so we fake it to another key instead and patch the check function
+			keyboard_mapping[key] = 'O';
+		else
+			keyboard_mapping[key] = val[0];
 		debugPrintf("Mapped button id %d to key '%c'\n", key, val[0]);
 	}
 }
@@ -519,7 +485,15 @@ void map_analog(int idx, const char *val) {
 	}
 }
 
+static void keyboard_check_pressed(retval_t *ret, void *self, void *other, int argc, retval_t *args) {
+	int key = (int)args[0].rvalue.val;
+	if (key == 'C')
+		args[0].rvalue.val = 79.0f; // 'O' key
+	CheckKeyPressed(ret, self, other, argc, args);
+}
+
 void patch_gamepad(const char *game_name) {
+	CheckKeyPressed = (void *)so_symbol(&yoyoloader_mod, "_Z17F_CheckKeyPressedR6RValueP9CInstanceS2_iPS_");
 	CreateDsMap = (void *)so_symbol(&yoyoloader_mod, "_Z11CreateDsMapiz");
 	CreateAsynEventWithDSMap = (void *)so_symbol(&yoyoloader_mod, "_Z24CreateAsynEventWithDSMapii");
 	Java_com_yoyogames_runner_RunnerJNILib_KeyEvent = (void *)so_symbol(&yoyoloader_mod, "Java_com_yoyogames_runner_RunnerJNILib_KeyEvent");
@@ -555,6 +529,7 @@ void patch_gamepad(const char *game_name) {
 	Function_Add("display_mouse_get_y", (intptr_t)mouse_get_y, 1, 0);
 	Function_Add("window_mouse_get_x", (intptr_t)mouse_get_x, 1, 0);
 	Function_Add("window_mouse_get_y", (intptr_t)mouse_get_y, 1, 0);
+	Function_Add("keyboard_check_pressed", (intptr_t)keyboard_check_pressed, 1, 0);
 	
 #ifdef STANDALONE_MODE
 	FILE *f = fopen("app0:keys.ini", "r");
