@@ -1897,14 +1897,18 @@ static void audio_sound_get_track_position(retval_t *ret, void *self, void *othe
 	if ((last_track_id != sound_id) || (*g_IOFrameCount - last_track_pos_frame > 1)) {
 		ret->rvalue.val = Audio_GetTrackPos(sound_id);
 	} else {
-		ret->rvalue.val = Audio_GetTrackPos(sound_id);
-		if (ret->rvalue.val < last_track_pos && fabs(ret->rvalue.val - last_track_pos) < 0.1f)
-			ret->rvalue.val = last_track_pos + (double)*g_GML_DeltaTime / 1000000.0f;
+        if (last_track_pos_frame == *g_IOFrameCount)
+            ret->rvalue.val = last_track_pos;
+        else {
+			ret->rvalue.val = Audio_GetTrackPos(sound_id);
+			if (ret->rvalue.val < last_track_pos && fabs(ret->rvalue.val - last_track_pos) < 0.1f)
+				ret->rvalue.val = last_track_pos + (double)*g_GML_DeltaTime / 1000000.0f;
+		}
 	}
 	
 	last_track_pos_frame = *g_IOFrameCount;
-    last_track_id = sound_id;
-    last_track_pos = ret->rvalue.val;
+	last_track_id = sound_id;
+	last_track_pos = ret->rvalue.val;
 }
 
 int main(int argc, char **argv)
