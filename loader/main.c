@@ -87,8 +87,11 @@ int post_index = 0;
 int get_active = 0;
 int get_index = 0;
 
+extern int (*YYGetInt32) (void *args, int idx);
 void (*Function_Add)(const char *name, intptr_t func, int argc, char ret);
 int (*Java_com_yoyogames_runner_RunnerJNILib_CreateVersionDSMap) (void *env, int a2, int sdk_ver, char *release_version, char *model, char *device, char *manufacturer, char *cpu_abi, char *cpu_abi2, char *bootloader, char *board, char *version, char *region, char *version_name, int has_keyboard);
+int (*Audio_GetTrackPos) (int id);
+int *g_IOFrameCount, *g_GML_DeltaTime, *g_fNoAudio;
 
 double jni_double = 0.0f;
 GLuint main_fb, main_tex = 0xDEADBEEF;
@@ -505,7 +508,10 @@ void main_loop() {
 	int (*Java_com_yoyogames_runner_RunnerJNILib_InputResult) (void *env, int a2, char *string, int state, int id) = (void *)so_symbol(&yoyoloader_mod, "Java_com_yoyogames_runner_RunnerJNILib_InputResult");
 	int (*Java_com_yoyogames_runner_RunnerJNILib_HttpResult) (void *env, int a2, void *result, int responde_code, int id, char *url, void *header) = (void *)so_symbol(&yoyoloader_mod, "Java_com_yoyogames_runner_RunnerJNILib_HttpResult");
 	int (*Java_com_yoyogames_runner_RunnerJNILib_canFlip) (void) = (void *)so_symbol(&yoyoloader_mod, "Java_com_yoyogames_runner_RunnerJNILib_canFlip");
-	int *g_IOFrameCount = (int *)so_symbol(&yoyoloader_mod, "g_IOFrameCount");
+	g_IOFrameCount = (int *)so_symbol(&yoyoloader_mod, "g_IOFrameCount");
+	g_GML_DeltaTime = (int *)so_symbol(&yoyoloader_mod, "g_GML_DeltaTime");
+	g_fNoAudio = (int *)so_symbol(&yoyoloader_mod, "g_fNoAudio");
+	Audio_GetTrackPos = (void *)so_symbol(&yoyoloader_mod, "_Z17Audio_GetTrackPosi");
 	
 	int lastX[SCE_TOUCH_MAX_REPORT] = {-1, -1, -1, -1, -1, -1, -1, -1};
 	int lastY[SCE_TOUCH_MAX_REPORT] = {-1, -1, -1, -1, -1, -1, -1, -1};
@@ -1878,6 +1884,29 @@ static void game_end()
 #endif
 }
 
+static int last_track_id = -1;
+static double last_track_pos = 0.f;
+static uint32_t last_track_pos_frame = 0;
+static void audio_sound_get_track_position(retval_t *ret, void *self, void *other, int argc, retval_t *args) {
+	if (*g_fNoAudio)
+		return;
+	
+	ret->kind = VALUE_REAL;
+	int sound_id = YYGetInt32(args, 0);
+	
+	if ((last_track_id != sound_id) || (*g_IOFrameCount - last_track_pos_frame > 1)) {
+		ret->rvalue.val = Audio_GetTrackPos(sound_id);
+	} else {
+		ret->rvalue.val = Audio_GetTrackPos(sound_id);
+		if (ret->rvalue.val < last_track_pos && fabs(ret->rvalue.val - last_track_pos) < 0.1f)
+			ret->rvalue.val = last_track_pos + (double)*g_GML_DeltaTime / 1000000.0f;
+	}
+	
+	last_track_pos_frame = *g_IOFrameCount;
+    last_track_id = sound_id;
+    last_track_pos = ret->rvalue.val;
+}
+
 int main(int argc, char **argv)
 {
 #if 0
@@ -2029,6 +2058,7 @@ int main(int argc, char **argv)
 		Function_Add = (void *)so_symbol(&yoyoloader_mod, "_Z12Function_AddPcPFvR6RValueP9CInstanceS3_iPS0_Eib");
 	
 	Function_Add("game_end", game_end, 1, 1);
+	Function_Add("audio_sound_get_track_position", audio_sound_get_track_position, 1, 1);
 	
 	patch_gamepad(game_name);
 	so_flush_caches(&yoyoloader_mod);
