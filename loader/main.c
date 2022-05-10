@@ -91,7 +91,9 @@ extern int (*YYGetInt32) (void *args, int idx);
 void (*Function_Add)(const char *name, intptr_t func, int argc, char ret);
 int (*Java_com_yoyogames_runner_RunnerJNILib_CreateVersionDSMap) (void *env, int a2, int sdk_ver, char *release_version, char *model, char *device, char *manufacturer, char *cpu_abi, char *cpu_abi2, char *bootloader, char *board, char *version, char *region, char *version_name, int has_keyboard);
 int (*Audio_GetTrackPos) (int id);
-int *g_IOFrameCount, *g_GML_DeltaTime, *g_fNoAudio;
+uint8_t *g_fNoAudio;
+int64_t *g_GML_DeltaTime;
+uint32_t *g_IOFrameCount;
 
 double jni_double = 0.0f;
 GLuint main_fb, main_tex = 0xDEADBEEF;
@@ -508,9 +510,9 @@ void main_loop() {
 	int (*Java_com_yoyogames_runner_RunnerJNILib_InputResult) (void *env, int a2, char *string, int state, int id) = (void *)so_symbol(&yoyoloader_mod, "Java_com_yoyogames_runner_RunnerJNILib_InputResult");
 	int (*Java_com_yoyogames_runner_RunnerJNILib_HttpResult) (void *env, int a2, void *result, int responde_code, int id, char *url, void *header) = (void *)so_symbol(&yoyoloader_mod, "Java_com_yoyogames_runner_RunnerJNILib_HttpResult");
 	int (*Java_com_yoyogames_runner_RunnerJNILib_canFlip) (void) = (void *)so_symbol(&yoyoloader_mod, "Java_com_yoyogames_runner_RunnerJNILib_canFlip");
-	g_IOFrameCount = (int *)so_symbol(&yoyoloader_mod, "g_IOFrameCount");
-	g_GML_DeltaTime = (int *)so_symbol(&yoyoloader_mod, "g_GML_DeltaTime");
-	g_fNoAudio = (int *)so_symbol(&yoyoloader_mod, "g_fNoAudio");
+	g_IOFrameCount = (uint32_t *)so_symbol(&yoyoloader_mod, "g_IOFrameCount");
+	g_GML_DeltaTime = (int64_t *)so_symbol(&yoyoloader_mod, "g_GML_DeltaTime");
+	g_fNoAudio = (uint8_t *)so_symbol(&yoyoloader_mod, "g_fNoAudio");
 	Audio_GetTrackPos = (void *)so_symbol(&yoyoloader_mod, "_Z17Audio_GetTrackPosi");
 	
 	int lastX[SCE_TOUCH_MAX_REPORT] = {-1, -1, -1, -1, -1, -1, -1, -1};
@@ -1897,9 +1899,9 @@ static void audio_sound_get_track_position(retval_t *ret, void *self, void *othe
 	if ((last_track_id != sound_id) || (*g_IOFrameCount - last_track_pos_frame > 1)) {
 		ret->rvalue.val = Audio_GetTrackPos(sound_id);
 	} else {
-        if (last_track_pos_frame == *g_IOFrameCount)
-            ret->rvalue.val = last_track_pos;
-        else {
+		if (last_track_pos_frame == *g_IOFrameCount)
+			ret->rvalue.val = last_track_pos;
+		else {
 			ret->rvalue.val = Audio_GetTrackPos(sound_id);
 			if (ret->rvalue.val < last_track_pos && fabs(ret->rvalue.val - last_track_pos) < 0.1f)
 				ret->rvalue.val = last_track_pos + (double)*g_GML_DeltaTime / 1000000.0f;
