@@ -1,0 +1,12 @@
+name: restart workflow
+on:
+  repository_dispatch:
+    types: [restart]
+jobs:
+  job1:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Restart main workflow on failure
+        run: |
+          URL=https://api.github.com/repos/${{github.repository}}/actions/runs/${{ github.event.client_payload.runid }}/rerun
+          curl -X POST -u "Rinnegatamante:${{secrets.PAT2}}" $URL
