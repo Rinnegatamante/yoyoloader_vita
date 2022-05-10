@@ -90,7 +90,7 @@ int get_index = 0;
 extern int (*YYGetInt32) (void *args, int idx);
 void (*Function_Add)(const char *name, intptr_t func, int argc, char ret);
 int (*Java_com_yoyogames_runner_RunnerJNILib_CreateVersionDSMap) (void *env, int a2, int sdk_ver, char *release_version, char *model, char *device, char *manufacturer, char *cpu_abi, char *cpu_abi2, char *bootloader, char *board, char *version, char *region, char *version_name, int has_keyboard);
-int (*Audio_GetTrackPos) (int id);
+float (*Audio_GetTrackPos) (int id);
 uint8_t *g_fNoAudio;
 int64_t *g_GML_DeltaTime;
 uint32_t *g_IOFrameCount;
