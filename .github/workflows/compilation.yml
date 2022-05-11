@@ -69,9 +69,9 @@ jobs:
         tag: Nightly
     - name: Restart workflow if upload fails 1
       if: ${{ failure() }}
-      uses: peter-evans/repository-dispatch@v1
+      uses: peter-evans/repository-dispatch@v2
       with:
-        token: ${{ secrets.PAT2 }}
+        token: ${{ secrets.REPO_ACCESS_TOKEN }}
         event-type: restart
         client-payload: '{"runid": "${{ github.run_id }}"}'
     - uses: svenstaro/upload-release-action@v2
@@ -82,9 +82,9 @@ jobs:
         tag: Nightly
     - name: Restart workflow if upload fails 2
       if: ${{ failure() }}
-      uses: peter-evans/repository-dispatch@v1
+      uses: peter-evans/repository-dispatch@v2
       with:
-        token: ${{ secrets.PAT2 }}
+        token: ${{ secrets.REPO_ACCESS_TOKEN }}
         event-type: restart
         client-payload: '{"runid": "${{ github.run_id }}"}'
     - uses: svenstaro/upload-release-action@v2
@@ -95,9 +95,9 @@ jobs:
         tag: Nightly
     - name: Restart workflow if upload fails 3
       if: ${{ failure() }}
-      uses: peter-evans/repository-dispatch@v1
+      uses: peter-evans/repository-dispatch@v2
       with:
-        token: ${{ secrets.PAT2 }}
+        token: ${{ secrets.REPO_ACCESS_TOKEN }}
         event-type: restart
         client-payload: '{"runid": "${{ github.run_id }}"}'
     - name: Get current date
