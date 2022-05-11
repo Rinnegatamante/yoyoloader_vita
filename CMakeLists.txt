@@ -47,6 +47,7 @@ add_executable(YoYoLoader
   loader/sbrk.c
   loader/videoplayer_patch.c
   loader/net.c
+  loader/profiler.c
 )
 
 target_link_libraries(YoYoLoader
