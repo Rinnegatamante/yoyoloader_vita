@@ -48,8 +48,8 @@ void vgl_debugger_draw_string_format(int x, int y, const char *format, ...) {
 }
 
 void vgl_debugger_draw_mem_usage(const char *str, vglMemType type) {
-	uint32_t tot = vgl_mem_get_total_space(type) / (1024 * 1024);
-	uint32_t used = tot - (vgl_mem_get_free_space(type) / (1024 * 1024));
+	uint32_t tot = vglMemTotal(type) / (1024 * 1024);
+	uint32_t used = tot - (vglMemFree(type) / (1024 * 1024));
 	float ratio = ((float)used / (float)tot) * 100.0f;
 	vgl_debugger_draw_string_format(5, dbg_y, "%s: %luMBs / %luMBs (%.2f%%)", str, used, tot, ratio);
 	dbg_y += 20;
