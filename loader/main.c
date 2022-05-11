@@ -56,6 +56,7 @@
 #include "stb_image.h"
 
 extern void send_post_request(const char *url, const char *data);
+extern void mem_profiler(void *framebuf);
 extern SceUID post_thid;
 extern SceUID get_thid;
 extern volatile int post_response_code;
@@ -1786,7 +1787,7 @@ int CallStaticIntMethodV(void *env, void *obj, int methodID, uintptr_t *args) {
 	case GET_DEFAULT_FRAMEBUFFER:
 		return 0;
 	case OS_GET_INFO:
-		return Java_com_yoyogames_runner_RunnerJNILib_CreateVersionDSMap(fake_env, 0, 7, "1.0", "PSVita", "PSVita", "Sony Computer Entertainment", "", "", "", "", "1.0", "EU", "1.0", 0);
+		return Java_com_yoyogames_runner_RunnerJNILib_CreateVersionDSMap(fake_env, 0, 7, "v1.0", "PSVita", "PSVita", "Sony Computer Entertainment", "armeabi", "armeabi-v7a", "YoYo Loader", "ARM Cortex A9", "v1.0", "Global", "v1.0", 0);
 	default:
 		if (methodID != UNKNOWN)
 			debugPrintf("CallStaticIntMethodV(%d)\n", methodID);
@@ -2063,13 +2064,15 @@ int main(int argc, char **argv)
 	if (Function_Add == NULL)
 		Function_Add = (void *)so_symbol(&yoyoloader_mod, "_Z12Function_AddPcPFvR6RValueP9CInstanceS3_iPS0_Eib");
 	
-	Function_Add("game_end", game_end, 1, 1);
-	Function_Add("audio_sound_get_track_position", audio_sound_get_track_position, 1, 1);
+	Function_Add("game_end", (intptr_t)game_end, 1, 1);
+	Function_Add("audio_sound_get_track_position", (intptr_t)audio_sound_get_track_position, 1, 1);
 	
 	patch_gamepad(game_name);
 	so_flush_caches(&yoyoloader_mod);
 	
 	// Initializing vitaGL
+	if (debugMode)
+		vglSetDisplayCallback(mem_profiler);
 	vglSetupGarbageCollector(127, 0x20000);
 	if (squeeze_mem)
 		vglSetParamBufferSize(2 * 1024 * 1024);
