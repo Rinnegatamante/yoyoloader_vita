@@ -1316,7 +1316,7 @@ static so_default_dynlib default_dynlib[] = {
 	{ "gettimeofday", (uintptr_t)&gettimeofday },
 	{ "glAlphaFunc", (uintptr_t)&glAlphaFunc },
 	{ "glBindBuffer", (uintptr_t)&glBindBuffer },
-	{ "glBindFramebufferOES", (uintptr_t)&glBindFramebuffer },
+	{ "glBindFramebufferOES", (uintptr_t)&glBindFramebufferHook },
 	{ "glBindTexture", (uintptr_t)&glBindTexture },
 	{ "glBlendFunc", (uintptr_t)&glBlendFunc },
 	{ "glBufferData", (uintptr_t)&glBufferData },
