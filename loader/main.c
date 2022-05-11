@@ -55,6 +55,7 @@
 #define STB_ONLY_PNG
 #include "stb_image.h"
 
+extern int is_gamepad_connected(int id);
 extern void send_post_request(const char *url, const char *data);
 extern void mem_profiler(void *framebuf);
 extern SceUID post_thid;
@@ -1562,6 +1563,8 @@ enum MethodIDs {
 	INPUT_STRING_ASYNC,
 	SHOW_MESSAGE,
 	SHOW_MESSAGE_ASYNC,
+	GAMEPAD_CONNECTED,
+	GAMEPAD_DESCRIPTION
 } MethodIDs;
 
 typedef struct {
@@ -1580,7 +1583,9 @@ static NameToMethodID name_to_method_ids[] = {
 	{ "InputStringAsync", INPUT_STRING_ASYNC },
 	{ "OsGetInfo", OS_GET_INFO },
 	{ "ShowMessage", SHOW_MESSAGE },
-	{ "ShowMessageAsync", SHOW_MESSAGE_ASYNC }
+	{ "ShowMessageAsync", SHOW_MESSAGE_ASYNC },
+	{ "GamepadConnected", GAMEPAD_CONNECTED },
+	{ "GamepadDescription", GAMEPAD_DESCRIPTION },
 };
 
 int GetMethodID(void *env, void *class, const char *name, const char *sig) {
@@ -1641,9 +1646,14 @@ void CallStaticVoidMethodV(void *env, void *obj, int methodID, uintptr_t *args) 
 }
 
 int CallStaticBooleanMethodV(void *env, void *obj, int methodID, uintptr_t *args) {
-	if (methodID != UNKNOWN)
-		debugPrintf("CallStaticBooleanMethodV(%d)\n", methodID);
-	return 0;
+	switch (methodID) {
+	case GAMEPAD_CONNECTED:
+		return is_gamepad_connected(args[0]);
+	default:
+		if (methodID != UNKNOWN)
+			debugPrintf("CallStaticBooleanMethodV(%d)\n", methodID);
+		return 0;
+	}
 }
 
 int CallStaticByteMethod(void *env, void *obj, int methodID, uintptr_t *args) {
@@ -1757,6 +1767,8 @@ typedef struct {
 void *CallStaticObjectMethodV(void *env, void *obj, int methodID, uintptr_t *args) {
 	static char r[512];
 	switch (methodID) {
+	case GAMEPAD_DESCRIPTION:
+		return "Generic Gamepad";
 	case GET_UDID:
 		return "1234";
 	case CALL_EXTENSION_FUNCTION:
