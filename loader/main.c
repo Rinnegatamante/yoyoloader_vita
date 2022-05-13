@@ -55,7 +55,9 @@
 #define STB_ONLY_PNG
 #include "stb_image.h"
 
+extern int is_gamepad_connected(int id);
 extern void send_post_request(const char *url, const char *data);
+extern void mem_profiler(void *framebuf);
 extern SceUID post_thid;
 extern SceUID get_thid;
 extern volatile int post_response_code;
@@ -87,8 +89,13 @@ int post_index = 0;
 int get_active = 0;
 int get_index = 0;
 
+extern int (*YYGetInt32) (void *args, int idx);
 void (*Function_Add)(const char *name, intptr_t func, int argc, char ret);
 int (*Java_com_yoyogames_runner_RunnerJNILib_CreateVersionDSMap) (void *env, int a2, int sdk_ver, char *release_version, char *model, char *device, char *manufacturer, char *cpu_abi, char *cpu_abi2, char *bootloader, char *board, char *version, char *region, char *version_name, int has_keyboard);
+float (*Audio_GetTrackPos) (int id);
+uint8_t *g_fNoAudio;
+int64_t *g_GML_DeltaTime;
+uint32_t *g_IOFrameCount;
 
 double jni_double = 0.0f;
 GLuint main_fb, main_tex = 0xDEADBEEF;
@@ -505,7 +512,10 @@ void main_loop() {
 	int (*Java_com_yoyogames_runner_RunnerJNILib_InputResult) (void *env, int a2, char *string, int state, int id) = (void *)so_symbol(&yoyoloader_mod, "Java_com_yoyogames_runner_RunnerJNILib_InputResult");
 	int (*Java_com_yoyogames_runner_RunnerJNILib_HttpResult) (void *env, int a2, void *result, int responde_code, int id, char *url, void *header) = (void *)so_symbol(&yoyoloader_mod, "Java_com_yoyogames_runner_RunnerJNILib_HttpResult");
 	int (*Java_com_yoyogames_runner_RunnerJNILib_canFlip) (void) = (void *)so_symbol(&yoyoloader_mod, "Java_com_yoyogames_runner_RunnerJNILib_canFlip");
-	int *g_IOFrameCount = (int *)so_symbol(&yoyoloader_mod, "g_IOFrameCount");
+	g_IOFrameCount = (uint32_t *)so_symbol(&yoyoloader_mod, "g_IOFrameCount");
+	g_GML_DeltaTime = (int64_t *)so_symbol(&yoyoloader_mod, "g_GML_DeltaTime");
+	g_fNoAudio = (uint8_t *)so_symbol(&yoyoloader_mod, "g_fNoAudio");
+	Audio_GetTrackPos = (void *)so_symbol(&yoyoloader_mod, "_Z17Audio_GetTrackPosi");
 	
 	int lastX[SCE_TOUCH_MAX_REPORT] = {-1, -1, -1, -1, -1, -1, -1, -1};
 	int lastY[SCE_TOUCH_MAX_REPORT] = {-1, -1, -1, -1, -1, -1, -1, -1};
@@ -1307,7 +1317,7 @@ static so_default_dynlib default_dynlib[] = {
 	{ "gettimeofday", (uintptr_t)&gettimeofday },
 	{ "glAlphaFunc", (uintptr_t)&glAlphaFunc },
 	{ "glBindBuffer", (uintptr_t)&glBindBuffer },
-	{ "glBindFramebufferOES", (uintptr_t)&glBindFramebuffer },
+	{ "glBindFramebufferOES", (uintptr_t)&glBindFramebufferHook },
 	{ "glBindTexture", (uintptr_t)&glBindTexture },
 	{ "glBlendFunc", (uintptr_t)&glBlendFunc },
 	{ "glBufferData", (uintptr_t)&glBufferData },
@@ -1553,6 +1563,8 @@ enum MethodIDs {
 	INPUT_STRING_ASYNC,
 	SHOW_MESSAGE,
 	SHOW_MESSAGE_ASYNC,
+	GAMEPAD_CONNECTED,
+	GAMEPAD_DESCRIPTION
 } MethodIDs;
 
 typedef struct {
@@ -1571,7 +1583,9 @@ static NameToMethodID name_to_method_ids[] = {
 	{ "InputStringAsync", INPUT_STRING_ASYNC },
 	{ "OsGetInfo", OS_GET_INFO },
 	{ "ShowMessage", SHOW_MESSAGE },
-	{ "ShowMessageAsync", SHOW_MESSAGE_ASYNC }
+	{ "ShowMessageAsync", SHOW_MESSAGE_ASYNC },
+	{ "GamepadConnected", GAMEPAD_CONNECTED },
+	{ "GamepadDescription", GAMEPAD_DESCRIPTION },
 };
 
 int GetMethodID(void *env, void *class, const char *name, const char *sig) {
@@ -1632,9 +1646,14 @@ void CallStaticVoidMethodV(void *env, void *obj, int methodID, uintptr_t *args) 
 }
 
 int CallStaticBooleanMethodV(void *env, void *obj, int methodID, uintptr_t *args) {
-	if (methodID != UNKNOWN)
-		debugPrintf("CallStaticBooleanMethodV(%d)\n", methodID);
-	return 0;
+	switch (methodID) {
+	case GAMEPAD_CONNECTED:
+		return is_gamepad_connected(args[0]);
+	default:
+		if (methodID != UNKNOWN)
+			debugPrintf("CallStaticBooleanMethodV(%d)\n", methodID);
+		return 0;
+	}
 }
 
 int CallStaticByteMethod(void *env, void *obj, int methodID, uintptr_t *args) {
@@ -1748,6 +1767,8 @@ typedef struct {
 void *CallStaticObjectMethodV(void *env, void *obj, int methodID, uintptr_t *args) {
 	static char r[512];
 	switch (methodID) {
+	case GAMEPAD_DESCRIPTION:
+		return "Generic Gamepad";
 	case GET_UDID:
 		return "1234";
 	case CALL_EXTENSION_FUNCTION:
@@ -1778,7 +1799,7 @@ int CallStaticIntMethodV(void *env, void *obj, int methodID, uintptr_t *args) {
 	case GET_DEFAULT_FRAMEBUFFER:
 		return 0;
 	case OS_GET_INFO:
-		return Java_com_yoyogames_runner_RunnerJNILib_CreateVersionDSMap(fake_env, 0, 7, "1.0", "PSVita", "PSVita", "Sony Computer Entertainment", "", "", "", "", "1.0", "EU", "1.0", 0);
+		return Java_com_yoyogames_runner_RunnerJNILib_CreateVersionDSMap(fake_env, 0, 7, "v1.0", "PSVita", "PSVita", "Sony Computer Entertainment", "armeabi", "armeabi-v7a", "YoYo Loader", "ARM Cortex A9", "v1.0", "Global", "v1.0", 0);
 	default:
 		if (methodID != UNKNOWN)
 			debugPrintf("CallStaticIntMethodV(%d)\n", methodID);
@@ -1876,6 +1897,33 @@ static void game_end()
 #else
 	sceAppMgrLoadExec("app0:eboot.bin", NULL, NULL);
 #endif
+}
+
+static int last_track_id = -1;
+static double last_track_pos = 0.f;
+static uint32_t last_track_pos_frame = 0;
+static void audio_sound_get_track_position(retval_t *ret, void *self, void *other, int argc, retval_t *args) {
+	if (*g_fNoAudio)
+		return;
+	
+	ret->kind = VALUE_REAL;
+	int sound_id = YYGetInt32(args, 0);
+	
+	if ((last_track_id != sound_id) || (*g_IOFrameCount - last_track_pos_frame > 1)) {
+		ret->rvalue.val = Audio_GetTrackPos(sound_id);
+	} else {
+		if (last_track_pos_frame == *g_IOFrameCount)
+			ret->rvalue.val = last_track_pos;
+		else {
+			ret->rvalue.val = Audio_GetTrackPos(sound_id);
+			if (ret->rvalue.val < last_track_pos && fabs(ret->rvalue.val - last_track_pos) < 0.1f)
+				ret->rvalue.val = last_track_pos + (double)*g_GML_DeltaTime / 1000000.0f;
+		}
+	}
+	
+	last_track_pos_frame = *g_IOFrameCount;
+	last_track_id = sound_id;
+	last_track_pos = ret->rvalue.val;
 }
 
 int main(int argc, char **argv)
@@ -2028,12 +2076,15 @@ int main(int argc, char **argv)
 	if (Function_Add == NULL)
 		Function_Add = (void *)so_symbol(&yoyoloader_mod, "_Z12Function_AddPcPFvR6RValueP9CInstanceS3_iPS0_Eib");
 	
-	Function_Add("game_end", game_end, 1, 1);
+	Function_Add("game_end", (intptr_t)game_end, 1, 1);
+	Function_Add("audio_sound_get_track_position", (intptr_t)audio_sound_get_track_position, 1, 1);
 	
 	patch_gamepad(game_name);
 	so_flush_caches(&yoyoloader_mod);
 	
 	// Initializing vitaGL
+	if (debugMode)
+		vglSetDisplayCallback(mem_profiler);
 	vglSetupGarbageCollector(127, 0x20000);
 	if (squeeze_mem)
 		vglSetParamBufferSize(2 * 1024 * 1024);

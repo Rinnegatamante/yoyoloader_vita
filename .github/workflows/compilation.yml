@@ -79,6 +79,13 @@ jobs:
         file: banners.zip
         overwrite: true
         tag: Nightly
+    - name: Restart workflow if an upload fails
+      if: ${{ failure() }}
+      uses: peter-evans/repository-dispatch@v2
+      with:
+        token: ${{ secrets.REPO_ACCESS_TOKEN }}
+        event-type: restart
+        client-payload: '{"runid": "${{ github.run_id }}"}'
     - name: Get current date
       id: date
       run: echo "::set-output name=date::$(date +'%Y-%m-%d')"
