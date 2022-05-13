@@ -67,33 +67,19 @@ jobs:
         file: build/YoYoLoader.vpk
         overwrite: true
         tag: Nightly
-    - name: Restart workflow if upload fails 1
-      if: ${{ failure() }}
-      uses: peter-evans/repository-dispatch@v2
-      with:
-        token: ${{ secrets.REPO_ACCESS_TOKEN }}
-        event-type: restart
-        client-payload: '{"runid": "${{ github.run_id }}"}'
     - uses: svenstaro/upload-release-action@v2
       with:
         repo_token: ${{ secrets.GITHUB_TOKEN }}
         file: launcher/builder.zip
         overwrite: true
         tag: Nightly
-    - name: Restart workflow if upload fails 2
-      if: ${{ failure() }}
-      uses: peter-evans/repository-dispatch@v2
-      with:
-        token: ${{ secrets.REPO_ACCESS_TOKEN }}
-        event-type: restart
-        client-payload: '{"runid": "${{ github.run_id }}"}'
     - uses: svenstaro/upload-release-action@v2
       with:
         repo_token: ${{ secrets.GITHUB_TOKEN }}
         file: banners.zip
         overwrite: true
         tag: Nightly
-    - name: Restart workflow if upload fails 3
+    - name: Restart workflow if an upload fails
       if: ${{ failure() }}
       uses: peter-evans/repository-dispatch@v2
       with:

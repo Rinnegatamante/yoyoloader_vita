@@ -9,4 +9,4 @@ jobs:
       - name: Restart main workflow on failure
         run: |
           URL=https://api.github.com/repos/${{github.repository}}/actions/runs/${{ github.event.client_payload.runid }}/rerun
-          curl -X POST -u "Rinnegatamante:${{secrets.PAT2}}" $URL
+          curl -X POST -u "Rinnegatamante:${{secrets.REPO_ACCESS_TOKEN}}" $URL

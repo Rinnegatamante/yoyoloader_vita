@@ -128,6 +128,10 @@ typedef struct Gamepad {
 
 Gamepad yoyo_gamepads[4];
 
+int is_gamepad_connected(int id) {
+	return yoyo_gamepads[id].is_available;
+}
+
 void GetPlatformInstance(void *self, int n, retval_t *args) {
 	args[0].kind = VALUE_REAL;
 	args[0].rvalue.val = forceWinMode ? 0.0f : 4.0f;
