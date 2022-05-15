@@ -65,5 +65,9 @@ char lang_strings[LANG_STRINGS_NUM][LANG_STR_SIZE] = {
 	"Filter by: ", // STR_FILTER_BY
 	"No Filter", // STR_NO_FILTER
 	"No Tags", // STR_NO_TAGS
-	"This game has a community keymap available. Do you wish to install it?" // STR_KEYMAP
+	"This game has a community keymap available. Do you wish to install it?", // STR_KEYMAP
+	"Externalizing sound files from game.droid...", // STR_EXTERNALIZE_DROID
+	"Externalizing sound files from extra audiogroup", // STR_EXTERNALIZE_AUDIOGROUP
+	"Optimize Apk with Sounds Externalization", // STR_EXTERNALIZE
+	"Reduces apk size by removing unnecessary data inside it and by externalizing and compressing all game's audio files, and improves performances by recompressing files one by one depending on their expected use." // STR_EXTERNALIZE_DESC
 };

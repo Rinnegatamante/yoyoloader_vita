@@ -4,6 +4,7 @@
 #include <curl/curl.h>
 #include <stdio.h>
 #include <string>
+#include <sndfile.h>
 #include "../loader/zip.h"
 #include "../loader/unzip.h"
 #include "strings.h"
@@ -250,6 +251,19 @@ void *__wrap_memset(void *s, int c, size_t n) {
 }
 }
 
+void recursive_mkdir(char *dir) {
+	char *p = dir;
+	while (p) {
+		char *p2 = strstr(p, "/");
+		if (p2) {
+			p2[0] = 0;
+			sceIoMkdir(dir, 0777);
+			p = p2 + 1;
+			p2[0] = '/';
+		} else break;
+	}
+}
+
 static size_t write_cb(void *ptr, size_t size, size_t nmemb, void *stream)
 {
 	uint8_t *dst = &generic_mem_buffer[downloaded_bytes];
@@ -402,7 +416,9 @@ bool calculate_ver_len = true;
 bool is_config_invoked = false;
 uint32_t oldpad;
 bool extracting = false;
+bool externalizing = false;
 
+volatile int cur_step = 0;
 volatile int cur_idx = 0;
 volatile int tot_idx = -1;
 volatile float saved_size = -1.0f;
@@ -473,6 +489,423 @@ int optimizer_thread(unsigned int argc, void *argv) {
 	return sceKernelExitDeleteThread(0);
 }
 
+typedef struct {
+	char fname[256];
+	uint32_t group_idx;
+	uint32_t idx;
+} snd;
+uint32_t snd_num;
+snd sounds[1024];
+uint32_t null_ref = 0xFFFFFFFF;
+uint32_t regular_file_flag = 0x64;
+
+// Taken from https://github.com/libsndfile/libsndfile/blob/master/programs/common.c
+int sfe_copy_data_fp(SNDFILE *outfile, SNDFILE *infile, int channels, int normalize) {
+	static double	data [4096], max ;
+	sf_count_t	 frames, readcount, k ;
+
+	frames = 4096 / channels ;
+	readcount = frames ;
+
+	sf_command (infile, SFC_CALC_SIGNAL_MAX, &max, sizeof (max)) ;
+	if (!isnormal (max)) /* neither zero, subnormal, infinite, nor NaN */
+		return 1 ;
+
+	if (!normalize && max < 1.0)
+	{	
+		while (readcount > 0) {
+			readcount = sf_readf_double (infile, data, frames) ;
+			sf_writef_double (outfile, data, readcount) ;
+		}
+	}
+	else
+	{	
+		sf_command (infile, SFC_SET_NORM_DOUBLE, NULL, SF_FALSE) ;
+		while (readcount > 0) {
+			readcount = sf_readf_double (infile, data, frames) ;
+			for (k = 0 ; k < readcount * channels ; k++) {
+				data [k] /= max ;
+				if (!isfinite (data [k])) /* infinite or NaN */
+					return 1 ;
+			}
+			sf_writef_double (outfile, data, readcount) ;
+		}
+	}
+
+	return 0;
+}
+
+void populateSoundsTable(FILE *f) {
+	uint32_t total_size;
+	uint32_t size;
+	uint32_t entries;
+	char chunk_name[5];
+	chunk_name[4] = 0;
+	fseek(f, 4, SEEK_SET);
+	fread(&total_size, 1, 4, f);
+	//printf("Total Size: %u\n", total_size);
+	while (!feof(f)) {
+		uint32_t base_off = ftell(f);
+		int bytes = fread(chunk_name, 1, 4, f);
+		if (!bytes)
+			break;
+		fread(&size, 1, 4, f);
+		//printf("Chunk %s with size %u\n", chunk_name, size);
+		if (!strcmp(chunk_name, "SOND")) {
+			uint32_t start = ftell(f);
+			fread(&entries, 1, 4, f);
+			//printf("Sound entries: %u\n", entries);
+			for (int i = 0; i < entries; i++) {
+				uint32_t fname_offset;
+				fread(&fname_offset, 1, 4, f);
+				uint32_t backup = ftell(f);
+				fseek(f, fname_offset + 4, SEEK_SET);
+				uint32_t entry_start = ftell(f);
+				fflush(f);
+				fwrite(&regular_file_flag, 1, 4, f);
+				fseek(f, 4, SEEK_CUR);
+				fread(&fname_offset, 1, 4, f);
+				fseek(f, 12, SEEK_CUR);
+				fread(&sounds[i].group_idx, 1, 4, f);
+				fread(&sounds[i].idx, 1, 4, f);
+				fseek(f, entry_start + 28, SEEK_SET);
+				fwrite(&null_ref, 1, 4, f);
+				fseek(f, fname_offset, SEEK_SET);
+				int z = 0;
+				do {
+					fread(&sounds[i].fname[z++], 1, 1, f);
+				} while (sounds[i].fname[z - 1]);
+				fseek(f, backup, SEEK_SET);
+				if (sounds[i].idx == null_ref) { // Handling externalized sounds
+						
+				}
+			}
+			snd_num = entries;
+			fseek(f, start, SEEK_SET);
+			fseek(f, size, SEEK_CUR);
+		} else {
+			fseek(f, size, SEEK_CUR);
+		}
+	}
+	fclose(f);
+}
+
+void externalizeSounds(FILE *f, int audiogroup_idx, zipFile dst_file, const char *assets_path) {
+	uint32_t total_size;
+	uint32_t size;
+	uint32_t entries;
+	char chunk_name[5];
+	chunk_name[4] = 0;
+	fseek(f, 4, SEEK_SET);
+	fread(&total_size, 1, 4, f);
+	//printf("Total Size: %u\n", total_size);
+	while (!feof(f)) {
+		uint32_t base_off = ftell(f);
+		int bytes = fread(chunk_name, 1, 4, f);
+		if (!bytes)
+			break;
+		fread(&size, 1, 4, f);
+		//printf("Chunk %s with size %u\n", chunk_name, size);
+		if (!strcmp(chunk_name, "AUDO")) {
+			uint32_t start = ftell(f);
+			char fname[256], fname2[256], fname3[128];
+			fread(&entries, 1, 4, f);
+			//printf("There are %u sounds\n", entries);
+			uint32_t *offsets = (uint32_t *)malloc((entries + 1) * sizeof(uint32_t));
+			offsets[entries] = ftell(f) - 4 + size;
+			for (int i = 0; i < entries; i++) {
+				fread(&offsets[i], 1, 4, f);
+				offsets[i] += 4;
+			}
+			tot_idx = entries;
+			for (int i = 0; i < entries; i++) {
+				cur_idx = i;
+				uint8_t found = 0;
+				//printf("Processing sound #%d\n", i);
+				for (int j = 0; j < snd_num; j++) {
+					if (i == sounds[j].idx && sounds[j].group_idx == audiogroup_idx) {
+						recursive_mkdir(fname2);
+						sprintf(fname, "ux0:data/gms/shared/tmp/%d.wav", j);
+						sprintf(fname2, "%s/%s", assets_path, sounds[j].fname);
+						sprintf(fname3, "assets/%s", sounds[j].fname);
+						//printf("Dumping %s\n", fname);
+						found = 1;
+						break;
+					}
+				}
+				if (found) { // Skipping externalized sounds
+					FILE *f2 = fopen(fname, "wb+");
+					uint32_t snd_size = offsets[i + 1] - offsets[i];
+					void *buf = malloc(snd_size);
+					fseek(f, offsets[i], SEEK_SET);
+					fread(buf, 1, snd_size, f);
+					fwrite(buf, 1, snd_size, f2);
+					fclose(f2);
+					if (!strncmp((char *)buf, "OggS", 4)) {
+						sceIoRename(fname, fname2);
+					} else {
+						//printf("Transcoding %s to %s\n", fname, fname2);
+						SF_INFO sfinfo;
+						SNDFILE *in = sf_open(fname, SFM_READ, &sfinfo);
+						sfinfo.format = SF_FORMAT_OGG | SF_FORMAT_VORBIS | SF_ENDIAN_FILE;
+						SNDFILE *out = sf_open(fname2, SFM_WRITE, &sfinfo);
+						sfe_copy_data_fp(out, in, sfinfo.channels, 0);
+						sf_close(in);
+						sf_close(out);
+						sceIoRemove(fname);
+					}
+					free(buf);
+					zipOpenNewFileInZip(dst_file, fname3, NULL, NULL, 0, NULL, 0, NULL, 0, Z_NO_COMPRESSION);
+					zipCloseFileInZip(dst_file);
+				}
+			}
+			fseek(f, start, SEEK_SET);
+			fseek(f, size, SEEK_CUR);
+		} else {
+			fseek(f, size, SEEK_CUR);
+		}
+	}
+	fclose(f);
+}
+
+void patchForExternalization(FILE *in, FILE *out) {
+	uint32_t start_offset = 0;
+	uint32_t total_size;
+	uint32_t size;
+	uint32_t entries;
+	char chunk_name[5];
+	chunk_name[4] = 0;
+	fseek(in, 4, SEEK_SET);
+	fread(&total_size, 1, 4, in);
+	//printf("Total Size: %u\n", total_size);
+	while (!feof(in)) {
+		uint32_t base_off = ftell(in);
+		int bytes = fread(chunk_name, 1, 4, in);
+		if (!bytes)
+			break;
+		fread(&size, 1, 4, in);
+		//printf("Chunk %s with size %u\n", chunk_name, size);
+		if (!strcmp(chunk_name, "AUDO")) {
+			int pre_audo_size = ftell(in) - 4;
+			fread(&entries, 1, 4, in);
+			fseek(in, 0, SEEK_SET);
+			uint32_t executed_bytes = 0;
+			while (executed_bytes < pre_audo_size) {
+				uint32_t read_size = (pre_audo_size - executed_bytes) > MEM_BUFFER_SIZE ? MEM_BUFFER_SIZE : (pre_audo_size - executed_bytes);
+				fread(generic_mem_buffer, 1, read_size, in);
+				fwrite(generic_mem_buffer, 1, read_size, out);
+				executed_bytes += read_size;
+			}
+			uint32_t new_audo_size = 4 + entries * 12;
+			fwrite(&new_audo_size, 1, 4, out);
+			fwrite(&entries, 1, 4, out);
+			uint32_t base_offs = ftell(out) + entries * 4;
+			for (int i = 0; i < entries; i++) {
+				uint32_t entry_offs = base_offs + i * 8;
+				fwrite(&entry_offs, 1, 4, out);
+			}
+			uint64_t one_long = 1;
+			for (int i = 0; i < entries; i++) {
+				fwrite(&one_long, 1, 8, out);
+			}
+			uint32_t full_size = ftell(out) - 8;
+			fseek(out, 4, SEEK_SET);
+			fwrite(&full_size, 1, 4, out);
+			break;
+		}  else {
+			fseek(in, size, SEEK_CUR);
+		}
+	}
+	fclose(in);
+	fclose(out);
+}
+
+bool isExternalizedSound(char *fname) {
+	char *s = strstr(fname, "assets/");
+	if (s) {
+		fname = s + 7;
+		for (int j = 0; j < snd_num; j++) {
+			if (sounds[j].idx == null_ref && !strcmp(fname, sounds[j].fname))
+				return true;
+		}
+	}
+	return false;
+}
+
+int externalizer_thread(unsigned int argc, void *argv) {
+	cur_step = 0;
+	char *game = (char *)argv;
+	char apk_path[256], tmp_path[256], fname[512], fname2[512], assets_path[256];
+	sprintf(apk_path, "ux0:data/gms/%s/game.apk", game);
+	sprintf(tmp_path, "ux0:data/gms/%s/game.tmp", game);
+	sprintf(assets_path, "ux0:data/gms/%s/assets", game);
+	sceIoMkdir(assets_path, 0777);
+	
+	SceIoStat stat;
+	sceIoGetstat(apk_path, &stat);
+	uint32_t orig_size = stat.st_size;
+	
+	unz_global_info global_info;
+	unz_file_info file_info;
+	unzFile src_file = unzOpen(apk_path);
+	unzGetGlobalInfo(src_file, &global_info);
+	unzLocateFile(src_file, "assets/game.droid", NULL);
+	unzGetCurrentFileInfo(src_file, &file_info, fname, 512, NULL, 0, NULL, 0);
+	unzOpenCurrentFile(src_file);
+	sceIoMkdir("ux0:data/gms/shared/tmp", 0777);
+	FILE *f = fopen("ux0:data/gms/shared/tmp/tmp.droid", "wb");
+	uint32_t executed_bytes = 0;
+	while (executed_bytes < file_info.uncompressed_size) {
+		uint32_t read_size = (file_info.uncompressed_size - executed_bytes) > MEM_BUFFER_SIZE ? MEM_BUFFER_SIZE : (file_info.uncompressed_size - executed_bytes);
+		unzReadCurrentFile(src_file, generic_mem_buffer, read_size);
+		fwrite(generic_mem_buffer, 1, read_size, f);
+		executed_bytes += read_size;
+	}
+	unzCloseCurrentFile(src_file);
+	fclose(f);
+	f = fopen("ux0:data/gms/shared/tmp/tmp.droid", "rb+");
+	populateSoundsTable(f);
+	
+	unzGoToFirstFile(src_file);
+	zipFile dst_file = zipOpen(tmp_path, APPEND_STATUS_CREATE);
+	cur_idx = 0;
+	tot_idx = global_info.number_entry;
+	int extra_audiogroups = -1;
+	for (uint32_t zip_idx = 0; zip_idx < global_info.number_entry; ++zip_idx) {
+		unzGetCurrentFileInfo(src_file, &file_info, fname, 512, NULL, 0, NULL, 0);
+		if ((strstr(fname, "assets/") && fname[strlen(fname) - 1] != '/') || !strcmp(fname, "lib/armeabi-v7a/libyoyo.so")) {
+			if (strstr(fname, ".ogg") || strstr(fname, ".mp4")) {
+				zipOpenNewFileInZip(dst_file, fname, NULL, NULL, 0, NULL, 0, NULL, 0, Z_NO_COMPRESSION);
+			} else if (strstr(fname, "game.droid") || (strstr(fname, "audiogroup") && strstr(fname, ".dat"))) {
+				extra_audiogroups++;
+				unzGoToNextFile(src_file);
+				continue;
+			} else {
+				/*
+				 * HACK: There's some issue in zlib seemingly that makes zip_fread to fail after some reads on some specific files.
+				 * if they are compressed. Until a proper solution is found, we hack those files to be only stored to bypass the issue.
+				 */
+				bool needs_hack = false;
+				const char *blacklist[] = {
+					"english.ini", // AM2R
+					"yugothib.ttf" // JackQuest
+				};
+				for (int i = 0; i < (sizeof(blacklist) / sizeof(blacklist[0])); i++) {
+					if (strstr(fname, blacklist[i])) {
+						zipOpenNewFileInZip(dst_file, fname, NULL, NULL, 0, NULL, 0, NULL, 0, Z_NO_COMPRESSION);
+						needs_hack = true;
+						break;
+					}
+				}
+				if (!needs_hack)
+					zipOpenNewFileInZip(dst_file, fname, NULL, NULL, 0, NULL, 0, NULL, Z_DEFLATED, Z_DEFAULT_COMPRESSION);
+			}
+			executed_bytes = 0;
+			unzOpenCurrentFile(src_file);
+			if (isExternalizedSound(fname)) {
+				if (file_info.uncompressed_size > 10) { // Just to be sure we don't wipe legit music due to dummy data)
+					sprintf(fname2, "ux0:data/gms/%s/%s", game, fname);
+					f = fopen(fname2, "wb+");
+					while (executed_bytes < file_info.uncompressed_size) {
+						uint32_t read_size = (file_info.uncompressed_size - executed_bytes) > MEM_BUFFER_SIZE ? MEM_BUFFER_SIZE : (file_info.uncompressed_size - executed_bytes);
+						unzReadCurrentFile(src_file, generic_mem_buffer, read_size);
+						fwrite(generic_mem_buffer, 1, read_size, f);
+						executed_bytes += read_size;
+					}
+					fclose(f);
+				}
+			} else {
+				while (executed_bytes < file_info.uncompressed_size) {
+					uint32_t read_size = (file_info.uncompressed_size - executed_bytes) > MEM_BUFFER_SIZE ? MEM_BUFFER_SIZE : (file_info.uncompressed_size - executed_bytes);
+					unzReadCurrentFile(src_file, generic_mem_buffer, read_size);
+					zipWriteInFileInZip(dst_file, generic_mem_buffer, read_size);
+					executed_bytes += read_size;
+				}
+			}
+			unzCloseCurrentFile(src_file);
+			zipCloseFileInZip(dst_file);
+		}
+		unzGoToNextFile(src_file);
+		cur_idx++;
+	}
+	
+	cur_step = 1;
+	f = fopen("ux0:data/gms/shared/tmp/tmp.droid", "rb+");
+	externalizeSounds(f, 0, dst_file, assets_path);
+	f = fopen("ux0:data/gms/shared/tmp/tmp.droid", "rb");
+	FILE *f2 = fopen("ux0:data/gms/shared/tmp/tmp2.droid", "wb+");
+	patchForExternalization(f, f2);
+	
+	sceIoRemove("ux0:data/gms/shared/tmp/tmp.droid");
+	f2 = fopen("ux0:data/gms/shared/tmp/tmp2.droid", "rb");
+	fseek(f2, 0, SEEK_END);
+	uint32_t uncompressed_size = ftell(f2);
+	fseek(f2, 0, SEEK_SET);
+	zipOpenNewFileInZip(dst_file, "assets/game.droid", NULL, NULL, 0, NULL, 0, NULL, Z_DEFLATED, Z_DEFAULT_COMPRESSION);
+	executed_bytes = 0;
+	while (executed_bytes < uncompressed_size) {
+		uint32_t read_size = (uncompressed_size - executed_bytes) > MEM_BUFFER_SIZE ? MEM_BUFFER_SIZE : (uncompressed_size - executed_bytes);
+		fread(generic_mem_buffer, 1, read_size, f2);
+		zipWriteInFileInZip(dst_file, generic_mem_buffer, read_size);
+		executed_bytes += read_size;
+	}
+	zipCloseFileInZip(dst_file);
+	fclose(f2);
+	sceIoRemove("ux0:data/gms/shared/tmp/tmp2.droid");
+	
+	for (int i = 1; i <= extra_audiogroups; i++) {
+		cur_step++;
+		sprintf(fname, "assets/audiogroup%d.dat", i);
+		unzLocateFile(src_file, fname, NULL);
+		unzGetCurrentFileInfo(src_file, &file_info, fname, 512, NULL, 0, NULL, 0);
+		unzOpenCurrentFile(src_file);
+		sprintf(fname, "ux0:data/gms/shared/tmp/audiogroup%d.tmp", i);
+		FILE *f = fopen(fname, "wb");
+		executed_bytes = 0;
+		while (executed_bytes < file_info.uncompressed_size) {
+			uint32_t read_size = (file_info.uncompressed_size - executed_bytes) > MEM_BUFFER_SIZE ? MEM_BUFFER_SIZE : (file_info.uncompressed_size - executed_bytes);
+			unzReadCurrentFile(src_file, generic_mem_buffer, read_size);
+			fwrite(generic_mem_buffer, 1, read_size, f);
+			executed_bytes += read_size;
+		}
+		unzCloseCurrentFile(src_file);
+		fclose(f);
+		f = fopen(fname, "rb");
+		externalizeSounds(f, i, dst_file, assets_path);
+		f = fopen(fname, "rb");
+		sprintf(fname2, "ux0:data/gms/shared/tmp/_audiogroup%d.tmp", i);
+		f2 = fopen(fname2, "wb+");
+		patchForExternalization(f, f2);
+		
+		sceIoRemove(fname);
+		f2 = fopen(fname2, "rb");
+		fseek(f2, 0, SEEK_END);
+		uint32_t uncompressed_size = ftell(f2);
+		fseek(f2, 0, SEEK_SET);
+		sprintf(fname, "assets/audiogroup%d.dat", i);
+		zipOpenNewFileInZip(dst_file, fname, NULL, NULL, 0, NULL, 0, NULL, Z_DEFLATED, Z_DEFAULT_COMPRESSION);
+		executed_bytes = 0;
+		while (executed_bytes < uncompressed_size) {
+			uint32_t read_size = (uncompressed_size - executed_bytes) > MEM_BUFFER_SIZE ? MEM_BUFFER_SIZE : (uncompressed_size - executed_bytes);
+			fread(generic_mem_buffer, 1, read_size, f2);
+			zipWriteInFileInZip(dst_file, generic_mem_buffer, read_size);
+			executed_bytes += read_size;
+		}
+		zipCloseFileInZip(dst_file);
+		fclose(f2);
+		sceIoRemove(fname2);
+	}
+	
+	unzClose(src_file);
+	zipClose(dst_file, NULL);
+	sceIoRemove(apk_path);
+	sceIoRename(tmp_path, apk_path);
+	
+	sceIoGetstat(apk_path, &stat);
+	saved_size = (float)(orig_size - stat.st_size) / (1024.0f * 1024.0f);
+	return sceKernelExitDeleteThread(0);
+}
+
 static int compatListThread(unsigned int args, void *arg) {
 	char url[512], dbname[64];
 	curl_handle = curl_easy_init();
@@ -507,6 +940,15 @@ void OptimizeApk(char *game) {
 	extracting = true;
 	SceUID optimizer_thid = sceKernelCreateThread("Optimizer Thread", &optimizer_thread, 0x10000100, 0x100000, 0, 0, NULL);
 	sceKernelStartThread(optimizer_thid, strlen(game) + 1, game);
+}
+
+void ExternalizeApk(char *game) {
+	tot_idx = -1;
+	saved_size = -1.0f;
+	extracting = true;
+	externalizing = true;
+	SceUID externalizer_thid = sceKernelCreateThread("Externalizer Thread", &externalizer_thread, 0x10000100, 0x100000, 0, 0, NULL);
+	sceKernelStartThread(externalizer_thid, strlen(game) + 1, game);
 }
 
 static int updaterThread(unsigned int args, void *arg) {
@@ -625,19 +1067,6 @@ static int animBannerThread(unsigned int args, void *arg) {
 }
 
 static char fname[512], ext_fname[512], read_buffer[8192];
-
-void recursive_mkdir(char *dir) {
-	char *p = dir;
-	while (p) {
-		char *p2 = strstr(p, "/");
-		if (p2) {
-			p2[0] = 0;
-			sceIoMkdir(dir, 0777);
-			p = p2 + 1;
-			p2[0] = '/';
-		} else break;
-	}
-}
 
 void extract_file(char *file, char *dir) {
 	unz_global_info global_info;
@@ -1217,6 +1646,15 @@ int main(int argc, char *argv[]) {
 			}
 			if (ImGui::IsItemHovered())
 				desc = lang_strings[STR_OPTIMIZE_DESC];
+			ImGui::SameLine();
+			ImGui::Text("   ");
+			ImGui::SameLine();
+			if (ImGui::Button(lang_strings[STR_EXTERNALIZE])) {
+				if (!extracting)
+					ExternalizeApk(hovered->name);
+			}
+			if (ImGui::IsItemHovered())
+				desc = lang_strings[STR_EXTERNALIZE_DESC];
 			if (saved_size != -1.0f) {
 				ImGui::Text(" ");
 				ImGui::Text(lang_strings[STR_OPTIMIZE_END]);
@@ -1224,9 +1662,24 @@ int main(int argc, char *argv[]) {
 				if (extracting)
 					hovered->size -= saved_size;
 				extracting = false;
+				externalizing = false;
 			} else if (extracting) {
+				sceKernelPowerTick(SCE_KERNEL_POWER_TICK_DEFAULT);
 				ImGui::Text(" ");
-				ImGui::Text(lang_strings[STR_OPTIMIZATION]);
+				if (externalizing) {
+					switch (cur_step) {
+					case 0:
+						ImGui::Text(lang_strings[STR_OPTIMIZATION]);
+						break;
+					case 1:
+						ImGui::Text(lang_strings[STR_EXTERNALIZE_DROID]);
+						break;
+					default:
+						ImGui::Text("%s (%d)...", lang_strings[STR_EXTERNALIZE_AUDIOGROUP], cur_step - 1);
+						break;
+					}
+				} else
+					ImGui::Text(lang_strings[STR_OPTIMIZATION]);
 				if (tot_idx > 0)
 					ImGui::ProgressBar((float)cur_idx / float(tot_idx), ImVec2(200, 0));
 				else
