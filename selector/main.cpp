@@ -295,7 +295,7 @@ static void startDownload(const char *url)
 	curl_easy_setopt(curl_handle, CURLOPT_WRITEFUNCTION, write_cb);
 	curl_easy_setopt(curl_handle, CURLOPT_WRITEDATA, bytes_string); // Dummy
 	curl_easy_setopt(curl_handle, CURLOPT_HEADERFUNCTION, header_cb);
-	curl_easy_setopt(curl_handle, CURLOPT_HEADERDATA, bytes_string); // Dummy*/
+	curl_easy_setopt(curl_handle, CURLOPT_HEADERDATA, bytes_string); // Dummy
 	curl_easy_setopt(curl_handle, CURLOPT_RESUME_FROM, downloaded_bytes);
 	curl_easy_setopt(curl_handle, CURLOPT_BUFFERSIZE, 524288);
 	struct curl_slist *headerchunk = NULL;
@@ -803,7 +803,7 @@ int externalizer_thread(unsigned int argc, void *argv) {
 			executed_bytes = 0;
 			unzOpenCurrentFile(src_file);
 			if (isExternalizedSound(fname)) {
-				if (file_info.uncompressed_size > 10) { // Just to be sure we don't wipe legit music due to dummy data)
+				if (file_info.uncompressed_size > 10) { // Just to be sure we don't wipe legit music due to dummy data
 					sprintf(fname2, "ux0:data/gms/%s/%s", game, fname);
 					f = fopen(fname2, "wb+");
 					while (executed_bytes < file_info.uncompressed_size) {
