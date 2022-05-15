@@ -81,6 +81,6 @@ After all these requirements are met, you can compile the loader similarly to ho
 - gl33ntwine for the Russian and Ukrainian translations.
 - Titi Clash for the Brazilian Portuguese translation.
 - kuragehime for the Japanese translation.
-- ikzouo for the Simplified Chinese translation.
+- ikzouo for the Simplified and Traditional Chinese translations.
 - CatoTheYounger for providing most of the banners used in the game selector and testing several new features of the loader.
 - Everyone who contributed, tested and provided support over Vita Nuova Discord channel.

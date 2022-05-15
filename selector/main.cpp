@@ -1204,8 +1204,11 @@ void setTranslation(int idx) {
 		needs_extended_font = true;
 		break;
 	case SCE_SYSTEM_PARAM_LANG_CHINESE_S:
-	case SCE_SYSTEM_PARAM_LANG_CHINESE_T: // FIXME: Temporarily using Simplified one
 		sprintf(langFile, "app0:lang/Chinese_Simplified.ini");
+		needs_extended_font = true;
+		break;
+	case SCE_SYSTEM_PARAM_LANG_CHINESE_T:
+		sprintf(langFile, "app0:lang/Chinese_Traditional.ini");
 		needs_extended_font = true;
 		break;
 	case SCE_SYSTEM_PARAM_LANG_UKRAINIAN:
