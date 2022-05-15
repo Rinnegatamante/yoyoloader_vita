@@ -102,6 +102,7 @@ GLuint main_fb, main_tex = 0xDEADBEEF;
 int is_portrait = 0;
 
 char data_path[256];
+char data_path_root[256];
 char apk_path[256];
 
 void patch_gamepad();
@@ -999,6 +1000,14 @@ FILE *fopen_hook(char *file, char *mode) {
 	char *s = strstr(file, "/ux0:");
 	if (s)
 		file = s + 1;
+	else {
+		s = strstr(file, "ux0:");
+		if (!s) {
+			char patched_fname[256];
+			sprintf(patched_fname, "%s%s", data_path_root, file);
+			return fopen(patched_fname, mode);
+		}
+	}
 	if (mode[0] == 'w')
 		recursive_mkdir(file);
 	return fopen(file, mode);
@@ -1972,6 +1981,7 @@ int main(int argc, char **argv)
 #else
 	sprintf(apk_path, "%s/%s/game.apk", DATA_PATH, game_name);
 #endif
+	sprintf(data_path_root, "%s/%s/", DATA_PATH, game_name);
 	sprintf(data_path, "%s/%s/assets/", DATA_PATH, game_name);
 	recursive_mkdir(data_path);
 	
