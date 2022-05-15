@@ -24,7 +24,7 @@
 #define MIN(x, y) (x) < (y) ? (x) : (y)
 
 #define NUM_OPTIONS 12
-#define NUM_DB_CHUNKS 3
+#define NUM_DB_CHUNKS 4
 #define MEM_BUFFER_SIZE (32 * 1024 * 1024)
 #define FILTER_MODES_NUM 6
 
