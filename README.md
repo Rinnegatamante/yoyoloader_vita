@@ -23,7 +23,7 @@ Note that patches to the bytecode may still be required in order to fix resoluti
 
 A comprehensive Compatibility List can be found here: https://yoyo.rinnegatamante.it. You can contribute to it by opening an Issue here: https://github.com/Rinnegatamante/YoYo-Loader-Vita-Compatibility/issues.
 
-If a game seems to be running out of memory, you can try to fix this issue by applying pngquant on images inside game.droid (A guide about this can be found here: https://gist.github.com/CatoTheYounger97/10db240958c9ba17af9069a7f8cc1716 ) or by externalizing musics and sounds loading. (A guide about music externalization can be found here: https://gist.github.com/CatoTheYounger97/517db5d15589fa3d20c7fa999dd4d9ef )
+If a game seems to be running out of memory, you can try to fix this issue by applying pngquant on images inside game.droid (A guide about this can be found here: https://gist.github.com/CatoTheYounger97/10db240958c9ba17af9069a7f8cc1716 ) or by externalizing musics and sounds loading (A built-in feature to apply this can be found in the Settings menu in the Game Selector).
 
 ## Keyboard keys emulation
 
@@ -81,5 +81,6 @@ After all these requirements are met, you can compile the loader similarly to ho
 - gl33ntwine for the Russian and Ukrainian translations.
 - Titi Clash for the Brazilian Portuguese translation.
 - kuragehime for the Japanese translation.
-- CatoTheYounger for providing most of the banners used in the game selector.
+- ikzouo for the Simplified and Traditional Chinese translations.
+- CatoTheYounger for providing most of the banners used in the game selector and testing several new features of the loader.
 - Everyone who contributed, tested and provided support over Vita Nuova Discord channel.

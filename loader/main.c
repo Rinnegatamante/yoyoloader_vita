@@ -102,6 +102,7 @@ GLuint main_fb, main_tex = 0xDEADBEEF;
 int is_portrait = 0;
 
 char data_path[256];
+char data_path_root[256];
 char apk_path[256];
 
 void patch_gamepad();
@@ -999,6 +1000,14 @@ FILE *fopen_hook(char *file, char *mode) {
 	char *s = strstr(file, "/ux0:");
 	if (s)
 		file = s + 1;
+	else {
+		s = strstr(file, "ux0:");
+		if (!s) {
+			char patched_fname[256];
+			sprintf(patched_fname, "%s%s", data_path_root, file);
+			return fopen(patched_fname, mode);
+		}
+	}
 	if (mode[0] == 'w')
 		recursive_mkdir(file);
 	return fopen(file, mode);
@@ -1458,7 +1467,7 @@ static so_default_dynlib default_dynlib[] = {
 	{ "putwc", (uintptr_t)&putwc },
 	{ "qsort", (uintptr_t)&qsort },
 	{ "read", (uintptr_t)&read },
-	{ "realloc", (uintptr_t)&realloc },
+	{ "realloc", (uintptr_t)&vglRealloc },
 	//{ "recv", (uintptr_t)&recv },
 	//{ "recvfrom", (uintptr_t)&recvfrom },
 	{ "remove", (uintptr_t)&sceIoRemove },
@@ -1969,8 +1978,10 @@ int main(int argc, char **argv)
 	char pkg_name[256];
 #ifdef STANDALONE_MODE
 	sprintf(apk_path, "app0:game.apk");
+	strcpy(data_path_root, "app0:");
 #else
 	sprintf(apk_path, "%s/%s/game.apk", DATA_PATH, game_name);
+	sprintf(data_path_root, "%s/%s/", DATA_PATH, game_name);
 #endif
 	sprintf(data_path, "%s/%s/assets/", DATA_PATH, game_name);
 	recursive_mkdir(data_path);
@@ -1982,9 +1993,9 @@ int main(int argc, char **argv)
 
 	// Checking for dependencies
 	if (check_kubridge() < 0)
-		fatal_error("Error kubridge.skprx is not installed.");
+		fatal_error("Error: kubridge.skprx is not installed.");
 	if (!file_exists("ur0:/data/libshacccg.suprx") && !file_exists("ur0:/data/external/libshacccg.suprx"))
-		fatal_error("Error libshacccg.suprx is not installed.");
+		fatal_error("Error: libshacccg.suprx is not installed.");
 	
 	// Loading ARMv7 executable from the apk
 	unz_file_info file_info;
