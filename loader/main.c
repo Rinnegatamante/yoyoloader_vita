@@ -1978,10 +1978,11 @@ int main(int argc, char **argv)
 	char pkg_name[256];
 #ifdef STANDALONE_MODE
 	sprintf(apk_path, "app0:game.apk");
+	strcpy(data_path_root, "app0:");
 #else
 	sprintf(apk_path, "%s/%s/game.apk", DATA_PATH, game_name);
-#endif
 	sprintf(data_path_root, "%s/%s/", DATA_PATH, game_name);
+#endif
 	sprintf(data_path, "%s/%s/assets/", DATA_PATH, game_name);
 	recursive_mkdir(data_path);
 	
