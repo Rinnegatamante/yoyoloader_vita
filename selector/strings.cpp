@@ -55,7 +55,7 @@ char lang_strings[LANG_STRINGS_NUM][LANG_STR_SIZE] = {
 	"Press Square to update banners collection", // STR_BANNERS_INSTR
 	"Name (Ascending)", // STR_NAME_ASC
 	"Name (Descending)", // STR_NAME_DESC
-	"Error libshacccg.suprx is not installed.", // STR_SHACCCG_ERROR
+	"Error: libshacccg.suprx is not installed.", // STR_SHACCCG_ERROR
 	"Extracting archive", // STR_EXTRACTING
 	"Extracting missing Game IDs", // STR_GAME_ID_EXTR
 	"What's New", // STR_NEWS

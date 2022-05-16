@@ -1993,9 +1993,9 @@ int main(int argc, char **argv)
 
 	// Checking for dependencies
 	if (check_kubridge() < 0)
-		fatal_error("Error kubridge.skprx is not installed.");
+		fatal_error("Error: kubridge.skprx is not installed.");
 	if (!file_exists("ur0:/data/libshacccg.suprx") && !file_exists("ur0:/data/external/libshacccg.suprx"))
-		fatal_error("Error libshacccg.suprx is not installed.");
+		fatal_error("Error: libshacccg.suprx is not installed.");
 	
 	// Loading ARMv7 executable from the apk
 	unz_file_info file_info;
