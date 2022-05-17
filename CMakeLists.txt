@@ -48,6 +48,7 @@ add_executable(YoYoLoader
   loader/videoplayer_patch.c
   loader/net.c
   loader/profiler.c
+  loader/audio_player.c
 )
 
 target_link_libraries(YoYoLoader
@@ -62,6 +63,7 @@ target_link_libraries(YoYoLoader
   vitaGL
   vitashark
   mathneon
+  mpg123
   curl
   ssl
   crypto

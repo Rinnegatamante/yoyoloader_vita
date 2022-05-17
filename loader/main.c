@@ -55,6 +55,11 @@
 #define STB_ONLY_PNG
 #include "stb_image.h"
 
+extern void audio_player_play(char *path, int loop);
+extern void audio_player_stop();
+extern void audio_player_pause();
+extern void audio_player_resume();
+extern int audio_player_is_playing();
 extern int is_gamepad_connected(int id);
 extern void send_post_request(const char *url, const char *data);
 extern void mem_profiler(void *framebuf);
@@ -1563,17 +1568,22 @@ enum MethodIDs {
 	UNKNOWN = 0,
 	CALL_EXTENSION_FUNCTION,
 	DOUBLE_VALUE,
+	GAMEPAD_CONNECTED,
+	GAMEPAD_DESCRIPTION,
 	GET_UDID,
 	GET_DEFAULT_FRAMEBUFFER,
 	HTTP_POST,
 	HTTP_GET,
 	INIT,
-	OS_GET_INFO,
 	INPUT_STRING_ASYNC,
+	OS_GET_INFO,
+	PAUSE_MP3,
+	PLAY_MP3,
+	RESUME_MP3,
 	SHOW_MESSAGE,
 	SHOW_MESSAGE_ASYNC,
-	GAMEPAD_CONNECTED,
-	GAMEPAD_DESCRIPTION
+	STOP_MP3,
+	PLAYING_MP3	
 } MethodIDs;
 
 typedef struct {
@@ -1582,19 +1592,24 @@ typedef struct {
 } NameToMethodID;
 
 static NameToMethodID name_to_method_ids[] = {
-	{ "<init>", INIT },
 	{ "CallExtensionFunction", CALL_EXTENSION_FUNCTION },
 	{ "doubleValue", DOUBLE_VALUE },
+	{ "GamepadConnected", GAMEPAD_CONNECTED },
+	{ "GamepadDescription", GAMEPAD_DESCRIPTION },
 	{ "GetUDID", GET_UDID },
 	{ "GetDefaultFrameBuffer", GET_DEFAULT_FRAMEBUFFER },
 	{ "HttpGet", HTTP_GET },
 	{ "HttpPost", HTTP_POST },
+	{ "<init>", INIT },
 	{ "InputStringAsync", INPUT_STRING_ASYNC },
 	{ "OsGetInfo", OS_GET_INFO },
+	{ "PauseMP3", PAUSE_MP3 },
+	{ "PlayMP3", PLAY_MP3 },
+	{ "PlayingMP3", PLAYING_MP3 },
+	{ "ResumeMP3", RESUME_MP3 },
 	{ "ShowMessage", SHOW_MESSAGE },
 	{ "ShowMessageAsync", SHOW_MESSAGE_ASYNC },
-	{ "GamepadConnected", GAMEPAD_CONNECTED },
-	{ "GamepadDescription", GAMEPAD_DESCRIPTION },
+	{ "StopMP3", STOP_MP3 },
 };
 
 int GetMethodID(void *env, void *class, const char *name, const char *sig) {
@@ -1647,6 +1662,18 @@ void CallStaticVoidMethodV(void *env, void *obj, int methodID, uintptr_t *args) 
 			get_active = 1;
 		}
 		break;
+	case PLAY_MP3:
+		audio_player_play(args[0], args[1]);
+		break;
+	case STOP_MP3:
+		audio_player_stop();
+		break;
+	case PAUSE_MP3:
+		audio_player_pause();
+		break;
+	case RESUME_MP3:
+		audio_player_resume();
+		break;
 	default:
 		if (methodID != UNKNOWN)
 			debugPrintf("CallStaticVoidMethodV(%d)\n", methodID);
@@ -1658,6 +1685,8 @@ int CallStaticBooleanMethodV(void *env, void *obj, int methodID, uintptr_t *args
 	switch (methodID) {
 	case GAMEPAD_CONNECTED:
 		return is_gamepad_connected(args[0]);
+	case PLAYING_MP3:
+		return audio_player_is_playing();
 	default:
 		if (methodID != UNKNOWN)
 			debugPrintf("CallStaticBooleanMethodV(%d)\n", methodID);
