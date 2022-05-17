@@ -442,7 +442,7 @@ int optimizer_thread(unsigned int argc, void *argv) {
 	tot_idx = global_info.number_entry;
 	for (uint32_t zip_idx = 0; zip_idx < global_info.number_entry; ++zip_idx) {
 		unzGetCurrentFileInfo(src_file, &file_info, fname, 512, NULL, 0, NULL, 0);
-		if ((strstr(fname, "assets/") && fname[strlen(fname) - 1] != '/') || !strcmp(fname, "lib/armeabi-v7a/libyoyo.so")) {
+		if ((strstr(fname, "assets/") && fname[strlen(fname) - 1] != '/') || (strstr(fname, "res/raw") && fname[strlen(fname) - 1] != '/') || !strcmp(fname, "lib/armeabi-v7a/libyoyo.so")) {
 			if (strstr(fname, ".ogg") || strstr(fname, ".mp4")) {
 				zipOpenNewFileInZip(dst_file, fname, NULL, NULL, 0, NULL, 0, NULL, 0, Z_NO_COMPRESSION);
 			} else {
@@ -773,7 +773,7 @@ int externalizer_thread(unsigned int argc, void *argv) {
 	int extra_audiogroups = -1;
 	for (uint32_t zip_idx = 0; zip_idx < global_info.number_entry; ++zip_idx) {
 		unzGetCurrentFileInfo(src_file, &file_info, fname, 512, NULL, 0, NULL, 0);
-		if ((strstr(fname, "assets/") && fname[strlen(fname) - 1] != '/') || !strcmp(fname, "lib/armeabi-v7a/libyoyo.so")) {
+		if ((strstr(fname, "assets/") && fname[strlen(fname) - 1] != '/') || (strstr(fname, "res/raw") && fname[strlen(fname) - 1] != '/') || !strcmp(fname, "lib/armeabi-v7a/libyoyo.so")) {
 			if (strstr(fname, ".ogg") || strstr(fname, ".mp4")) {
 				zipOpenNewFileInZip(dst_file, fname, NULL, NULL, 0, NULL, 0, NULL, 0, Z_NO_COMPRESSION);
 			} else if (strstr(fname, "game.droid") || (strstr(fname, "audiogroup") && strstr(fname, ".dat"))) {
