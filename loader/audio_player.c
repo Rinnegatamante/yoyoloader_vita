@@ -210,7 +210,7 @@ void audio_player_pause() {
 void audio_player_resume() {
 	if (inited) {
 		sceKernelWaitSema(critical_section, 1, NULL);
-		if (is_playing) {
+		if (!is_playing) {
 			is_playing = 1;
 			alSourcePlay(al_source);
 		}
