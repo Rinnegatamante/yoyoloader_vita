@@ -176,7 +176,7 @@ void audio_player_play(char *path, int loop) {
 	alSourcei(al_source, AL_SOURCE_RELATIVE, AL_TRUE);
 	alSourceQueueBuffers(al_source, 2, al_buffers);
 	alSourcePlay(al_source);
-	is_looping = 1;
+	is_looping = loop;
 	sceKernelWaitSema(critical_section, 1, NULL);
 	is_playing = 1;
 	sceKernelSignalSema(critical_section, 1);
