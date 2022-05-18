@@ -495,7 +495,7 @@ typedef struct {
 	uint32_t idx;
 } snd;
 uint32_t snd_num;
-snd sounds[1024];
+snd sounds[8192];
 uint32_t null_ref = 0xFFFFFFFF;
 uint32_t regular_file_flag = 0x64;
 
