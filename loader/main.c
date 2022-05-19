@@ -704,12 +704,33 @@ void LoadTextureFromPNG(uint32_t *texture, int has_mips) {
 		glBindTexture(GL_TEXTURE_2D, texture[6]);
 		if (width == 2 && height == 1) {
 			if (data[0] == 0xFFBEADDE) {
+				uint32_t *ext_data;
 				uint32_t idx = (data[1] << 8) >> 8;
 				char fname[256];
-				sprintf(fname, "%s%u.png", data_path, idx);
-				debugPrintf("Loading externalized texture %s (Raw ID: 0x%X)\n", fname, data[1]);
-				uint32_t *ext_data = stbi_load(fname, &width, &height, NULL, 4);
-				glTexImage2DHook(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, ext_data);
+				sprintf(fname, "%s%u.pvr", data_path, idx);
+				FILE *f = fopen(fname, "rb");
+				if (f) {
+					debugPrintf("Loading externalized texture %s (Raw ID: 0x%X)\n", fname, data[1]);
+					fseek(f, 0, SEEK_END);
+					uint32_t size = ftell(f) - 0x34;
+					uint32_t metadata_size;
+					fseek(f, 0x18, SEEK_SET);
+					fread(&height, 1, 4, f);
+					fread(&width, 1, 4, f);
+					fseek(f, 0x30, SEEK_SET);
+					fread(&metadata_size, 1, 4, f);
+					size -= metadata_size;
+					ext_data = vglMalloc(size);
+					fseek(f, metadata_size, SEEK_CUR);
+					fread(ext_data, 1, size, f);
+					fclose(f);
+					glCompressedTexImage2D(GL_TEXTURE_2D, 0, GL_COMPRESSED_RGBA_PVRTC_4BPPV2_IMG, width, height, 0, size, ext_data);
+				} else {
+					debugPrintf("Loading externalized texture %s (Raw ID: 0x%X)\n", fname, data[1]);
+					sprintf(fname, "%s%u.png", data_path, idx);
+					ext_data = stbi_load(fname, &width, &height, NULL, 4);
+					glTexImage2DHook(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, ext_data);
+				}
 				vglFree(ext_data);
 			} else {
 				glTexImage2DHook(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
@@ -753,9 +774,19 @@ uint32_t png_get_IHDR_hook(uint32_t *png_ptr, uint32_t *info_ptr, uint32_t *widt
 
 	if (!setup_ended && *width == 2 && *height == 1) {
 		char fname[256];
-		sprintf(fname, "%s%d.png", data_path, image_preload_idx++);
-		int dummy;
-		stbi_info(fname, width, height, &dummy);
+		sprintf(fname, "%s%d.pvr", data_path, image_preload_idx);
+		FILE *f = fopen(fname, "rb");
+		if (f) {
+			fseek(f, 0x18, SEEK_SET);
+			fread(height, 1, 4, f);
+			fread(width, 1, 4, f);
+			fclose(f);
+		} else {
+			sprintf(fname, "%s%d.png", data_path, image_preload_idx);
+			int dummy;
+			stbi_info(fname, width, height, &dummy);
+		}
+		image_preload_idx++;
 	}
 	return 1;
 }
