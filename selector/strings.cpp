@@ -69,5 +69,7 @@ char lang_strings[LANG_STRINGS_NUM][LANG_STR_SIZE] = {
 	"Externalizing sound files from game.droid...", // STR_EXTERNALIZE_DROID
 	"Externalizing sound files from extra audiogroup", // STR_EXTERNALIZE_AUDIOGROUP
 	"Optimize Apk with Sounds Externalization", // STR_EXTERNALIZE
-	"Reduces apk size by removing unnecessary data inside it and by externalizing and compressing all game's audio files, and improves performances by recompressing files one by one depending on their expected use." // STR_EXTERNALIZE_DESC
+	"Reduces apk size by removing unnecessary data inside it and by externalizing and compressing all game's audio files, and improves performances by recompressing files one by one depending on their expected use.", // STR_EXTERNALIZE_DESC
+	"Disable Audio", // STR_AUDIO
+	"Disables audio playback in order to reduce memory usage of the game." // STR_AUDIO_DESC
 };

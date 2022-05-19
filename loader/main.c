@@ -51,6 +51,9 @@
 
 #include "openal_patch.h"
 
+#define STBI_MALLOC vglMalloc
+#define STBI_REALLOC vglRealloc
+#define STBI_FREE vglFree
 #define STB_IMAGE_IMPLEMENTATION
 #define STB_ONLY_PNG
 #include "stb_image.h"
@@ -85,6 +88,7 @@ extern int maximizeMem;
 int debugShaders = 0;
 int squeeze_mem = 0;
 int debugMode = 0;
+int disableAudio = 0;
 int ime_active = 0;
 int msg_active = 0;
 int msg_index = 0;
@@ -93,6 +97,7 @@ int post_active = 0;
 int post_index = 0;
 int get_active = 0;
 int get_index = 0;
+int setup_ended = 0;
 
 extern int (*YYGetInt32) (void *args, int idx);
 void (*Function_Add)(const char *name, intptr_t func, int argc, char ret);
@@ -101,6 +106,7 @@ float (*Audio_GetTrackPos) (int id);
 uint8_t *g_fNoAudio;
 int64_t *g_GML_DeltaTime;
 uint32_t *g_IOFrameCount;
+char **g_pWorkingDirectory;
 
 double jni_double = 0.0f;
 GLuint main_fb, main_tex = 0xDEADBEEF;
@@ -152,6 +158,7 @@ void loadConfig(const char *game) {
 			else if (strcmp("maximizeMem", buffer) == 0) maximizeMem = value;
 			else if (strcmp("netSupport", buffer) == 0) has_net = value;
 			else if (strcmp("squeezeMem", buffer) == 0) squeeze_mem = value;
+			else if (strcmp("disableAudio", buffer) == 0) disableAudio = value;
 		}
 		fclose(config);
 	}
@@ -520,12 +527,12 @@ void main_loop() {
 	int (*Java_com_yoyogames_runner_RunnerJNILib_canFlip) (void) = (void *)so_symbol(&yoyoloader_mod, "Java_com_yoyogames_runner_RunnerJNILib_canFlip");
 	g_IOFrameCount = (uint32_t *)so_symbol(&yoyoloader_mod, "g_IOFrameCount");
 	g_GML_DeltaTime = (int64_t *)so_symbol(&yoyoloader_mod, "g_GML_DeltaTime");
-	g_fNoAudio = (uint8_t *)so_symbol(&yoyoloader_mod, "g_fNoAudio");
 	Audio_GetTrackPos = (void *)so_symbol(&yoyoloader_mod, "_Z17Audio_GetTrackPosi");
 	
 	int lastX[SCE_TOUCH_MAX_REPORT] = {-1, -1, -1, -1, -1, -1, -1, -1};
 	int lastY[SCE_TOUCH_MAX_REPORT] = {-1, -1, -1, -1, -1, -1, -1, -1};
 	
+	setup_ended = 1;
 	glReleaseShaderCompiler();
 	for (;;) {
 		if (post_active) {
@@ -685,7 +692,91 @@ double GetPlatform() {
 	return forceWinMode ? 0.0f : 4.0f;
 }
 
+uint32_t *(*ReadPNGFile) (void *a1, int a2, int *a3, int *a4, int a5);
+void (*FreePNGFile) ();
+void (*InvalidateTextureState) ();
+void LoadTextureFromPNG(uint32_t *texture, int has_mips) {
+	int width, height;
+	uint32_t *data = ReadPNGFile(texture[23] , texture[24], &width, &height, (texture[5] & 2) == 0);
+	if (data) {
+		InvalidateTextureState();
+		glGenTextures(1, &texture[6]);
+		glBindTexture(GL_TEXTURE_2D, texture[6]);
+		if (width == 2 && height == 1) {
+			if (data[0] == 0xFFBEADDE) {
+				uint32_t idx = (data[1] << 8) >> 8;
+				char fname[256];
+				sprintf(fname, "%s%u.png", data_path, idx);
+				debugPrintf("Loading externalized texture %s (Raw ID: 0x%X)\n", fname, data[1]);
+				uint32_t *ext_data = stbi_load(fname, &width, &height, NULL, 4);
+				glTexImage2DHook(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, ext_data);
+				vglFree(ext_data);
+			} else {
+				glTexImage2DHook(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
+			}
+		} else {
+			glTexImage2DHook(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
+		}
+		texture[5] = (texture[5]) | 0x40;
+		FreePNGFile();
+		texture[0] = 0x06;
+		texture[1] = width;
+		texture[2] = height;
+		debugPrintf("Texture size: %dx%d\n", width, height);
+	} else {
+		debugPrintf("ERROR: Failed to load a PNG texture!\n");
+	}
+}
+
+int image_preload_idx = 0;
+uint32_t png_get_IHDR_hook(uint32_t *png_ptr, uint32_t *info_ptr, uint32_t *width, uint32_t *height, int *bit_depth, int *color_type, int *interlace_type, int *compression_type, int *filter_type) {
+	if (!png_ptr || !info_ptr || !width || !height)
+		return 0;
+	
+	*width = info_ptr[0];
+	*height = info_ptr[1];
+
+	if (bit_depth)
+		*bit_depth = *((uint8_t *)info_ptr + 24);
+
+	if (color_type)
+		*color_type = *((uint8_t *)info_ptr + 25);
+
+	if (compression_type)
+		*compression_type = *((uint8_t *)info_ptr + 26);
+
+	if (filter_type)
+		*filter_type = *((uint8_t *)info_ptr + 27);
+
+	if (interlace_type)
+		*interlace_type = *((uint8_t *)info_ptr + 28);
+
+	if (!setup_ended && *width == 2 && *height == 1) {
+		char fname[256];
+		sprintf(fname, "%s%d.png", data_path, image_preload_idx++);
+		int dummy;
+		stbi_info(fname, width, height, &dummy);
+	}
+	return 1;
+}
+
+void SetWorkingDirectory() {
+	// This is the smallest to reimplement function after ProcessCommandLine where we can disable audio if required
+	if (disableAudio)
+		*g_fNoAudio = 1;
+	
+	if (!*g_pWorkingDirectory)
+		*g_pWorkingDirectory = strdup("assets/");
+}
+
 void patch_runner(void) {
+	FreePNGFile = so_symbol(&yoyoloader_mod, "_Z11FreePNGFilev");
+	ReadPNGFile = so_symbol(&yoyoloader_mod, "_Z11ReadPNGFilePviPiS0_b");
+	InvalidateTextureState = so_symbol(&yoyoloader_mod, "_Z23_InvalidateTextureStatev");
+	
+	hook_addr(so_symbol(&yoyoloader_mod, "png_get_IHDR"), (uintptr_t)&png_get_IHDR_hook);
+	hook_addr(so_symbol(&yoyoloader_mod, "_Z19SetWorkingDirectoryv"), (uintptr_t)&SetWorkingDirectory);
+	hook_addr(so_symbol(&yoyoloader_mod, "_Z18LoadTextureFromPNGP7Texture10eMipEnable"), (uintptr_t)&LoadTextureFromPNG);
 	hook_addr(so_symbol(&yoyoloader_mod, "_Z30PackageManagerHasSystemFeaturePKc"), (uintptr_t)&ret0);
 	hook_addr(so_symbol(&yoyoloader_mod, "_Z17alBufferDebugNamejPKc"), (uintptr_t)&ret0);
 	hook_addr(so_symbol(&yoyoloader_mod, "_ZN13MemoryManager10DumpMemoryEP7__sFILE"), (uintptr_t)&ret0);
@@ -709,6 +800,9 @@ void patch_runner(void) {
 }
 
 void patch_runner_post_init(void) {
+	g_fNoAudio = (uint8_t *)so_symbol(&yoyoloader_mod, "g_fNoAudio");
+	g_pWorkingDirectory = (char *)so_symbol(&yoyoloader_mod, "g_pWorkingDirectory");
+	
 	int *dbg_csol = (int *)so_symbol(&yoyoloader_mod, "_dbg_csol");
 	if (dbg_csol) {
 		kuKernelCpuUnrestrictedMemcpy((void *)(*(int *)so_symbol(&yoyoloader_mod, "_dbg_csol") + 0x0C), (void *)(so_symbol(&yoyoloader_mod, "_ZTV11TRelConsole") + 0x14), 4);
@@ -2194,7 +2288,7 @@ int main(int argc, char **argv)
 		glGenTextures(1, &bg_image);
 		glBindTexture(GL_TEXTURE_2D, bg_image);
 		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, bg_data);
-		free(bg_data);
+		vglFree(bg_data);
 		free(splash_buf);
 		glEnable(GL_TEXTURE_2D);
 		glEnableClientState(GL_VERTEX_ARRAY);

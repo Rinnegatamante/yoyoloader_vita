@@ -23,7 +23,7 @@
 #define stringify(x) FUNC_TO_NAME(x)
 #define MIN(x, y) (x) < (y) ? (x) : (y)
 
-#define NUM_OPTIONS 12
+#define NUM_OPTIONS 13
 #define NUM_DB_CHUNKS 4
 #define MEM_BUFFER_SIZE (32 * 1024 * 1024)
 #define FILTER_MODES_NUM 6
@@ -109,6 +109,7 @@ struct GameSelection {
 	bool video_support;
 	bool has_net;
 	bool squeeze_mem;
+	bool no_audio;
 	CompatibilityList *status;
 	GameSelection *next;
 };
@@ -336,6 +337,7 @@ void loadConfig(GameSelection *g) {
 			else if (strcmp("videoSupport", buffer) == 0) g->video_support = (bool)value;
 			else if (strcmp("netSupport", buffer) == 0) g->has_net = (bool)value;
 			else if (strcmp("squeezeMem", buffer) == 0) g->squeeze_mem = (bool)value;
+			else if (strcmp("disableAudio", buffer) == 0) g->no_audio = (bool)value;
 		}
 		fclose(config);
 	} else {
@@ -1629,6 +1631,9 @@ int main(int argc, char *argv[]) {
 			ImGui::Checkbox(lang_strings[STR_NETWORK], &hovered->has_net);
 			if (ImGui::IsItemHovered())
 				desc = lang_strings[STR_NETWORK_DESC];
+			ImGui::Checkbox(lang_strings[STR_AUDIO], &hovered->no_audio);
+			if (ImGui::IsItemHovered())
+				desc = lang_strings[STR_AUDIO_DESC];
 			ImGui::Separator();
 			ImGui::Checkbox(lang_strings[STR_BILINEAR], &hovered->bilinear);
 			if (ImGui::IsItemHovered())
@@ -1748,6 +1753,7 @@ int main(int argc, char *argv[]) {
 			ImGui::Text("%s: %s", lang_strings[STR_SQUEEZE], hovered->squeeze_mem ? lang_strings[STR_YES] : lang_strings[STR_NO]);
 			ImGui::Text("%s: %s", lang_strings[STR_VIDEO_PLAYER], hovered->video_support ? lang_strings[STR_YES] : lang_strings[STR_NO]);
 			ImGui::Text("%s: %s", lang_strings[STR_NETWORK], hovered->has_net ? lang_strings[STR_YES] : lang_strings[STR_NO]);
+			ImGui::Text("%s: %s", lang_strings[STR_AUDIO], hovered->no_audio ? lang_strings[STR_YES] : lang_strings[STR_NO]);
 			ImGui::Separator();
 			ImGui::Text("%s: %s", lang_strings[STR_BILINEAR], hovered->bilinear ? lang_strings[STR_YES] : lang_strings[STR_NO]);
 			ImGui::Text("%s: %s", lang_strings[STR_COMPRESS], hovered->compress_textures ? lang_strings[STR_YES] : lang_strings[STR_NO]);
@@ -1790,6 +1796,7 @@ int main(int argc, char *argv[]) {
 	fprintf(f, "%s=%d\n", "videoSupport", (int)hovered->video_support);
 	fprintf(f, "%s=%d\n", "netSupport", (int)hovered->has_net);
 	fprintf(f, "%s=%d\n", "squeezeMem", (int)hovered->squeeze_mem);
+	fprintf(f, "%s=%d\n", "disableAudio", (int)hovered->no_audio);
 	fclose(f);
 	
 	sprintf(config_path, "ux0:data/gms/shared/yyl.cfg");
