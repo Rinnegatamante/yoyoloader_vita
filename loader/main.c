@@ -804,6 +804,10 @@ void LoadTextureFromPNG_3(uint32_t *texture) {
 	LoadTextureFromPNG_generic(texture[9], texture[10], &texture[2], &texture[3], texture);
 }
 
+void LoadTextureFromPNG_4(uint32_t *texture) {
+	LoadTextureFromPNG_generic(texture[8], texture[9], &texture[2], &texture[3], texture);
+}
+
 int image_preload_idx = 0;
 uint32_t png_get_IHDR_hook(uint32_t *png_ptr, uint32_t *info_ptr, uint32_t *width, uint32_t *height, int *bit_depth, int *color_type, int *interlace_type, int *compression_type, int *filter_type) {
 	if (!png_ptr || !info_ptr || !width || !height)
@@ -869,18 +873,36 @@ void patch_runner(void) {
 		LoadTextureFromPNG = (uint32_t *)so_symbol(&yoyoloader_mod, "_Z18LoadTextureFromPNGP7Texture");
 		has_mips = 0;
 	}
-	debugPrintf("LoadTextureFromPNG has signature: 0x%X\n", *LoadTextureFromPNG);
 	
-	switch (*LoadTextureFromPNG >> 16) {
-	case 0xE92D:
-		hook_addr(LoadTextureFromPNG, has_mips ? (uintptr_t)&LoadTextureFromPNG_1 : (uintptr_t)&LoadTextureFromPNG_3);
-		break;
-	case 0xE590:
-		hook_addr(LoadTextureFromPNG, has_mips ? (uintptr_t)&LoadTextureFromPNG_2 : (uintptr_t)&LoadTextureFromPNG_3);
-		break;
-	default:
-		fatal_error("Error: Unrecognized LoadTextureFromPNG signature: 0x%08X.", *LoadTextureFromPNG);
-		break;
+	debugPrintf("LoadTextureFromPNG has signature: 0x%X\n", *LoadTextureFromPNG);
+	if (!has_mips) {
+		uint32_t *p = LoadTextureFromPNG;
+		for (;;) {
+			if (*p == 0xE5900020) { // LDR R0, [R0,#0x20]
+				debugPrintf("Patching LoadTextureFromPNG to variant #4\n");
+				hook_addr(LoadTextureFromPNG, (uintptr_t)&LoadTextureFromPNG_4);
+				break;
+			} else if (*p == 0xE5900024) { // LDR R0, [R0,#0x24]
+				debugPrintf("Patching LoadTextureFromPNG to variant #3\n");
+				hook_addr(LoadTextureFromPNG, (uintptr_t)&LoadTextureFromPNG_3);
+				break;
+			}
+			p++;
+		}
+	} else {
+		switch (*LoadTextureFromPNG >> 16) {
+		case 0xE92D:
+			debugPrintf("Patching LoadTextureFromPNG to variant #1\n");
+			hook_addr(LoadTextureFromPNG, (uintptr_t)&LoadTextureFromPNG_1);
+			break;
+		case 0xE590:
+			debugPrintf("Patching LoadTextureFromPNG to variant #2\n");
+			hook_addr(LoadTextureFromPNG, (uintptr_t)&LoadTextureFromPNG_2);
+			break;
+		default:
+			fatal_error("Error: Unrecognized LoadTextureFromPNG signature: 0x%08X.", *LoadTextureFromPNG);
+			break;
+		}
 	}
 	
 	hook_addr(so_symbol(&yoyoloader_mod, "_Z30PackageManagerHasSystemFeaturePKc"), (uintptr_t)&ret0);
