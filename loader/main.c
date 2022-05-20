@@ -714,6 +714,9 @@ void LoadTextureFromPNG(uint32_t *texture, int has_mips) {
 					fseek(f, 0, SEEK_END);
 					uint32_t size = ftell(f) - 0x34;
 					uint32_t metadata_size;
+					fseek(f, 0x08, SEEK_SET);
+					uint64_t format;
+					fread(&format, 1, 8, f);
 					fseek(f, 0x18, SEEK_SET);
 					fread(&height, 1, 4, f);
 					fread(&width, 1, 4, f);
@@ -724,7 +727,41 @@ void LoadTextureFromPNG(uint32_t *texture, int has_mips) {
 					fseek(f, metadata_size, SEEK_CUR);
 					fread(ext_data, 1, size, f);
 					fclose(f);
-					glCompressedTexImage2D(GL_TEXTURE_2D, 0, GL_COMPRESSED_RGBA_PVRTC_4BPPV2_IMG, width, height, 0, size, ext_data);
+					switch (format) {
+					case 0x00:
+						glCompressedTexImage2D(GL_TEXTURE_2D, 0, GL_COMPRESSED_RGB_PVRTC_2BPPV1_IMG, width, height, 0, size, ext_data);
+						break;
+					case 0x01:
+						glCompressedTexImage2D(GL_TEXTURE_2D, 0, GL_COMPRESSED_RGBA_PVRTC_2BPPV1_IMG, width, height, 0, size, ext_data);
+						break;
+					case 0x02:
+						glCompressedTexImage2D(GL_TEXTURE_2D, 0, GL_COMPRESSED_RGB_PVRTC_4BPPV1_IMG, width, height, 0, size, ext_data);
+						break;
+					case 0x03:
+						glCompressedTexImage2D(GL_TEXTURE_2D, 0, GL_COMPRESSED_RGBA_PVRTC_4BPPV1_IMG, width, height, 0, size, ext_data);
+						break;
+					case 0x04:
+						glCompressedTexImage2D(GL_TEXTURE_2D, 0, GL_COMPRESSED_RGBA_PVRTC_2BPPV2_IMG, width, height, 0, size, ext_data);
+						break;
+					case 0x05:
+						glCompressedTexImage2D(GL_TEXTURE_2D, 0, GL_COMPRESSED_RGBA_PVRTC_4BPPV2_IMG, width, height, 0, size, ext_data);
+						break;
+					case 0x06:
+						glCompressedTexImage2D(GL_TEXTURE_2D, 0, GL_ETC1_RGB8_OES, width, height, 0, size, ext_data);
+						break;
+					case 0x07:
+						glCompressedTexImage2D(GL_TEXTURE_2D, 0, GL_COMPRESSED_RGBA_S3TC_DXT1_EXT, width, height, 0, size, ext_data);
+						break;
+					case 0x09:
+						glCompressedTexImage2D(GL_TEXTURE_2D, 0, GL_COMPRESSED_RGBA_S3TC_DXT3_EXT, width, height, 0, size, ext_data);
+						break;
+					case 0x0B:
+						glCompressedTexImage2D(GL_TEXTURE_2D, 0, GL_COMPRESSED_RGBA_S3TC_DXT5_EXT, width, height, 0, size, ext_data);
+						break;
+					default:
+						debugPrintf("Unsupported externalized texture format (0x%llX)", format);
+						break;
+					}
 				} else {
 					debugPrintf("Loading externalized texture %s (Raw ID: 0x%X)\n", fname, data[1]);
 					sprintf(fname, "%s%u.png", data_path, idx);
