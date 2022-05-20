@@ -578,9 +578,6 @@ void populateSoundsTable(FILE *f) {
 					fread(&sounds[i].fname[z++], 1, 1, f);
 				} while (sounds[i].fname[z - 1]);
 				fseek(f, backup, SEEK_SET);
-				if (sounds[i].idx == null_ref) { // Handling externalized sounds
-						
-				}
 			}
 			snd_num = entries;
 			fseek(f, start, SEEK_SET);

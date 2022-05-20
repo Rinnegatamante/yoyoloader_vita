@@ -107,6 +107,7 @@ uint8_t *g_fNoAudio;
 int64_t *g_GML_DeltaTime;
 uint32_t *g_IOFrameCount;
 char **g_pWorkingDirectory;
+int *g_TextureScale;
 
 double jni_double = 0.0f;
 GLuint main_fb, main_tex = 0xDEADBEEF;
@@ -695,13 +696,14 @@ double GetPlatform() {
 uint32_t *(*ReadPNGFile) (void *a1, int a2, int *a3, int *a4, int a5);
 void (*FreePNGFile) ();
 void (*InvalidateTextureState) ();
-void LoadTextureFromPNG(uint32_t *texture, int has_mips) {
+
+void LoadTextureFromPNG_generic(uint32_t arg1, uint32_t arg2, uint32_t *flags, uint32_t *tex_id, uint32_t *texture) {
 	int width, height;
-	uint32_t *data = ReadPNGFile(texture[23] , texture[24], &width, &height, (texture[5] & 2) == 0);
+	uint32_t *data = ReadPNGFile(arg1 , arg2, &width, &height, (*flags & 2) == 0);
 	if (data) {
 		InvalidateTextureState();
-		glGenTextures(1, &texture[6]);
-		glBindTexture(GL_TEXTURE_2D, texture[6]);
+		glGenTextures(1, tex_id);
+		glBindTexture(GL_TEXTURE_2D, *tex_id);
 		if (width == 2 && height == 1) {
 			if (data[0] == 0xFFBEADDE) {
 				uint32_t *ext_data;
@@ -775,15 +777,31 @@ void LoadTextureFromPNG(uint32_t *texture, int has_mips) {
 		} else {
 			glTexImage2DHook(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
 		}
-		texture[5] = (texture[5]) | 0x40;
+		*flags = *flags | 0x40;
 		FreePNGFile();
 		texture[0] = 0x06;
-		texture[1] = width;
-		texture[2] = height;
+		if (flags != &texture[2]) {
+			texture[1] = width;
+			texture[2] = height;
+		} else {
+			texture[1] = ((width * *g_TextureScale - 1) | texture[1] & 0xFFFFE000) & 0xFC001FFF | ((height * *g_TextureScale - 1) << 13);
+		}
 		debugPrintf("Texture size: %dx%d\n", width, height);
 	} else {
 		debugPrintf("ERROR: Failed to load a PNG texture!\n");
 	}
+}
+
+void LoadTextureFromPNG_1(uint32_t *texture, int has_mips) {
+	LoadTextureFromPNG_generic(texture[23], texture[24], &texture[5], &texture[6], texture);
+}
+
+void LoadTextureFromPNG_2(uint32_t *texture, int has_mips) {
+	LoadTextureFromPNG_generic(texture[11], texture[12], &texture[4], &texture[5], texture);
+}
+
+void LoadTextureFromPNG_3(uint32_t *texture) {
+	LoadTextureFromPNG_generic(texture[9], texture[10], &texture[2], &texture[3], texture);
 }
 
 int image_preload_idx = 0;
@@ -844,7 +862,27 @@ void patch_runner(void) {
 	
 	hook_addr(so_symbol(&yoyoloader_mod, "png_get_IHDR"), (uintptr_t)&png_get_IHDR_hook);
 	hook_addr(so_symbol(&yoyoloader_mod, "_Z19SetWorkingDirectoryv"), (uintptr_t)&SetWorkingDirectory);
-	hook_addr(so_symbol(&yoyoloader_mod, "_Z18LoadTextureFromPNGP7Texture10eMipEnable"), (uintptr_t)&LoadTextureFromPNG);
+	
+	uint8_t has_mips = 1;
+	uint32_t *LoadTextureFromPNG = (uint32_t *)so_symbol(&yoyoloader_mod, "_Z18LoadTextureFromPNGP7Texture10eMipEnable");
+	if (!LoadTextureFromPNG) {
+		LoadTextureFromPNG = (uint32_t *)so_symbol(&yoyoloader_mod, "_Z18LoadTextureFromPNGP7Texture");
+		has_mips = 0;
+	}
+	debugPrintf("LoadTextureFromPNG has signature: 0x%X\n", *LoadTextureFromPNG);
+	
+	switch (*LoadTextureFromPNG >> 16) {
+	case 0xE92D:
+		hook_addr(LoadTextureFromPNG, has_mips ? (uintptr_t)&LoadTextureFromPNG_1 : (uintptr_t)&LoadTextureFromPNG_3);
+		break;
+	case 0xE590:
+		hook_addr(LoadTextureFromPNG, (uintptr_t)&LoadTextureFromPNG_2);
+		break;
+	default:
+		fatal_error("Error: Unrecognized LoadTextureFromPNG signature: 0x%08X.", *LoadTextureFromPNG);
+		break;
+	}
+	
 	hook_addr(so_symbol(&yoyoloader_mod, "_Z30PackageManagerHasSystemFeaturePKc"), (uintptr_t)&ret0);
 	hook_addr(so_symbol(&yoyoloader_mod, "_Z17alBufferDebugNamejPKc"), (uintptr_t)&ret0);
 	hook_addr(so_symbol(&yoyoloader_mod, "_ZN13MemoryManager10DumpMemoryEP7__sFILE"), (uintptr_t)&ret0);
@@ -870,6 +908,7 @@ void patch_runner(void) {
 void patch_runner_post_init(void) {
 	g_fNoAudio = (uint8_t *)so_symbol(&yoyoloader_mod, "g_fNoAudio");
 	g_pWorkingDirectory = (char *)so_symbol(&yoyoloader_mod, "g_pWorkingDirectory");
+	g_TextureScale = (int *)so_symbol(&yoyoloader_mod, "g_TextureScale");
 	
 	int *dbg_csol = (int *)so_symbol(&yoyoloader_mod, "_dbg_csol");
 	if (dbg_csol) {
