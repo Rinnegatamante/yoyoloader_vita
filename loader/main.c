@@ -876,7 +876,7 @@ void patch_runner(void) {
 		hook_addr(LoadTextureFromPNG, has_mips ? (uintptr_t)&LoadTextureFromPNG_1 : (uintptr_t)&LoadTextureFromPNG_3);
 		break;
 	case 0xE590:
-		hook_addr(LoadTextureFromPNG, (uintptr_t)&LoadTextureFromPNG_2);
+		hook_addr(LoadTextureFromPNG, has_mips ? (uintptr_t)&LoadTextureFromPNG_2 : (uintptr_t)&LoadTextureFromPNG_3);
 		break;
 	default:
 		fatal_error("Error: Unrecognized LoadTextureFromPNG signature: 0x%08X.", *LoadTextureFromPNG);
