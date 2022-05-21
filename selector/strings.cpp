@@ -14,7 +14,7 @@ char lang_strings[LANG_STRINGS_NUM][LANG_STR_SIZE] = {
 	"Enables dumping of attempted shader translations by the built-in GLSL to CG shader translator in ux0:data/gms/shared/glsl.", // STR_DEBUG_SHADERS_DESC
 	"Enables debug logging in ux0:data/gms/shared/yyl.log.", // STR_DEBUG_MODE_DESC
 	"Disables splashscreen rendering at game boot.",  // STR_SPLASH_SKIP_DESC
-	"Allows the Runner to use approximately extra 12 MBs of memory. May break some debugging tools.",  // STR_EXTRA_MEM_DESC
+	"Allows the Runner to use approximately extra 12 MBs of memory. May break some debugging tools and breaks virtual keyboard usage from games.",  // STR_EXTRA_MEM_DESC
 	"Reduces apk size by removing unnecessary data inside it and improves performances by recompressing files one by one depending on their expected use.", // STR_OPTIMIZE_DESC
 	"Increases the size of the memory pool available for the Runner. May solve some crashes.",  // STR_EXTRA_POOL_DESC
 	"Makes the Loader compress any spriteset used by the game at runtime. Reduces memory usage but may cause stuttering and longer loading times.",  // STR_COMPRESS_DESC
@@ -55,7 +55,7 @@ char lang_strings[LANG_STRINGS_NUM][LANG_STR_SIZE] = {
 	"Press Square to update banners collection", // STR_BANNERS_INSTR
 	"Name (Ascending)", // STR_NAME_ASC
 	"Name (Descending)", // STR_NAME_DESC
-	"Error libshacccg.suprx is not installed.", // STR_SHACCCG_ERROR
+	"Error: libshacccg.suprx is not installed.", // STR_SHACCCG_ERROR
 	"Extracting archive", // STR_EXTRACTING
 	"Extracting missing Game IDs", // STR_GAME_ID_EXTR
 	"What's New", // STR_NEWS
@@ -65,5 +65,11 @@ char lang_strings[LANG_STRINGS_NUM][LANG_STR_SIZE] = {
 	"Filter by: ", // STR_FILTER_BY
 	"No Filter", // STR_NO_FILTER
 	"No Tags", // STR_NO_TAGS
-	"This game has a community keymap available. Do you wish to install it?" // STR_KEYMAP
+	"This game has a community keymap available. Do you wish to install it?", // STR_KEYMAP
+	"Externalizing sound files from game.droid...", // STR_EXTERNALIZE_DROID
+	"Externalizing sound files from extra audiogroup", // STR_EXTERNALIZE_AUDIOGROUP
+	"Optimize Apk with Sounds Externalization", // STR_EXTERNALIZE
+	"Reduces apk size by removing unnecessary data inside it and by externalizing and compressing all game's audio files, and improves performances by recompressing files one by one depending on their expected use.", // STR_EXTERNALIZE_DESC
+	"Disable Audio", // STR_AUDIO
+	"Disables audio playback in order to reduce memory usage of the game." // STR_AUDIO_DESC
 };

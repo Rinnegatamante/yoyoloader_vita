@@ -51,10 +51,18 @@
 
 #include "openal_patch.h"
 
+#define STBI_MALLOC vglMalloc
+#define STBI_REALLOC vglRealloc
+#define STBI_FREE vglFree
 #define STB_IMAGE_IMPLEMENTATION
 #define STB_ONLY_PNG
 #include "stb_image.h"
 
+extern void audio_player_play(char *path, int loop);
+extern void audio_player_stop();
+extern void audio_player_pause();
+extern void audio_player_resume();
+extern int audio_player_is_playing();
 extern int is_gamepad_connected(int id);
 extern void send_post_request(const char *url, const char *data);
 extern void mem_profiler(void *framebuf);
@@ -80,6 +88,7 @@ extern int maximizeMem;
 int debugShaders = 0;
 int squeeze_mem = 0;
 int debugMode = 0;
+int disableAudio = 0;
 int ime_active = 0;
 int msg_active = 0;
 int msg_index = 0;
@@ -88,6 +97,7 @@ int post_active = 0;
 int post_index = 0;
 int get_active = 0;
 int get_index = 0;
+int setup_ended = 0;
 
 extern int (*YYGetInt32) (void *args, int idx);
 void (*Function_Add)(const char *name, intptr_t func, int argc, char ret);
@@ -96,12 +106,15 @@ float (*Audio_GetTrackPos) (int id);
 uint8_t *g_fNoAudio;
 int64_t *g_GML_DeltaTime;
 uint32_t *g_IOFrameCount;
+char **g_pWorkingDirectory;
+int *g_TextureScale;
 
 double jni_double = 0.0f;
 GLuint main_fb, main_tex = 0xDEADBEEF;
 int is_portrait = 0;
 
 char data_path[256];
+char data_path_root[256];
 char apk_path[256];
 
 void patch_gamepad();
@@ -146,6 +159,7 @@ void loadConfig(const char *game) {
 			else if (strcmp("maximizeMem", buffer) == 0) maximizeMem = value;
 			else if (strcmp("netSupport", buffer) == 0) has_net = value;
 			else if (strcmp("squeezeMem", buffer) == 0) squeeze_mem = value;
+			else if (strcmp("disableAudio", buffer) == 0) disableAudio = value;
 		}
 		fclose(config);
 	}
@@ -514,12 +528,12 @@ void main_loop() {
 	int (*Java_com_yoyogames_runner_RunnerJNILib_canFlip) (void) = (void *)so_symbol(&yoyoloader_mod, "Java_com_yoyogames_runner_RunnerJNILib_canFlip");
 	g_IOFrameCount = (uint32_t *)so_symbol(&yoyoloader_mod, "g_IOFrameCount");
 	g_GML_DeltaTime = (int64_t *)so_symbol(&yoyoloader_mod, "g_GML_DeltaTime");
-	g_fNoAudio = (uint8_t *)so_symbol(&yoyoloader_mod, "g_fNoAudio");
 	Audio_GetTrackPos = (void *)so_symbol(&yoyoloader_mod, "_Z17Audio_GetTrackPosi");
 	
 	int lastX[SCE_TOUCH_MAX_REPORT] = {-1, -1, -1, -1, -1, -1, -1, -1};
 	int lastY[SCE_TOUCH_MAX_REPORT] = {-1, -1, -1, -1, -1, -1, -1, -1};
 	
+	setup_ended = 1;
 	glReleaseShaderCompiler();
 	for (;;) {
 		if (post_active) {
@@ -679,7 +693,218 @@ double GetPlatform() {
 	return forceWinMode ? 0.0f : 4.0f;
 }
 
+uint32_t *(*ReadPNGFile) (void *a1, int a2, int *a3, int *a4, int a5);
+void (*FreePNGFile) ();
+void (*InvalidateTextureState) ();
+
+void LoadTextureFromPNG_generic(uint32_t arg1, uint32_t arg2, uint32_t *flags, uint32_t *tex_id, uint32_t *texture) {
+	int width, height;
+	uint32_t *data = ReadPNGFile(arg1 , arg2, &width, &height, (*flags & 2) == 0);
+	if (data) {
+		InvalidateTextureState();
+		glGenTextures(1, tex_id);
+		glBindTexture(GL_TEXTURE_2D, *tex_id);
+		if (width == 2 && height == 1) {
+			if (data[0] == 0xFFBEADDE) {
+				uint32_t *ext_data;
+				uint32_t idx = (data[1] << 8) >> 8;
+				char fname[256];
+				sprintf(fname, "%s%u.pvr", data_path, idx);
+				FILE *f = fopen(fname, "rb");
+				if (f) {
+					debugPrintf("Loading externalized texture %s (Raw ID: 0x%X)\n", fname, data[1]);
+					fseek(f, 0, SEEK_END);
+					uint32_t size = ftell(f) - 0x34;
+					uint32_t metadata_size;
+					fseek(f, 0x08, SEEK_SET);
+					uint64_t format;
+					fread(&format, 1, 8, f);
+					fseek(f, 0x18, SEEK_SET);
+					fread(&height, 1, 4, f);
+					fread(&width, 1, 4, f);
+					fseek(f, 0x30, SEEK_SET);
+					fread(&metadata_size, 1, 4, f);
+					size -= metadata_size;
+					ext_data = vglMalloc(size);
+					fseek(f, metadata_size, SEEK_CUR);
+					fread(ext_data, 1, size, f);
+					fclose(f);
+					switch (format) {
+					case 0x00:
+						glCompressedTexImage2D(GL_TEXTURE_2D, 0, GL_COMPRESSED_RGB_PVRTC_2BPPV1_IMG, width, height, 0, size, ext_data);
+						break;
+					case 0x01:
+						glCompressedTexImage2D(GL_TEXTURE_2D, 0, GL_COMPRESSED_RGBA_PVRTC_2BPPV1_IMG, width, height, 0, size, ext_data);
+						break;
+					case 0x02:
+						glCompressedTexImage2D(GL_TEXTURE_2D, 0, GL_COMPRESSED_RGB_PVRTC_4BPPV1_IMG, width, height, 0, size, ext_data);
+						break;
+					case 0x03:
+						glCompressedTexImage2D(GL_TEXTURE_2D, 0, GL_COMPRESSED_RGBA_PVRTC_4BPPV1_IMG, width, height, 0, size, ext_data);
+						break;
+					case 0x04:
+						glCompressedTexImage2D(GL_TEXTURE_2D, 0, GL_COMPRESSED_RGBA_PVRTC_2BPPV2_IMG, width, height, 0, size, ext_data);
+						break;
+					case 0x05:
+						glCompressedTexImage2D(GL_TEXTURE_2D, 0, GL_COMPRESSED_RGBA_PVRTC_4BPPV2_IMG, width, height, 0, size, ext_data);
+						break;
+					case 0x06:
+						glCompressedTexImage2D(GL_TEXTURE_2D, 0, GL_ETC1_RGB8_OES, width, height, 0, size, ext_data);
+						break;
+					case 0x07:
+						glCompressedTexImage2D(GL_TEXTURE_2D, 0, GL_COMPRESSED_RGBA_S3TC_DXT1_EXT, width, height, 0, size, ext_data);
+						break;
+					case 0x09:
+						glCompressedTexImage2D(GL_TEXTURE_2D, 0, GL_COMPRESSED_RGBA_S3TC_DXT3_EXT, width, height, 0, size, ext_data);
+						break;
+					case 0x0B:
+						glCompressedTexImage2D(GL_TEXTURE_2D, 0, GL_COMPRESSED_RGBA_S3TC_DXT5_EXT, width, height, 0, size, ext_data);
+						break;
+					default:
+						debugPrintf("Unsupported externalized texture format (0x%llX)", format);
+						break;
+					}
+				} else {
+					debugPrintf("Loading externalized texture %s (Raw ID: 0x%X)\n", fname, data[1]);
+					sprintf(fname, "%s%u.png", data_path, idx);
+					ext_data = stbi_load(fname, &width, &height, NULL, 4);
+					glTexImage2DHook(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, ext_data);
+				}
+				vglFree(ext_data);
+			} else {
+				glTexImage2DHook(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
+			}
+		} else {
+			glTexImage2DHook(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
+		}
+		*flags = *flags | 0x40;
+		FreePNGFile();
+		texture[0] = 0x06;
+		if (flags != &texture[2]) {
+			texture[1] = width;
+			texture[2] = height;
+		} else {
+			texture[1] = ((width * *g_TextureScale - 1) | texture[1] & 0xFFFFE000) & 0xFC001FFF | ((height * *g_TextureScale - 1) << 13);
+		}
+		debugPrintf("Texture size: %dx%d\n", width, height);
+	} else {
+		debugPrintf("ERROR: Failed to load a PNG texture!\n");
+	}
+}
+
+void LoadTextureFromPNG_1(uint32_t *texture, int has_mips) {
+	LoadTextureFromPNG_generic(texture[23], texture[24], &texture[5], &texture[6], texture);
+}
+
+void LoadTextureFromPNG_2(uint32_t *texture, int has_mips) {
+	LoadTextureFromPNG_generic(texture[11], texture[12], &texture[4], &texture[5], texture);
+}
+
+void LoadTextureFromPNG_3(uint32_t *texture) {
+	LoadTextureFromPNG_generic(texture[9], texture[10], &texture[2], &texture[3], texture);
+}
+
+void LoadTextureFromPNG_4(uint32_t *texture) {
+	LoadTextureFromPNG_generic(texture[8], texture[9], &texture[2], &texture[3], texture);
+}
+
+int image_preload_idx = 0;
+uint32_t png_get_IHDR_hook(uint32_t *png_ptr, uint32_t *info_ptr, uint32_t *width, uint32_t *height, int *bit_depth, int *color_type, int *interlace_type, int *compression_type, int *filter_type) {
+	if (!png_ptr || !info_ptr || !width || !height)
+		return 0;
+	
+	*width = info_ptr[0];
+	*height = info_ptr[1];
+
+	if (bit_depth)
+		*bit_depth = *((uint8_t *)info_ptr + 24);
+
+	if (color_type)
+		*color_type = *((uint8_t *)info_ptr + 25);
+
+	if (compression_type)
+		*compression_type = *((uint8_t *)info_ptr + 26);
+
+	if (filter_type)
+		*filter_type = *((uint8_t *)info_ptr + 27);
+
+	if (interlace_type)
+		*interlace_type = *((uint8_t *)info_ptr + 28);
+
+	if (!setup_ended && *width == 2 && *height == 1) {
+		char fname[256];
+		sprintf(fname, "%s%d.pvr", data_path, image_preload_idx);
+		FILE *f = fopen(fname, "rb");
+		if (f) {
+			fseek(f, 0x18, SEEK_SET);
+			fread(height, 1, 4, f);
+			fread(width, 1, 4, f);
+			fclose(f);
+		} else {
+			sprintf(fname, "%s%d.png", data_path, image_preload_idx);
+			int dummy;
+			stbi_info(fname, width, height, &dummy);
+		}
+		image_preload_idx++;
+	}
+	return 1;
+}
+
+void SetWorkingDirectory() {
+	// This is the smallest to reimplement function after ProcessCommandLine where we can disable audio if required
+	if (disableAudio)
+		*g_fNoAudio = 1;
+	
+	if (!*g_pWorkingDirectory)
+		*g_pWorkingDirectory = strdup("assets/");
+}
+
 void patch_runner(void) {
+	FreePNGFile = so_symbol(&yoyoloader_mod, "_Z11FreePNGFilev");
+	ReadPNGFile = so_symbol(&yoyoloader_mod, "_Z11ReadPNGFilePviPiS0_b");
+	InvalidateTextureState = so_symbol(&yoyoloader_mod, "_Z23_InvalidateTextureStatev");
+	
+	hook_addr(so_symbol(&yoyoloader_mod, "png_get_IHDR"), (uintptr_t)&png_get_IHDR_hook);
+	hook_addr(so_symbol(&yoyoloader_mod, "_Z19SetWorkingDirectoryv"), (uintptr_t)&SetWorkingDirectory);
+	
+	uint8_t has_mips = 1;
+	uint32_t *LoadTextureFromPNG = (uint32_t *)so_symbol(&yoyoloader_mod, "_Z18LoadTextureFromPNGP7Texture10eMipEnable");
+	if (!LoadTextureFromPNG) {
+		LoadTextureFromPNG = (uint32_t *)so_symbol(&yoyoloader_mod, "_Z18LoadTextureFromPNGP7Texture");
+		has_mips = 0;
+	}
+	
+	debugPrintf("LoadTextureFromPNG has signature: 0x%X\n", *LoadTextureFromPNG);
+	if (!has_mips) {
+		uint32_t *p = LoadTextureFromPNG;
+		for (;;) {
+			if (*p == 0xE5900020) { // LDR R0, [R0,#0x20]
+				debugPrintf("Patching LoadTextureFromPNG to variant #4\n");
+				hook_addr(LoadTextureFromPNG, (uintptr_t)&LoadTextureFromPNG_4);
+				break;
+			} else if (*p == 0xE5900024) { // LDR R0, [R0,#0x24]
+				debugPrintf("Patching LoadTextureFromPNG to variant #3\n");
+				hook_addr(LoadTextureFromPNG, (uintptr_t)&LoadTextureFromPNG_3);
+				break;
+			}
+			p++;
+		}
+	} else {
+		switch (*LoadTextureFromPNG >> 16) {
+		case 0xE92D:
+			debugPrintf("Patching LoadTextureFromPNG to variant #1\n");
+			hook_addr(LoadTextureFromPNG, (uintptr_t)&LoadTextureFromPNG_1);
+			break;
+		case 0xE590:
+			debugPrintf("Patching LoadTextureFromPNG to variant #2\n");
+			hook_addr(LoadTextureFromPNG, (uintptr_t)&LoadTextureFromPNG_2);
+			break;
+		default:
+			fatal_error("Error: Unrecognized LoadTextureFromPNG signature: 0x%08X.", *LoadTextureFromPNG);
+			break;
+		}
+	}
+	
 	hook_addr(so_symbol(&yoyoloader_mod, "_Z30PackageManagerHasSystemFeaturePKc"), (uintptr_t)&ret0);
 	hook_addr(so_symbol(&yoyoloader_mod, "_Z17alBufferDebugNamejPKc"), (uintptr_t)&ret0);
 	hook_addr(so_symbol(&yoyoloader_mod, "_ZN13MemoryManager10DumpMemoryEP7__sFILE"), (uintptr_t)&ret0);
@@ -703,6 +928,10 @@ void patch_runner(void) {
 }
 
 void patch_runner_post_init(void) {
+	g_fNoAudio = (uint8_t *)so_symbol(&yoyoloader_mod, "g_fNoAudio");
+	g_pWorkingDirectory = (char *)so_symbol(&yoyoloader_mod, "g_pWorkingDirectory");
+	g_TextureScale = (int *)so_symbol(&yoyoloader_mod, "g_TextureScale");
+	
 	int *dbg_csol = (int *)so_symbol(&yoyoloader_mod, "_dbg_csol");
 	if (dbg_csol) {
 		kuKernelCpuUnrestrictedMemcpy((void *)(*(int *)so_symbol(&yoyoloader_mod, "_dbg_csol") + 0x0C), (void *)(so_symbol(&yoyoloader_mod, "_ZTV11TRelConsole") + 0x14), 4);
@@ -999,6 +1228,14 @@ FILE *fopen_hook(char *file, char *mode) {
 	char *s = strstr(file, "/ux0:");
 	if (s)
 		file = s + 1;
+	else {
+		s = strstr(file, "ux0:");
+		if (!s) {
+			char patched_fname[256];
+			sprintf(patched_fname, "%s%s", data_path_root, file);
+			return fopen(patched_fname, mode);
+		}
+	}
 	if (mode[0] == 'w')
 		recursive_mkdir(file);
 	return fopen(file, mode);
@@ -1458,7 +1695,7 @@ static so_default_dynlib default_dynlib[] = {
 	{ "putwc", (uintptr_t)&putwc },
 	{ "qsort", (uintptr_t)&qsort },
 	{ "read", (uintptr_t)&read },
-	{ "realloc", (uintptr_t)&realloc },
+	{ "realloc", (uintptr_t)&vglRealloc },
 	//{ "recv", (uintptr_t)&recv },
 	//{ "recvfrom", (uintptr_t)&recvfrom },
 	{ "remove", (uintptr_t)&sceIoRemove },
@@ -1554,17 +1791,22 @@ enum MethodIDs {
 	UNKNOWN = 0,
 	CALL_EXTENSION_FUNCTION,
 	DOUBLE_VALUE,
+	GAMEPAD_CONNECTED,
+	GAMEPAD_DESCRIPTION,
 	GET_UDID,
 	GET_DEFAULT_FRAMEBUFFER,
 	HTTP_POST,
 	HTTP_GET,
 	INIT,
-	OS_GET_INFO,
 	INPUT_STRING_ASYNC,
+	OS_GET_INFO,
+	PAUSE_MP3,
+	PLAY_MP3,
+	RESUME_MP3,
 	SHOW_MESSAGE,
 	SHOW_MESSAGE_ASYNC,
-	GAMEPAD_CONNECTED,
-	GAMEPAD_DESCRIPTION
+	STOP_MP3,
+	PLAYING_MP3	
 } MethodIDs;
 
 typedef struct {
@@ -1573,19 +1815,24 @@ typedef struct {
 } NameToMethodID;
 
 static NameToMethodID name_to_method_ids[] = {
-	{ "<init>", INIT },
 	{ "CallExtensionFunction", CALL_EXTENSION_FUNCTION },
 	{ "doubleValue", DOUBLE_VALUE },
+	{ "GamepadConnected", GAMEPAD_CONNECTED },
+	{ "GamepadDescription", GAMEPAD_DESCRIPTION },
 	{ "GetUDID", GET_UDID },
 	{ "GetDefaultFrameBuffer", GET_DEFAULT_FRAMEBUFFER },
 	{ "HttpGet", HTTP_GET },
 	{ "HttpPost", HTTP_POST },
+	{ "<init>", INIT },
 	{ "InputStringAsync", INPUT_STRING_ASYNC },
 	{ "OsGetInfo", OS_GET_INFO },
+	{ "PauseMP3", PAUSE_MP3 },
+	{ "PlayMP3", PLAY_MP3 },
+	{ "PlayingMP3", PLAYING_MP3 },
+	{ "ResumeMP3", RESUME_MP3 },
 	{ "ShowMessage", SHOW_MESSAGE },
 	{ "ShowMessageAsync", SHOW_MESSAGE_ASYNC },
-	{ "GamepadConnected", GAMEPAD_CONNECTED },
-	{ "GamepadDescription", GAMEPAD_DESCRIPTION },
+	{ "StopMP3", STOP_MP3 },
 };
 
 int GetMethodID(void *env, void *class, const char *name, const char *sig) {
@@ -1638,6 +1885,18 @@ void CallStaticVoidMethodV(void *env, void *obj, int methodID, uintptr_t *args) 
 			get_active = 1;
 		}
 		break;
+	case PLAY_MP3:
+		audio_player_play(args[0], args[1]);
+		break;
+	case STOP_MP3:
+		audio_player_stop();
+		break;
+	case PAUSE_MP3:
+		audio_player_pause();
+		break;
+	case RESUME_MP3:
+		audio_player_resume();
+		break;
 	default:
 		if (methodID != UNKNOWN)
 			debugPrintf("CallStaticVoidMethodV(%d)\n", methodID);
@@ -1649,6 +1908,8 @@ int CallStaticBooleanMethodV(void *env, void *obj, int methodID, uintptr_t *args
 	switch (methodID) {
 	case GAMEPAD_CONNECTED:
 		return is_gamepad_connected(args[0]);
+	case PLAYING_MP3:
+		return audio_player_is_playing();
 	default:
 		if (methodID != UNKNOWN)
 			debugPrintf("CallStaticBooleanMethodV(%d)\n", methodID);
@@ -1969,8 +2230,10 @@ int main(int argc, char **argv)
 	char pkg_name[256];
 #ifdef STANDALONE_MODE
 	sprintf(apk_path, "app0:game.apk");
+	strcpy(data_path_root, "app0:");
 #else
 	sprintf(apk_path, "%s/%s/game.apk", DATA_PATH, game_name);
+	sprintf(data_path_root, "%s/%s/", DATA_PATH, game_name);
 #endif
 	sprintf(data_path, "%s/%s/assets/", DATA_PATH, game_name);
 	recursive_mkdir(data_path);
@@ -1982,9 +2245,9 @@ int main(int argc, char **argv)
 
 	// Checking for dependencies
 	if (check_kubridge() < 0)
-		fatal_error("Error kubridge.skprx is not installed.");
+		fatal_error("Error: kubridge.skprx is not installed.");
 	if (!file_exists("ur0:/data/libshacccg.suprx") && !file_exists("ur0:/data/external/libshacccg.suprx"))
-		fatal_error("Error libshacccg.suprx is not installed.");
+		fatal_error("Error: libshacccg.suprx is not installed.");
 	
 	// Loading ARMv7 executable from the apk
 	unz_file_info file_info;
@@ -2154,7 +2417,7 @@ int main(int argc, char **argv)
 		glGenTextures(1, &bg_image);
 		glBindTexture(GL_TEXTURE_2D, bg_image);
 		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, bg_data);
-		free(bg_data);
+		vglFree(bg_data);
 		free(splash_buf);
 		glEnable(GL_TEXTURE_2D);
 		glEnableClientState(GL_VERTEX_ARRAY);

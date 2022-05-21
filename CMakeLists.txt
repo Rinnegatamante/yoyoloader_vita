@@ -20,7 +20,7 @@ execute_process(COMMAND git describe --abbrev=6 --dirty --always
 	OUTPUT_STRIP_TRAILING_WHITESPACE
 )
 
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fdiagnostics-color=always -g -Wl,-q,--wrap,memcpy,--wrap,memmove,--wrap,memset -Wno-format-overflow -D_GNU_SOURCE -Wall -O3 -mfloat-abi=softfp")
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fdiagnostics-color=always -g -Wl,-q,--wrap,memcpy,--allow-multiple-definition,--wrap,memmove,--wrap,memset -Wno-format-overflow -D_GNU_SOURCE -Wall -O3 -mfloat-abi=softfp")
 set(CMAKE_CXX_FLAGS "${CMAKE_C_FLAGS} -fdiagnostics-color=always -Wno-write-strings -DGIT_VERSION=\"${GIT_HASH}\" -std=c++11")
 
 if (LOADER)
@@ -48,6 +48,7 @@ add_executable(YoYoLoader
   loader/videoplayer_patch.c
   loader/net.c
   loader/profiler.c
+  loader/audio_player.c
 )
 
 target_link_libraries(YoYoLoader
@@ -62,6 +63,7 @@ target_link_libraries(YoYoLoader
   vitaGL
   vitashark
   mathneon
+  mpg123
   curl
   ssl
   crypto
@@ -100,6 +102,11 @@ add_executable(YoYoLoader
 )
 
 target_link_libraries(YoYoLoader
+  sndfile
+  FLAC
+  vorbis
+  vorbisenc
+  ogg
   imgui
   m
   z
@@ -147,6 +154,8 @@ vita_create_vpk(YoYoLoader.vpk ${VITA_TITLEID} eboot.bin
        ${CMAKE_SOURCE_DIR}/translations/Ukrainian.ini lang/Ukrainian.ini
        ${CMAKE_SOURCE_DIR}/translations/Portuguese_BR.ini lang/Portuguese_BR.ini
        ${CMAKE_SOURCE_DIR}/translations/Japanese.ini lang/Japanese.ini
+       ${CMAKE_SOURCE_DIR}/translations/Chinese_Simplified.ini lang/Chinese_Simplified.ini
+       ${CMAKE_SOURCE_DIR}/translations/Chinese_Traditional.ini lang/Chinese_Traditional.ini
        ${CMAKE_SOURCE_DIR}/Roboto.ttf Roboto.ttf
 )
 endif()
