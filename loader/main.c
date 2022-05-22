@@ -98,6 +98,8 @@ int get_active = 0;
 int get_index = 0;
 int setup_ended = 0;
 
+int deltarune_hack = 0;
+
 extern int (*YYGetInt32) (void *args, int idx);
 void (*Function_Add)(const char *name, intptr_t func, int argc, char ret);
 int (*Java_com_yoyogames_runner_RunnerJNILib_CreateVersionDSMap) (void *env, int a2, int sdk_ver, char *release_version, char *model, char *device, char *manufacturer, char *cpu_abi, char *cpu_abi2, char *bootloader, char *board, char *version, char *region, char *version_name, int has_keyboard);
@@ -115,6 +117,7 @@ int is_portrait = 0;
 char data_path[256];
 char data_path_root[256];
 char apk_path[256];
+char game_id[256];
 
 void patch_gamepad();
 void GamePadUpdate();
@@ -1198,11 +1201,18 @@ const char *gl_ret0[] = {
 };
 static size_t gl_numret = sizeof(gl_ret0) / sizeof(*gl_ret0);
 
+void glReadPixelsHook(GLint x, GLint y, GLsizei width, GLsizei height, GLenum format, GLenum type, GLvoid *data) {
+	if (deltarune_hack)
+		glFinish();
+	glReadPixels(x, y, width, height, format, type, data);
+}
+
 static so_default_dynlib gl_hook[] = {
 	{"glShaderSource", (uintptr_t)&glShaderSourceHook},
 	{"glTexParameterf", (uintptr_t)&glTexParameterfHook},
 	{"glTexParameteri", (uintptr_t)&glTexParameteriHook},
 	{"glBindFramebuffer", (uintptr_t)&glBindFramebufferHook},
+	{"glReadPixels", (uintptr_t)&glReadPixelsHook},
 };
 static size_t gl_numhook = sizeof(gl_hook) / sizeof(*gl_hook);
 
@@ -1593,7 +1603,7 @@ static so_default_dynlib default_dynlib[] = {
 	{ "glPixelStorei", (uintptr_t)&ret0 },
 	{ "glPopMatrix", (uintptr_t)&glPopMatrix },
 	{ "glPushMatrix", (uintptr_t)&glPushMatrix },
-	{ "glReadPixels", (uintptr_t)&glReadPixels },
+	{ "glReadPixels", (uintptr_t)&glReadPixelsHook },
 	{ "glScissor", (uintptr_t)&glScissor },
 	{ "glTexCoordPointer", (uintptr_t)&glTexCoordPointer },
 	{ "glTexEnvi", (uintptr_t)&glTexEnvi },
@@ -2314,7 +2324,6 @@ int main(int argc, char **argv)
 		unzReadCurrentFile(apk_file, splash_buf, splash_size);
 		unzCloseCurrentFile(apk_file);
 	}
-	unzClose(apk_file);
 
 	// Patching the executable
 	so_relocate(&yoyoloader_mod);
@@ -2437,6 +2446,31 @@ int main(int argc, char **argv)
 		glDisableClientState(GL_TEXTURE_COORD_ARRAY);
 		vglSwapBuffers(GL_FALSE);
 		glDeleteTextures(1, &bg_image);
+	}
+	
+	// Extracting Game ID
+	void *tmp_buf = malloc(32 * 1024 * 1024);
+	unzLocateFile(apk_file, "assets/game.droid", NULL);
+	unzOpenCurrentFile(apk_file);
+	unzReadCurrentFile(apk_file, tmp_buf, 20);
+	uint32_t offs;
+	unzReadCurrentFile(apk_file, &offs, 4);
+	uint32_t target = offs - 28;
+	while (target > 32 * 1024 * 1024) {
+		unzReadCurrentFile(apk_file, tmp_buf, 32 * 1024 * 1024);
+		target -= 32 * 1024 * 1024;
+	}
+	unzReadCurrentFile(apk_file, tmp_buf, target);
+	unzReadCurrentFile(apk_file, &offs, 4);
+	unzReadCurrentFile(apk_file, game_id, offs + 1);
+	unzClose(apk_file);
+	free(tmp_buf);
+	debugPrintf("Detected %s as Game ID\n", game_id);
+	
+	// Enabling game specific gamehacks
+	if (!strcmp(game_id, "DELTARUNE")) {
+		debugPrintf("Enabling Deltarune specific gamehack!\n");
+		deltarune_hack = 1;
 	}
 	
 	// Starting the Runner
