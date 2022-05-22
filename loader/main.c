@@ -696,7 +696,6 @@ void (*FreePNGFile) ();
 void (*InvalidateTextureState) ();
 
 void LoadTextureFromPNG_generic(uint32_t arg1, uint32_t arg2, uint32_t *flags, uint32_t *tex_id, uint32_t *texture) {
-	uint8_t needs_free = 1;
 	int width, height;
 	uint32_t *data = ReadPNGFile(arg1 , arg2, &width, &height, (*flags & 2) == 0);
 	if (data) {
@@ -2032,13 +2031,13 @@ void *CallStaticObjectMethodV(void *env, void *obj, int methodID, uintptr_t *arg
 	case CALL_EXTENSION_FUNCTION:
 		{
 			ext_func *f = (ext_func *)args;
-			if (!strcmp(f->module_name, "PickMe")) {
+			if (!strcmp(f->module_name, "PickMe")) { // Used by Super Mario Maker: World Engine
 				if (!strcmp(f->method_name, "getDire1")) {
 					sprintf(r, "%s%s/", data_path, f->object_array);
 					recursive_mkdir(r);
 					return f->object_array;
 				}
-			} else if (!strcmp(f->module_name, "NOTCH")) {
+			} else if (!strcmp(f->module_name, "NOTCH")) { // Used by Forager
 				jni_double = 0.0f;
 				return &jni_double;
 			}
