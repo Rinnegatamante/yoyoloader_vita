@@ -82,7 +82,6 @@ int forceGL1 = 0;
 int forceSplashSkip = 0;
 int forceWinMode = 0;
 int forceBilinear = 0;
-int compressTextures = 0;
 int has_net = 0;
 extern int maximizeMem;
 int debugShaders = 0;
@@ -153,7 +152,6 @@ void loadConfig(const char *game) {
 			else if (strcmp("forceBilinear", buffer) == 0) forceBilinear = value;
 			else if (strcmp("winMode", buffer) == 0) forceWinMode = value;
 			else if (strcmp("debugShaders", buffer) == 0) debugShaders = value;
-			else if (strcmp("compressTextures", buffer) == 0) compressTextures = value;
 			else if (strcmp("debugMode", buffer) == 0) debugMode = value;
 			else if (strcmp("noSplash", buffer) == 0) forceSplashSkip = value;
 			else if (strcmp("maximizeMem", buffer) == 0) maximizeMem = value;
@@ -698,6 +696,7 @@ void (*FreePNGFile) ();
 void (*InvalidateTextureState) ();
 
 void LoadTextureFromPNG_generic(uint32_t arg1, uint32_t arg2, uint32_t *flags, uint32_t *tex_id, uint32_t *texture) {
+	uint8_t needs_free = 1;
 	int width, height;
 	uint32_t *data = ReadPNGFile(arg1 , arg2, &width, &height, (*flags & 2) == 0);
 	if (data) {
@@ -757,8 +756,14 @@ void LoadTextureFromPNG_generic(uint32_t arg1, uint32_t arg2, uint32_t *flags, u
 					case 0x09:
 						glCompressedTexImage2D(GL_TEXTURE_2D, 0, GL_COMPRESSED_RGBA_S3TC_DXT3_EXT, width, height, 0, size, ext_data);
 						break;
-					case 0x0B:
-						glCompressedTexImage2D(GL_TEXTURE_2D, 0, GL_COMPRESSED_RGBA_S3TC_DXT5_EXT, width, height, 0, size, ext_data);
+					case 0x0B: // Load DXT5 as pre-swizzled
+						glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 8, 8, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+						SceGxmTexture *gxm_tex = vglGetGxmTexture(GL_TEXTURE_2D);
+						vglFree(vglGetTexDataPointer(GL_TEXTURE_2D));
+						void *tex_data = vglForceAlloc(size);
+						sceClibMemcpy(tex_data, ext_data, size);
+						sceGxmTextureInitSwizzledArbitrary(gxm_tex, tex_data, SCE_GXM_TEXTURE_FORMAT_UBC3_ABGR, width, height, 0);
+						vglOverloadTexDataPointer(GL_TEXTURE_2D, tex_data);
 						break;
 					default:
 						debugPrintf("Unsupported externalized texture format (0x%llX)", format);
@@ -768,14 +773,14 @@ void LoadTextureFromPNG_generic(uint32_t arg1, uint32_t arg2, uint32_t *flags, u
 					debugPrintf("Loading externalized texture %s (Raw ID: 0x%X)\n", fname, data[1]);
 					sprintf(fname, "%s%u.png", data_path, idx);
 					ext_data = stbi_load(fname, &width, &height, NULL, 4);
-					glTexImage2DHook(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, ext_data);
+					glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, ext_data);
 				}
 				vglFree(ext_data);
 			} else {
-				glTexImage2DHook(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
+				glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
 			}
 		} else {
-			glTexImage2DHook(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
+			glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
 		}
 		*flags = *flags | 0x40;
 		FreePNGFile();
@@ -1167,13 +1172,6 @@ void glTexParameterfHook(GLenum target, GLenum pname, GLfloat param) {
 	glTexParameteri(target, pname, param);
 }
 
-void glTexImage2DHook(GLenum target, GLint level, GLint internalformat, GLsizei width, GLsizei height, GLint border, GLenum format, GLenum type, const void * data) {
-	if (compressTextures && data && width >= 1024 && height >= 1024) // Compress just big spritesets since smaller ones get updated via glTexSubImage2D
-		glTexImage2D(target, level, GL_COMPRESSED_RGBA_S3TC_DXT5_EXT, width, height, border, format, type, data);
-	else
-		glTexImage2D(target, level, internalformat, width, height, border, format, type, data);
-}
-
 void *retJNI(int dummy) {
 	return fake_env;
 }
@@ -1203,7 +1201,6 @@ static size_t gl_numret = sizeof(gl_ret0) / sizeof(*gl_ret0);
 
 static so_default_dynlib gl_hook[] = {
 	{"glShaderSource", (uintptr_t)&glShaderSourceHook},
-	{"glTexImage2D", (uintptr_t)&glTexImage2DHook},
 	{"glTexParameterf", (uintptr_t)&glTexParameterfHook},
 	{"glTexParameteri", (uintptr_t)&glTexParameteriHook},
 	{"glBindFramebuffer", (uintptr_t)&glBindFramebufferHook},
@@ -1601,7 +1598,7 @@ static so_default_dynlib default_dynlib[] = {
 	{ "glScissor", (uintptr_t)&glScissor },
 	{ "glTexCoordPointer", (uintptr_t)&glTexCoordPointer },
 	{ "glTexEnvi", (uintptr_t)&glTexEnvi },
-	{ "glTexImage2D", (uintptr_t)&glTexImage2DHook },
+	{ "glTexImage2D", (uintptr_t)&glTexImage2D },
 	{ "glTexParameterf", (uintptr_t)&glTexParameterfHook },
 	{ "glTexParameteri", (uintptr_t)&glTexParameteriHook },
 	{ "glVertexPointer", (uintptr_t)&glVertexPointer },
@@ -2284,7 +2281,6 @@ int main(int argc, char **argv)
 #endif
 	debugPrintf("|Enable Network Features: %s                  |\n", has_net ? "Y" : "N");
 	debugPrintf("|Force Bilinear Filtering: %s                 |\n", forceBilinear ? "Y" : "N");
-	debugPrintf("|Compress Textures: %s                        |\n", compressTextures ? "Y" : "N");
 	debugPrintf("+--------------------------------------------+\n\n\n");
 	
 	if (has_net) {

@@ -23,7 +23,7 @@ Note that patches to the bytecode may still be required in order to fix resoluti
 
 A comprehensive Compatibility List can be found here: https://yoyo.rinnegatamante.it. You can contribute to it by opening an Issue here: https://github.com/Rinnegatamante/YoYo-Loader-Vita-Compatibility/issues.
 
-If a game seems to be running out of memory, you can try to fix this issue by applying pngquant on images inside game.droid (A guide about this can be found here: https://gist.github.com/CatoTheYounger97/10db240958c9ba17af9069a7f8cc1716 ) or by externalizing musics and sounds loading (A built-in feature to apply this can be found in the Settings menu in the Game Selector).
+If a game seems to be running out of memory, you can try to fix this issue by externalizing its assets with the related built-in function in the Game Selector. It is also possible to squeeze even more available mem by manually compressing externalized textures in PVRTC2 format (A guide can be found here: https://gist.github.com/CatoTheYounger97/ddc2dd4ec459212466ea6f9887bc764b ).
 
 ## Keyboard keys emulation
 

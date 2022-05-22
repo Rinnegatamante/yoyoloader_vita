@@ -102,6 +102,7 @@ add_executable(YoYoLoader
 )
 
 target_link_libraries(YoYoLoader
+  bz2
   sndfile
   FLAC
   vorbis
