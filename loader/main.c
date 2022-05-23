@@ -117,7 +117,6 @@ int is_portrait = 0;
 char data_path[256];
 char data_path_root[256];
 char apk_path[256];
-char game_id[256];
 
 void patch_gamepad();
 void GamePadUpdate();
@@ -2449,6 +2448,7 @@ int main(int argc, char **argv)
 	}
 	
 	// Extracting Game ID
+	char game_id[256];
 	void *tmp_buf = malloc(32 * 1024 * 1024);
 	unzLocateFile(apk_file, "assets/game.droid", NULL);
 	unzOpenCurrentFile(apk_file);

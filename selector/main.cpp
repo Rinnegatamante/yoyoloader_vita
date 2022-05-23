@@ -954,15 +954,27 @@ void patchForExternalization(FILE *in, FILE *out) {
 			fread(generic_mem_buffer, 1, entries * 4, in);
 			fwrite(generic_mem_buffer, 1, entries * 4, out);
 			uint32_t *buffer32 = (uint32_t *)generic_mem_buffer;
+			uint32_t has_extra;
 			for (int i = 0; i < entries; i++) {
+				has_extra = 0;
 				fseek(in, buffer32[i], SEEK_SET);
 				fread(&extra, 1, 4, in);
 				fwrite(&extra, 1, 4, out);
 				fread(&extra, 1, 4, in);
-				if (!extra)
+				if (!extra) {
 					fwrite(&extra, 1, 4, out);
+					has_extra = 1;
+				}
 				extra = first_offset + i * 76;
 				fwrite(&extra, 1, 4, out);
+			}
+			if (has_extra)
+				fseek(in, 4, SEEK_CUR);
+			uint32_t cur_pos = ftell(in);
+			if (cur_pos < first_offset) {
+				//printf("%u bytes of padding required\n", first_offset - cur_pos);
+				fread(generic_mem_buffer, 1, first_offset - cur_pos, in);
+				fwrite(generic_mem_buffer, 1, first_offset - cur_pos, out);
 			}
 			uint32_t img_data[2];
 			img_data[0] = 0xFFBEADDE;
