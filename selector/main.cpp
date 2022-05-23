@@ -58,6 +58,7 @@ extern void video_close();
 extern "C" {
 	int debugPrintf(const char *fmt, ...) {return 0;}
 	void fatal_error(const char *fmt, ...);
+	extern int runner_loaded;
 };
 
 void DrawDownloaderDialog(int index, float downloaded_bytes, float total_bytes, char *text, int passes, bool self_contained);
@@ -593,105 +594,9 @@ void populateSoundsTable(FILE *f) {
 	fclose(f);
 }
 
-int bunzip_one(FILE *f) {
-	int bzError;
-	BZFILE *bzf = BZ2_bzReadOpen(&bzError, f, 0, 0, NULL, 0);
-
-	int total_size = 0;
-	while (bzError == BZ_OK) {
-		total_size += BZ2_bzRead(&bzError, bzf, &generic_mem_buffer[total_size], MEM_BUFFER_SIZE);
-    }
-
-	BZ2_bzReadClose(&bzError, bzf);
-	return total_size;
-}
-
-enum {
-	QOI_INDEX = 0x00,
-	QOI_RUN_8 = 0x40,
-	QOI_RUN_16 = 0x60,
-	QOI_DIFF_8 = 0x80,
-	QOI_DIFF_16 = 0xC0,
-	QOI_DIFF_24 = 0xE0,
+extern "C" {
+	void *decode_qoi(void *buffer, int size, int *w, int *h);
 };
-
-#define QOI_COLOR 0xF0
-#define QOI_MASK_2 0xC0
-#define QOI_MASK_3 0xE0
-#define QOI_MASK_4 0xF0
-
-// Derived from https://github.com/krzys-h/UndertaleModTool/blob/master/UndertaleModLib/Util/QoiConverter.cs
-void *decode_qoi(void *buffer, int size, int *w, int *h) {
-	uint8_t *p = (uint8_t *)buffer;
-	*w = p[5] << 8 + p[4];
-	*h = p[7] << 8 + p[6];
-	int len = p[8] | (p[9] << 8) | (p[10] << 16) | p[11] << 24;
-	
-	uint8_t *out = (uint8_t *)malloc(*w * *h * 4);
-	uint8_t *res = out;
-	uint8_t *end = out + *w * *h * 4;
-	
-	uint8_t b = 0, g = 0, r = 0, a = 0xFF;
-	int run = 0, pos = 0;
-	p = &p[12];
-	uint8_t index[64 * 4];
-	while (out < end) {
-		if (run > 0) {
-			run--;
-		} else if (pos < len) {
-			int b1 = p[pos++];
-			if ((b1 & QOI_MASK_2) == QOI_INDEX) {
-				int indexPos = (b1 ^ QOI_INDEX) << 2;
-				r = index[indexPos];
-				g = index[indexPos + 1];
-				b = index[indexPos + 2];
-				a = index[indexPos + 3];
-			} else if ((b1 & QOI_MASK_3) == QOI_RUN_8) {
-				run = b1 & 0x1F;
-			} else if ((b1 & QOI_MASK_3) == QOI_RUN_16) {
-				int b2 = p[pos++];
-				run = (((b1 & 0x1F) << 8) | b2) + 32;
-			} else if ((b1 & QOI_MASK_2) == QOI_DIFF_8) {
-				r += (uint8_t)(((b1 & 48) << 26 >> 30) & 0xFF);
-				g += (uint8_t)(((b1 & 12) << 28 >> 22 >> 8) & 0xFF);
-				b += (uint8_t)(((b1 & 3) << 30 >> 14 >> 16) & 0xFF);
-			} else if ((b1 & QOI_MASK_3) == QOI_DIFF_16) {
-				int b2 = p[pos++];
-				int merged = b1 << 8 | b2;
-				r += (uint8_t)(((merged & 7936) << 19 >> 27) & 0xff);
-				g += (uint8_t)(((merged & 240) << 24 >> 20 >> 8) & 0xff);
-				b += (uint8_t)(((merged & 15) << 28 >> 12 >> 16) & 0xff);
-			} else if ((b1 & QOI_MASK_4) == QOI_DIFF_24) {
-				int b2 = p[pos++];
-				int b3 = p[pos++];
-				int merged = b1 << 16 | b2 << 8 | b3;
-				r += (uint8_t)(((merged & 1015808) << 12 >> 27) & 0xff);
-				g += (uint8_t)(((merged & 31744) << 17 >> 19 >> 8) & 0xff);
-				b += (uint8_t)(((merged & 992) << 22 >> 11 >> 16) & 0xff);
-				a += (uint8_t)(((merged & 31) << 27 >> 3 >> 24) & 0xff);	
-			} else if ((b1 & QOI_MASK_4) == QOI_COLOR) {
-				if ((b1 & 8) != 0)
-					r = p[pos++];
-				if ((b1 & 4) != 0)
-					g = p[pos++];
-				if ((b1 & 2) != 0)
-					b = p[pos++];
-				if ((b1 & 1) != 0)
-					a = p[pos++];
-			}
-			int indexPos2 = ((r ^ g ^ b ^ a) & 63) << 2;
-			index[indexPos2] = r;
-			index[indexPos2 + 1] = g;
-			index[indexPos2 + 2] = b;
-			index[indexPos2 + 3] = a;
-		}
-		*out++ = r;
-		*out++ = g;
-		*out++ = b;
-		*out++ = a;
-	}
-	return res;
-}
 
 GLuint ext_texture;
 void dump_pvr_texture(const char *fname, void *buf, int w, int h) {
@@ -817,10 +722,12 @@ void externalizeSoundsAndTextures(FILE *f, int audiogroup_idx, zipFile dst_file,
 					offsets[i] = extra;
 				fseek(f, backup, SEEK_SET);
 			}
+			tot_idx = entries;
 			for (int i = 0; i < entries; i++) {
+				cur_idx = i;
 				sprintf(fname, "%s/%d.%s", assets_path, i, has_pvr ? "pvr" : "png");
 				fseek(f, offsets[i], SEEK_SET);
-				fread(generic_mem_buffer, 1, 4, f);
+				fread(generic_mem_buffer, 1, offsets[i + 1] - offsets[i], f);
 				uint32_t *buffer32 = (uint32_t *)generic_mem_buffer;
 				uint32_t buf_size;
 				void *buf;
@@ -828,18 +735,7 @@ void externalizeSoundsAndTextures(FILE *f, int audiogroup_idx, zipFile dst_file,
 				FILE *f2;
 				switch (*buffer32) {
 				case 0x716F7A32: // Bzip2 + Qoi
-					fseek(f, 4, SEEK_CUR);
-					buf_size = bunzip_one(f);
-					buf = decode_qoi(generic_mem_buffer, buf_size, &w, &h);
-					if (has_pvr) {
-						dump_pvr_texture(fname, buf, w, h);
-					} else {
-						stbi_write_png(fname, w, h, 4, buf, w * 4);
-						free(buf);
-					}
-					break;
 				case 0x716F6966: // Qoi
-					fread(&generic_mem_buffer[4], 1, offsets[i + 1] - offsets[i] - 4, f);
 					buf = decode_qoi(generic_mem_buffer, offsets[i + 1] - offsets[i], &w, &h);
 					if (has_pvr) {
 						dump_pvr_texture(fname, buf, w, h);
@@ -852,12 +748,10 @@ void externalizeSoundsAndTextures(FILE *f, int audiogroup_idx, zipFile dst_file,
 					if (offsets[i + 1] - offsets[i] != 76) { // Skipping already externalized textures
 						if (has_pvr) {
 							int dummy;
-							fread(&generic_mem_buffer[4], 1, offsets[i + 1] - offsets[i] - 4, f);
 							buf = stbi_load_from_memory(generic_mem_buffer, offsets[i + 1] - offsets[i], &w, &h, NULL, 4);
 							dump_pvr_texture(fname, buf, w, h);
 						} else {
 							f2 = fopen(fname, "wb+");
-							fread(&generic_mem_buffer[4], 1, offsets[i + 1] - offsets[i] - 4, f);
 							fwrite(generic_mem_buffer, 1, offsets[i + 1] - offsets[i], f2);
 							fclose(f2);
 						}
@@ -1010,6 +904,7 @@ bool isExternalizedSound(char *fname) {
 }
 
 int externalizer_thread(unsigned int argc, void *argv) {
+	int has_runner_extracted = 0;
 	cur_step = 0;
 	char *game = (char *)argv;
 	char apk_path[256], tmp_path[256], fname[512], fname2[512], assets_path[256];
@@ -1093,11 +988,24 @@ int externalizer_thread(unsigned int argc, void *argv) {
 					fclose(f);
 				}
 			} else {
-				while (executed_bytes < file_info.uncompressed_size) {
-					uint32_t read_size = (file_info.uncompressed_size - executed_bytes) > MEM_BUFFER_SIZE ? MEM_BUFFER_SIZE : (file_info.uncompressed_size - executed_bytes);
-					unzReadCurrentFile(src_file, generic_mem_buffer, read_size);
-					zipWriteInFileInZip(dst_file, generic_mem_buffer, read_size);
-					executed_bytes += read_size;
+				if (!runner_loaded && strstr(fname, "libyoyo.so")) { // We may need the runner if the game has QOI textures
+					has_runner_extracted = 1;
+					FILE *y = fopen("ux0:data/gms/libyoyo.tmp", "wb+");
+					while (executed_bytes < file_info.uncompressed_size) {
+						uint32_t read_size = (file_info.uncompressed_size - executed_bytes) > MEM_BUFFER_SIZE ? MEM_BUFFER_SIZE : (file_info.uncompressed_size - executed_bytes);
+						unzReadCurrentFile(src_file, generic_mem_buffer, read_size);
+						fwrite(generic_mem_buffer, 1, read_size, y);
+						zipWriteInFileInZip(dst_file, generic_mem_buffer, read_size);
+						executed_bytes += read_size;
+					}
+					fclose(y);
+				} else {
+					while (executed_bytes < file_info.uncompressed_size) {
+						uint32_t read_size = (file_info.uncompressed_size - executed_bytes) > MEM_BUFFER_SIZE ? MEM_BUFFER_SIZE : (file_info.uncompressed_size - executed_bytes);
+						unzReadCurrentFile(src_file, generic_mem_buffer, read_size);
+						zipWriteInFileInZip(dst_file, generic_mem_buffer, read_size);
+						executed_bytes += read_size;
+					}
 				}
 			}
 			unzCloseCurrentFile(src_file);
@@ -1110,10 +1018,11 @@ int externalizer_thread(unsigned int argc, void *argv) {
 	cur_step = 1;
 	f = fopen("ux0:data/gms/shared/tmp/tmp.droid", "rb+");
 	externalizeSoundsAndTextures(f, 0, dst_file, assets_path);
+	if (has_runner_extracted)
+		sceIoRemove("ux0:data/gms/libyoyo.tmp");
 	f = fopen("ux0:data/gms/shared/tmp/tmp.droid", "rb");
 	FILE *f2 = fopen("ux0:data/gms/shared/tmp/tmp2.droid", "wb+");
 	patchForExternalization(f, f2);
-	
 	sceIoRemove("ux0:data/gms/shared/tmp/tmp.droid");
 	f2 = fopen("ux0:data/gms/shared/tmp/tmp2.droid", "rb");
 	fseek(f2, 0, SEEK_END);
@@ -1225,7 +1134,7 @@ void ExternalizeApk(char *game) {
 	saved_size = -1.0f;
 	extracting = true;
 	externalizing = true;
-	SceUID externalizer_thid = sceKernelCreateThread("Externalizer Thread", &externalizer_thread, 0x10000100, 0x100000, 0, 0, NULL);
+	SceUID externalizer_thid = sceKernelCreateThread("Externalizer Thread", &externalizer_thread, 0x10000100, 0x800000, 0, 0, NULL);
 	sceKernelStartThread(externalizer_thid, strlen(game) + 1, game);
 }
 
@@ -1601,7 +1510,7 @@ int main(int argc, char *argv[]) {
 	}
 	
 	GameSelection *hovered = nullptr;
-	vglInitExtended(0, 960, 544, 0x1800000, SCE_GXM_MULTISAMPLE_4X);
+	vglInitExtended(0, 960, 544, 0x1800000, SCE_GXM_MULTISAMPLE_NONE);
 	ImGui::CreateContext();
 	SceKernelThreadInfo info;
 	info.size = sizeof(SceKernelThreadInfo);
