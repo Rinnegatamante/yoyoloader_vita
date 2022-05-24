@@ -751,14 +751,17 @@ void LoadTextureFromPNG_generic(uint32_t arg1, uint32_t arg2, uint32_t *flags, u
 					case 0x09:
 						glCompressedTexImage2D(GL_TEXTURE_2D, 0, GL_COMPRESSED_RGBA_S3TC_DXT3_EXT, width, height, 0, size, ext_data);
 						break;
-					case 0x0B: // Load DXT5 as pre-swizzled
-						glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 8, 8, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
-						SceGxmTexture *gxm_tex = vglGetGxmTexture(GL_TEXTURE_2D);
-						vglFree(vglGetTexDataPointer(GL_TEXTURE_2D));
-						void *tex_data = vglForceAlloc(size);
-						sceClibMemcpy(tex_data, ext_data, size);
-						sceGxmTextureInitSwizzledArbitrary(gxm_tex, tex_data, SCE_GXM_TEXTURE_FORMAT_UBC3_ABGR, width, height, 0);
-						vglOverloadTexDataPointer(GL_TEXTURE_2D, tex_data);
+					case 0x0B:
+						if (metadata_size == 4) { // Load DXT5 as pre-swizzled
+							glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 8, 8, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+							SceGxmTexture *gxm_tex = vglGetGxmTexture(GL_TEXTURE_2D);
+							vglFree(vglGetTexDataPointer(GL_TEXTURE_2D));
+							void *tex_data = vglForceAlloc(size);
+							sceClibMemcpy(tex_data, ext_data, size);
+							sceGxmTextureInitSwizzledArbitrary(gxm_tex, tex_data, SCE_GXM_TEXTURE_FORMAT_UBC3_ABGR, width, height, 0);
+							vglOverloadTexDataPointer(GL_TEXTURE_2D, tex_data);
+						} else
+							glCompressedTexImage2D(GL_TEXTURE_2D, 0, GL_COMPRESSED_RGBA_S3TC_DXT5_EXT, width, height, 0, size, ext_data);
 						break;
 					default:
 						debugPrintf("Unsupported externalized texture format (0x%llX)", format);
