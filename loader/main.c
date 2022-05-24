@@ -764,11 +764,11 @@ void LoadTextureFromPNG_generic(uint32_t arg1, uint32_t arg2, uint32_t *flags, u
 							glCompressedTexImage2D(GL_TEXTURE_2D, 0, GL_COMPRESSED_RGBA_S3TC_DXT5_EXT, width, height, 0, size, ext_data);
 						break;
 					default:
-						debugPrintf("Unsupported externalized texture format (0x%llX)", format);
+						debugPrintf("Unsupported externalized texture format (0x%llX).\n", format);
 						break;
 					}
 				} else {
-					debugPrintf("Loading externalized texture %s (Raw ID: 0x%X)\n", fname, data[1]);
+					debugPrintf("Loading externalized texture %s (Raw ID: 0x%X).\n", fname, data[1]);
 					sprintf(fname, "%s%u.png", data_path, idx);
 					ext_data = stbi_load(fname, &width, &height, NULL, 4);
 					glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, ext_data);
