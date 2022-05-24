@@ -149,6 +149,7 @@ vita_create_vpk(YoYoLoader.vpk ${VITA_TITLEID} eboot.bin
        ${CMAKE_SOURCE_DIR}/livearea/template.xml sce_sys/livearea/contents/template.xml
        ${CMAKE_BINARY_DIR}/loader.bin loader.bin
        ${CMAKE_BINARY_DIR}/loader2.bin loader2.bin
+       ${CMAKE_SOURCE_DIR}/translations/Czech.ini lang/Czech.ini
        ${CMAKE_SOURCE_DIR}/translations/English.ini lang/English.ini
        ${CMAKE_SOURCE_DIR}/translations/German.ini lang/German.ini
        ${CMAKE_SOURCE_DIR}/translations/Italian.ini lang/Italian.ini

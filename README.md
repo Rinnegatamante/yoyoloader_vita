@@ -74,7 +74,7 @@ After all these requirements are met, you can compile the loader similarly to ho
 ## Credits
 
 - TheFloW for the original .so loader.
-- JohnnyonFlame for GMSLoader used as reference for some implementations and for generic advices.
+- JohnnyonFlame for GMLoader used as reference for some implementations, for generic advices and for maintaining the Brazilian Portuguese translation.
 - Once13One for the Livearea assets and the README showcase image.
 - hatoving for the German translation.
 - BetterWinds and SofyUchiha for the Spanish translation.
@@ -82,5 +82,6 @@ After all these requirements are met, you can compile the loader similarly to ho
 - Titi Clash for the Brazilian Portuguese translation.
 - kuragehime for the Japanese translation.
 - ikzouo for the Simplified and Traditional Chinese translations.
+- Grip-hearttin' for the Czech translation.
 - CatoTheYounger for providing most of the banners used in the game selector and testing several new features of the loader.
 - Everyone who contributed, tested and provided support over Vita Nuova Discord channel.

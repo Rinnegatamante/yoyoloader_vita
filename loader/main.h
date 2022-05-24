@@ -57,4 +57,10 @@ typedef struct retval_t {
 	retval_type kind;
 } retval_t;
 
+enum {
+	TOUCH_DOWN,
+	TOUCH_UP,
+	TOUCH_MOVE
+};
+
 #endif

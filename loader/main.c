@@ -103,6 +103,7 @@ int deltarune_hack = 0;
 extern int (*YYGetInt32) (void *args, int idx);
 void (*Function_Add)(const char *name, intptr_t func, int argc, char ret);
 int (*Java_com_yoyogames_runner_RunnerJNILib_CreateVersionDSMap) (void *env, int a2, int sdk_ver, char *release_version, char *model, char *device, char *manufacturer, char *cpu_abi, char *cpu_abi2, char *bootloader, char *board, char *version, char *region, char *version_name, int has_keyboard);
+int (*Java_com_yoyogames_runner_RunnerJNILib_TouchEvent) (void *env, int a2, int type, int id, float x, float y);
 float (*Audio_GetTrackPos) (int id);
 uint8_t *g_fNoAudio;
 int64_t *g_GML_DeltaTime;
@@ -514,15 +515,8 @@ int DebugPrintf(int *target, const char *fmt, ...) {
 	return 0;
 }
 
-enum {
-	TOUCH_DOWN,
-	TOUCH_UP,
-	TOUCH_MOVE
-};
-
 void main_loop() {
 	int (*Java_com_yoyogames_runner_RunnerJNILib_Process) (void *env, int a2, int w, int h, float accel_x, float accel_y, float accel_z, int keypad_open, int orientation, float refresh_rate) = (void *)so_symbol(&yoyoloader_mod, "Java_com_yoyogames_runner_RunnerJNILib_Process");
-	int (*Java_com_yoyogames_runner_RunnerJNILib_TouchEvent) (void *env, int a2, int type, int id, float x, float y) = (void *)so_symbol(&yoyoloader_mod, "Java_com_yoyogames_runner_RunnerJNILib_TouchEvent");
 	int (*Java_com_yoyogames_runner_RunnerJNILib_InputResult) (void *env, int a2, char *string, int state, int id) = (void *)so_symbol(&yoyoloader_mod, "Java_com_yoyogames_runner_RunnerJNILib_InputResult");
 	int (*Java_com_yoyogames_runner_RunnerJNILib_HttpResult) (void *env, int a2, void *result, int responde_code, int id, char *url, void *header) = (void *)so_symbol(&yoyoloader_mod, "Java_com_yoyogames_runner_RunnerJNILib_HttpResult");
 	int (*Java_com_yoyogames_runner_RunnerJNILib_canFlip) (void) = (void *)so_symbol(&yoyoloader_mod, "Java_com_yoyogames_runner_RunnerJNILib_canFlip");
@@ -757,21 +751,24 @@ void LoadTextureFromPNG_generic(uint32_t arg1, uint32_t arg2, uint32_t *flags, u
 					case 0x09:
 						glCompressedTexImage2D(GL_TEXTURE_2D, 0, GL_COMPRESSED_RGBA_S3TC_DXT3_EXT, width, height, 0, size, ext_data);
 						break;
-					case 0x0B: // Load DXT5 as pre-swizzled
-						glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 8, 8, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
-						SceGxmTexture *gxm_tex = vglGetGxmTexture(GL_TEXTURE_2D);
-						vglFree(vglGetTexDataPointer(GL_TEXTURE_2D));
-						void *tex_data = vglForceAlloc(size);
-						sceClibMemcpy(tex_data, ext_data, size);
-						sceGxmTextureInitSwizzledArbitrary(gxm_tex, tex_data, SCE_GXM_TEXTURE_FORMAT_UBC3_ABGR, width, height, 0);
-						vglOverloadTexDataPointer(GL_TEXTURE_2D, tex_data);
+					case 0x0B:
+						if (metadata_size == 4) { // Load DXT5 as pre-swizzled
+							glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 8, 8, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+							SceGxmTexture *gxm_tex = vglGetGxmTexture(GL_TEXTURE_2D);
+							vglFree(vglGetTexDataPointer(GL_TEXTURE_2D));
+							void *tex_data = vglForceAlloc(size);
+							sceClibMemcpy(tex_data, ext_data, size);
+							sceGxmTextureInitSwizzledArbitrary(gxm_tex, tex_data, SCE_GXM_TEXTURE_FORMAT_UBC3_ABGR, width, height, 0);
+							vglOverloadTexDataPointer(GL_TEXTURE_2D, tex_data);
+						} else
+							glCompressedTexImage2D(GL_TEXTURE_2D, 0, GL_COMPRESSED_RGBA_S3TC_DXT5_EXT, width, height, 0, size, ext_data);
 						break;
 					default:
-						debugPrintf("Unsupported externalized texture format (0x%llX)", format);
+						debugPrintf("Unsupported externalized texture format (0x%llX).\n", format);
 						break;
 					}
 				} else {
-					debugPrintf("Loading externalized texture %s (Raw ID: 0x%X)\n", fname, data[1]);
+					debugPrintf("Loading externalized texture %s (Raw ID: 0x%X).\n", fname, data[1]);
 					sprintf(fname, "%s%u.png", data_path, idx);
 					ext_data = stbi_load(fname, &width, &height, NULL, 4);
 					glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, ext_data);
@@ -2411,6 +2408,7 @@ int main(int argc, char **argv)
 	
 	int (*Java_com_yoyogames_runner_RunnerJNILib_Startup) (void *env, int a2, char *apk_path, char *save_dir, char *pkg_dir, int sleep_margin) = (void *)so_symbol(&yoyoloader_mod, "Java_com_yoyogames_runner_RunnerJNILib_Startup");
 	Java_com_yoyogames_runner_RunnerJNILib_CreateVersionDSMap = (void *)so_symbol(&yoyoloader_mod, "Java_com_yoyogames_runner_RunnerJNILib_CreateVersionDSMap");
+	Java_com_yoyogames_runner_RunnerJNILib_TouchEvent  = (void *)so_symbol(&yoyoloader_mod, "Java_com_yoyogames_runner_RunnerJNILib_TouchEvent");
 	
 	// Displaying splash screen
 	if (splash_buf) {
