@@ -34,6 +34,7 @@ int (*CreateDsMap) (int a1, char *type, int a3, int a4, char *desc, char *type2,
 void (*CreateAsynEventWithDSMap) (int dsMap, int a2);
 void (*CheckKeyPressed) (retval_t *ret, void *self, void *other, int argc, retval_t *args);
 int (*Java_com_yoyogames_runner_RunnerJNILib_KeyEvent) (void *env, int a2, int state, int key_code, int unicode_key, int source);
+extern int (*Java_com_yoyogames_runner_RunnerJNILib_TouchEvent) (void *env, int a2, int type, int id, float x, float y);
 extern void (*Function_Add)(const char *name, intptr_t func, int argc, char ret);
 int *g_MousePosX, *g_MousePosY;
 
@@ -411,6 +412,7 @@ void GamePadUpdate() {
 			}
 		}
 		
+		int leftClickState = -1;
 		if (has_kb_mapping) {
 			for (int j = 0; j < NUM_BUTTONS; j++) {
 				if (keyboard_mapping[j] != UNK_BTN) {
@@ -423,11 +425,17 @@ void GamePadUpdate() {
 							Java_com_yoyogames_runner_RunnerJNILib_KeyEvent(fake_env, 0, !is_key_pressed[j], keyboard_mapping[j], keyboard_mapping[j], 0x101);
 						} else if (is_key_pressed[j] || new_states[j]) {
 							is_key_pressed[j] = new_states[j];
-							Java_com_yoyogames_runner_RunnerJNILib_KeyEvent(fake_env, 0, !is_key_pressed[j], keyboard_mapping[j], keyboard_mapping[j], 0x101);
+							if (keyboard_mapping[j] == 0x01) // Left Mouse Click
+								leftClickState = TOUCH_DOWN;
+							else
+								Java_com_yoyogames_runner_RunnerJNILib_KeyEvent(fake_env, 0, !is_key_pressed[j], keyboard_mapping[j], keyboard_mapping[j], 0x101);
 						}
 					} else if (is_key_pressed[j] || new_states[j]) {
 						is_key_pressed[j] = new_states[j];
-						Java_com_yoyogames_runner_RunnerJNILib_KeyEvent(fake_env, 0, !is_key_pressed[j], keyboard_mapping[j], keyboard_mapping[j], 0x101);
+						if (keyboard_mapping[j] == 0x01) // Left Mouse Click
+							leftClickState = is_key_pressed[j] ? TOUCH_MOVE : TOUCH_UP;
+						else
+							Java_com_yoyogames_runner_RunnerJNILib_KeyEvent(fake_env, 0, !is_key_pressed[j], keyboard_mapping[j], keyboard_mapping[j], 0x101);
 					}
 				} else {
 					yoyo_gamepads[i].buttons[j] = (double)update_button(new_states[j], (int)yoyo_gamepads[i].buttons[j]);
@@ -453,20 +461,26 @@ void GamePadUpdate() {
 				*g_MousePosY = SCREEN_H / 2;
 			else
 				*g_MousePosY = (pad.ry * SCREEN_H) / 255;
-		}
+			if (leftClickState >= 0)
+				Java_com_yoyogames_runner_RunnerJNILib_TouchEvent(fake_env, 0, leftClickState, 0, *g_MousePosX, *g_MousePosY);
+		} else if (leftClickState >= 0)
+			Java_com_yoyogames_runner_RunnerJNILib_TouchEvent(fake_env, 0, leftClickState, 0, SCREEN_W / 2, SCREEN_H / 2);
 	}
 }
 
 void map_key(int key, const char *val) {
 	if (strlen(val) > 1 && val[1] != '\r') {
-		if (strncmp("CODE", val, 4) == 0) {
+		if (!strncmp("CODE", val, 4)) {
 			keyboard_mapping[key] = (char)strtol(&val[4], NULL, 10);
-			debugPrintf("Mapped button id %d to keycode %hhd\n", key, keyboard_mapping[key]);
-		} else {
+			debugPrintf("Mapped button id %d to keycode %hhd.\n", key, keyboard_mapping[key]);
+		} else if (!strncmp("LMOUSE", val, 6)) {
+			keyboard_mapping[key] = 0x01;
+			debugPrintf("Mapped button id %d to left mouse click.\n", key);
+		}else {
 			for (int i = 0; i < sizeof(special_keys) / sizeof(special_keys[0]); i++) {
 				if (strncmp(special_keys[i].key_name, val, strlen(special_keys[i].key_name)) == 0) {
 					keyboard_mapping[key] = special_keys[i].key_value;
-					debugPrintf("Mapped button id %d to key '%s'\n", key, special_keys[i].key_name);
+					debugPrintf("Mapped button id %d to key '%s'.\n", key, special_keys[i].key_name);
 					break;
 				}
 			}
