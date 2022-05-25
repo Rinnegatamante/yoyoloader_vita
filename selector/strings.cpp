@@ -17,7 +17,7 @@ char lang_strings[LANG_STRINGS_NUM][LANG_STR_SIZE] = {
 	"Allows the Runner to use approximately extra 12 MBs of memory. May break some debugging tools and breaks virtual keyboard usage from games.",  // STR_EXTRA_MEM_DESC
 	"Reduces apk size by removing unnecessary data inside it and improves performances by recompressing files one by one depending on their expected use.", // STR_OPTIMIZE_DESC
 	"Increases the size of the memory pool available for the Runner. May solve some crashes.",  // STR_EXTRA_POOL_DESC
-	"Makes the Loader compress any spriteset used by the game at runtime. Reduces memory usage but may cause stuttering and longer loading times.",  // STR_COMPRESS_DESC
+	"Compresses textures during externalization of assets. Reduces memory usage of the game and speedups textures loading process but increases storage usage.", // STR_COMPRESS_DESC
 	"Enables Video Player implementation in the Runner at the cost of potentially reducing the total amount of memory available for the game.", // STR_VIDEO_PLAYER_DESC
 	"Enables network functionalities implementation in the Runner at the cost of potentially reducing the total amount of memory available for the game.", // STR_NETWORK_DESC
 	"Makes the Loader setup vitaGL with the lowest amount possible of dedicated memory for internal buffers. Increases available mem for the game at the cost of potential performance loss.",  // STR_SQUEEZE_DESC

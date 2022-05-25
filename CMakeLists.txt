@@ -20,7 +20,7 @@ execute_process(COMMAND git describe --abbrev=6 --dirty --always
 	OUTPUT_STRIP_TRAILING_WHITESPACE
 )
 
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fdiagnostics-color=always -g -Wl,-q,--wrap,memcpy,--allow-multiple-definition,--wrap,memmove,--wrap,memset -Wno-format-overflow -D_GNU_SOURCE -Wall -O3 -mfloat-abi=softfp")
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fno-optimize-sibling-calls -fdiagnostics-color=always -g -Wl,-q,--wrap,memcpy,--allow-multiple-definition,--wrap,memmove,--wrap,memset -Wno-format-overflow -D_GNU_SOURCE -Wall -O3 -mfloat-abi=softfp")
 set(CMAKE_CXX_FLAGS "${CMAKE_C_FLAGS} -fdiagnostics-color=always -Wno-write-strings -DGIT_VERSION=\"${GIT_HASH}\" -std=c++11")
 
 if (LOADER)
@@ -95,13 +95,16 @@ add_executable(YoYoLoader
   selector/dialogs.cpp
   selector/strings.cpp
   selector/player.cpp
+  loader/qoi_decoder.c
   loader/ioapi.c
   loader/unzip.c
   loader/zip.c
   loader/dialog.c
+  loader/so_util.c
 )
 
 target_link_libraries(YoYoLoader
+  -Wl,--whole-archive pthread -Wl,--no-whole-archive
   sndfile
   FLAC
   vorbis
@@ -146,6 +149,7 @@ vita_create_vpk(YoYoLoader.vpk ${VITA_TITLEID} eboot.bin
        ${CMAKE_SOURCE_DIR}/livearea/template.xml sce_sys/livearea/contents/template.xml
        ${CMAKE_BINARY_DIR}/loader.bin loader.bin
        ${CMAKE_BINARY_DIR}/loader2.bin loader2.bin
+       ${CMAKE_SOURCE_DIR}/translations/Czech.ini lang/Czech.ini
        ${CMAKE_SOURCE_DIR}/translations/English.ini lang/English.ini
        ${CMAKE_SOURCE_DIR}/translations/German.ini lang/German.ini
        ${CMAKE_SOURCE_DIR}/translations/Italian.ini lang/Italian.ini

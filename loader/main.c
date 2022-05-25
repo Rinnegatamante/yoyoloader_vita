@@ -82,7 +82,6 @@ int forceGL1 = 0;
 int forceSplashSkip = 0;
 int forceWinMode = 0;
 int forceBilinear = 0;
-int compressTextures = 0;
 int has_net = 0;
 extern int maximizeMem;
 int debugShaders = 0;
@@ -99,9 +98,12 @@ int get_active = 0;
 int get_index = 0;
 int setup_ended = 0;
 
+int deltarune_hack = 0;
+
 extern int (*YYGetInt32) (void *args, int idx);
 void (*Function_Add)(const char *name, intptr_t func, int argc, char ret);
 int (*Java_com_yoyogames_runner_RunnerJNILib_CreateVersionDSMap) (void *env, int a2, int sdk_ver, char *release_version, char *model, char *device, char *manufacturer, char *cpu_abi, char *cpu_abi2, char *bootloader, char *board, char *version, char *region, char *version_name, int has_keyboard);
+int (*Java_com_yoyogames_runner_RunnerJNILib_TouchEvent) (void *env, int a2, int type, int id, float x, float y);
 float (*Audio_GetTrackPos) (int id);
 uint8_t *g_fNoAudio;
 int64_t *g_GML_DeltaTime;
@@ -153,7 +155,6 @@ void loadConfig(const char *game) {
 			else if (strcmp("forceBilinear", buffer) == 0) forceBilinear = value;
 			else if (strcmp("winMode", buffer) == 0) forceWinMode = value;
 			else if (strcmp("debugShaders", buffer) == 0) debugShaders = value;
-			else if (strcmp("compressTextures", buffer) == 0) compressTextures = value;
 			else if (strcmp("debugMode", buffer) == 0) debugMode = value;
 			else if (strcmp("noSplash", buffer) == 0) forceSplashSkip = value;
 			else if (strcmp("maximizeMem", buffer) == 0) maximizeMem = value;
@@ -514,15 +515,8 @@ int DebugPrintf(int *target, const char *fmt, ...) {
 	return 0;
 }
 
-enum {
-	TOUCH_DOWN,
-	TOUCH_UP,
-	TOUCH_MOVE
-};
-
 void main_loop() {
 	int (*Java_com_yoyogames_runner_RunnerJNILib_Process) (void *env, int a2, int w, int h, float accel_x, float accel_y, float accel_z, int keypad_open, int orientation, float refresh_rate) = (void *)so_symbol(&yoyoloader_mod, "Java_com_yoyogames_runner_RunnerJNILib_Process");
-	int (*Java_com_yoyogames_runner_RunnerJNILib_TouchEvent) (void *env, int a2, int type, int id, float x, float y) = (void *)so_symbol(&yoyoloader_mod, "Java_com_yoyogames_runner_RunnerJNILib_TouchEvent");
 	int (*Java_com_yoyogames_runner_RunnerJNILib_InputResult) (void *env, int a2, char *string, int state, int id) = (void *)so_symbol(&yoyoloader_mod, "Java_com_yoyogames_runner_RunnerJNILib_InputResult");
 	int (*Java_com_yoyogames_runner_RunnerJNILib_HttpResult) (void *env, int a2, void *result, int responde_code, int id, char *url, void *header) = (void *)so_symbol(&yoyoloader_mod, "Java_com_yoyogames_runner_RunnerJNILib_HttpResult");
 	int (*Java_com_yoyogames_runner_RunnerJNILib_canFlip) (void) = (void *)so_symbol(&yoyoloader_mod, "Java_com_yoyogames_runner_RunnerJNILib_canFlip");
@@ -758,24 +752,33 @@ void LoadTextureFromPNG_generic(uint32_t arg1, uint32_t arg2, uint32_t *flags, u
 						glCompressedTexImage2D(GL_TEXTURE_2D, 0, GL_COMPRESSED_RGBA_S3TC_DXT3_EXT, width, height, 0, size, ext_data);
 						break;
 					case 0x0B:
-						glCompressedTexImage2D(GL_TEXTURE_2D, 0, GL_COMPRESSED_RGBA_S3TC_DXT5_EXT, width, height, 0, size, ext_data);
+						if (metadata_size == 4) { // Load DXT5 as pre-swizzled
+							glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 8, 8, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+							SceGxmTexture *gxm_tex = vglGetGxmTexture(GL_TEXTURE_2D);
+							vglFree(vglGetTexDataPointer(GL_TEXTURE_2D));
+							void *tex_data = vglForceAlloc(size);
+							sceClibMemcpy(tex_data, ext_data, size);
+							sceGxmTextureInitSwizzledArbitrary(gxm_tex, tex_data, SCE_GXM_TEXTURE_FORMAT_UBC3_ABGR, width, height, 0);
+							vglOverloadTexDataPointer(GL_TEXTURE_2D, tex_data);
+						} else
+							glCompressedTexImage2D(GL_TEXTURE_2D, 0, GL_COMPRESSED_RGBA_S3TC_DXT5_EXT, width, height, 0, size, ext_data);
 						break;
 					default:
-						debugPrintf("Unsupported externalized texture format (0x%llX)", format);
+						debugPrintf("Unsupported externalized texture format (0x%llX).\n", format);
 						break;
 					}
 				} else {
-					debugPrintf("Loading externalized texture %s (Raw ID: 0x%X)\n", fname, data[1]);
+					debugPrintf("Loading externalized texture %s (Raw ID: 0x%X).\n", fname, data[1]);
 					sprintf(fname, "%s%u.png", data_path, idx);
 					ext_data = stbi_load(fname, &width, &height, NULL, 4);
-					glTexImage2DHook(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, ext_data);
+					glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, ext_data);
 				}
 				vglFree(ext_data);
 			} else {
-				glTexImage2DHook(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
+				glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
 			}
 		} else {
-			glTexImage2DHook(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
+			glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
 		}
 		*flags = *flags | 0x40;
 		FreePNGFile();
@@ -1167,13 +1170,6 @@ void glTexParameterfHook(GLenum target, GLenum pname, GLfloat param) {
 	glTexParameteri(target, pname, param);
 }
 
-void glTexImage2DHook(GLenum target, GLint level, GLint internalformat, GLsizei width, GLsizei height, GLint border, GLenum format, GLenum type, const void * data) {
-	if (compressTextures && data && width >= 1024 && height >= 1024) // Compress just big spritesets since smaller ones get updated via glTexSubImage2D
-		glTexImage2D(target, level, GL_COMPRESSED_RGBA_S3TC_DXT5_EXT, width, height, border, format, type, data);
-	else
-		glTexImage2D(target, level, internalformat, width, height, border, format, type, data);
-}
-
 void *retJNI(int dummy) {
 	return fake_env;
 }
@@ -1201,12 +1197,18 @@ const char *gl_ret0[] = {
 };
 static size_t gl_numret = sizeof(gl_ret0) / sizeof(*gl_ret0);
 
+void glReadPixelsHook(GLint x, GLint y, GLsizei width, GLsizei height, GLenum format, GLenum type, GLvoid *data) {
+	if (deltarune_hack)
+		glFinish();
+	glReadPixels(x, y, width, height, format, type, data);
+}
+
 static so_default_dynlib gl_hook[] = {
 	{"glShaderSource", (uintptr_t)&glShaderSourceHook},
-	{"glTexImage2D", (uintptr_t)&glTexImage2DHook},
 	{"glTexParameterf", (uintptr_t)&glTexParameterfHook},
 	{"glTexParameteri", (uintptr_t)&glTexParameteriHook},
 	{"glBindFramebuffer", (uintptr_t)&glBindFramebufferHook},
+	{"glReadPixels", (uintptr_t)&glReadPixelsHook},
 };
 static size_t gl_numhook = sizeof(gl_hook) / sizeof(*gl_hook);
 
@@ -1597,11 +1599,11 @@ static so_default_dynlib default_dynlib[] = {
 	{ "glPixelStorei", (uintptr_t)&ret0 },
 	{ "glPopMatrix", (uintptr_t)&glPopMatrix },
 	{ "glPushMatrix", (uintptr_t)&glPushMatrix },
-	{ "glReadPixels", (uintptr_t)&glReadPixels },
+	{ "glReadPixels", (uintptr_t)&glReadPixelsHook },
 	{ "glScissor", (uintptr_t)&glScissor },
 	{ "glTexCoordPointer", (uintptr_t)&glTexCoordPointer },
 	{ "glTexEnvi", (uintptr_t)&glTexEnvi },
-	{ "glTexImage2D", (uintptr_t)&glTexImage2DHook },
+	{ "glTexImage2D", (uintptr_t)&glTexImage2D },
 	{ "glTexParameterf", (uintptr_t)&glTexParameterfHook },
 	{ "glTexParameteri", (uintptr_t)&glTexParameteriHook },
 	{ "glVertexPointer", (uintptr_t)&glVertexPointer },
@@ -2035,13 +2037,13 @@ void *CallStaticObjectMethodV(void *env, void *obj, int methodID, uintptr_t *arg
 	case CALL_EXTENSION_FUNCTION:
 		{
 			ext_func *f = (ext_func *)args;
-			if (!strcmp(f->module_name, "PickMe")) {
+			if (!strcmp(f->module_name, "PickMe")) { // Used by Super Mario Maker: World Engine
 				if (!strcmp(f->method_name, "getDire1")) {
 					sprintf(r, "%s%s/", data_path, f->object_array);
 					recursive_mkdir(r);
 					return f->object_array;
 				}
-			} else if (!strcmp(f->module_name, "NOTCH")) {
+			} else if (!strcmp(f->module_name, "NOTCH")) { // Used by Forager
 				jni_double = 0.0f;
 				return &jni_double;
 			}
@@ -2284,7 +2286,6 @@ int main(int argc, char **argv)
 #endif
 	debugPrintf("|Enable Network Features: %s                  |\n", has_net ? "Y" : "N");
 	debugPrintf("|Force Bilinear Filtering: %s                 |\n", forceBilinear ? "Y" : "N");
-	debugPrintf("|Compress Textures: %s                        |\n", compressTextures ? "Y" : "N");
 	debugPrintf("+--------------------------------------------+\n\n\n");
 	
 	if (has_net) {
@@ -2319,7 +2320,6 @@ int main(int argc, char **argv)
 		unzReadCurrentFile(apk_file, splash_buf, splash_size);
 		unzCloseCurrentFile(apk_file);
 	}
-	unzClose(apk_file);
 
 	// Patching the executable
 	so_relocate(&yoyoloader_mod);
@@ -2408,6 +2408,7 @@ int main(int argc, char **argv)
 	
 	int (*Java_com_yoyogames_runner_RunnerJNILib_Startup) (void *env, int a2, char *apk_path, char *save_dir, char *pkg_dir, int sleep_margin) = (void *)so_symbol(&yoyoloader_mod, "Java_com_yoyogames_runner_RunnerJNILib_Startup");
 	Java_com_yoyogames_runner_RunnerJNILib_CreateVersionDSMap = (void *)so_symbol(&yoyoloader_mod, "Java_com_yoyogames_runner_RunnerJNILib_CreateVersionDSMap");
+	Java_com_yoyogames_runner_RunnerJNILib_TouchEvent  = (void *)so_symbol(&yoyoloader_mod, "Java_com_yoyogames_runner_RunnerJNILib_TouchEvent");
 	
 	// Displaying splash screen
 	if (splash_buf) {
@@ -2442,6 +2443,32 @@ int main(int argc, char **argv)
 		glDisableClientState(GL_TEXTURE_COORD_ARRAY);
 		vglSwapBuffers(GL_FALSE);
 		glDeleteTextures(1, &bg_image);
+	}
+	
+	// Extracting Game ID
+	char game_id[256];
+	void *tmp_buf = malloc(32 * 1024 * 1024);
+	unzLocateFile(apk_file, "assets/game.droid", NULL);
+	unzOpenCurrentFile(apk_file);
+	unzReadCurrentFile(apk_file, tmp_buf, 20);
+	uint32_t offs;
+	unzReadCurrentFile(apk_file, &offs, 4);
+	uint32_t target = offs - 28;
+	while (target > 32 * 1024 * 1024) {
+		unzReadCurrentFile(apk_file, tmp_buf, 32 * 1024 * 1024);
+		target -= 32 * 1024 * 1024;
+	}
+	unzReadCurrentFile(apk_file, tmp_buf, target);
+	unzReadCurrentFile(apk_file, &offs, 4);
+	unzReadCurrentFile(apk_file, game_id, offs + 1);
+	unzClose(apk_file);
+	free(tmp_buf);
+	debugPrintf("Detected %s as Game ID\n", game_id);
+	
+	// Enabling game specific gamehacks
+	if (!strcmp(game_id, "DELTARUNE")) {
+		debugPrintf("Enabling Deltarune specific gamehack!\n");
+		deltarune_hack = 1;
 	}
 	
 	// Starting the Runner

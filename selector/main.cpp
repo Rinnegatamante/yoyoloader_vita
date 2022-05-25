@@ -1,6 +1,7 @@
 #include <vitasdk.h>
 #include <vitaGL.h>
 #include <imgui_vita.h>
+#include <bzlib.h>
 #include <curl/curl.h>
 #include <stdio.h>
 #include <string>
@@ -13,6 +14,9 @@
 #define STB_ONLY_PNG
 #include "../loader/stb_image.h"
 
+#define STB_IMAGE_WRITE_IMPLEMENTATION
+#include "stb_image_write.h"
+
 #define DATA_PATH "ux0:data/gms"
 #define LAUNCH_FILE_PATH DATA_PATH "/launch.txt"
 #define TEMP_DOWNLOAD_NAME "ux0:data/yyl.tmp"
@@ -23,7 +27,7 @@
 #define stringify(x) FUNC_TO_NAME(x)
 #define MIN(x, y) (x) < (y) ? (x) : (y)
 
-#define NUM_OPTIONS 13
+#define NUM_OPTIONS 12
 #define NUM_DB_CHUNKS 4
 #define MEM_BUFFER_SIZE (32 * 1024 * 1024)
 #define FILTER_MODES_NUM 6
@@ -45,6 +49,7 @@ int init_interactive_msg_dialog(const char *msg) {
 
 enum {
 	SCE_SYSTEM_PARAM_LANG_UKRAINIAN = 20,
+	SCE_SYSTEM_PARAM_LANG_CZECH = 21
 };
 
 extern void video_open(const char *path);
@@ -54,6 +59,7 @@ extern void video_close();
 extern "C" {
 	int debugPrintf(const char *fmt, ...) {return 0;}
 	void fatal_error(const char *fmt, ...);
+	extern int runner_loaded;
 };
 
 void DrawDownloaderDialog(int index, float downloaded_bytes, float total_bytes, char *text, int passes, bool self_contained);
@@ -71,6 +77,7 @@ enum {
 
 int _newlib_heap_size_user = 256 * 1024 * 1024;
 
+static volatile bool has_pvr = false;
 static CURL *curl_handle = NULL;
 static volatile uint64_t total_bytes = 0xFFFFFFFF;
 static volatile uint64_t downloaded_bytes = 0;
@@ -80,7 +87,7 @@ static bool needs_extended_font = false;
 uint8_t *generic_mem_buffer = nullptr;
 static FILE *fh;
 char *bytes_string;
-SceUID banner_thid;
+SceUID banner_thid, gl_mutex;
 int console_language;
 
 struct CompatibilityList {
@@ -100,7 +107,6 @@ struct GameSelection {
 	bool bilinear;
 	bool gles1;
 	bool skip_splash;
-	bool compress_textures;
 	bool fake_win_mode;
 	bool debug_mode;
 	bool debug_shaders;
@@ -329,7 +335,6 @@ void loadConfig(GameSelection *g) {
 			else if (strcmp("forceBilinear", buffer) == 0) g->bilinear = (bool)value;
 			else if (strcmp("winMode", buffer) == 0) g->fake_win_mode = (bool)value;
 			else if (strcmp("debugShaders", buffer) == 0) g->debug_shaders = (bool)value;
-			else if (strcmp("compressTextures", buffer) == 0) g->compress_textures = (bool)value;
 			else if (strcmp("debugMode", buffer) == 0) g->debug_mode = (bool)value;
 			else if (strcmp("noSplash", buffer) == 0) g->skip_splash = (bool)value;
 			else if (strcmp("maximizeMem", buffer) == 0) g->mem_extended = (bool)value;
@@ -497,6 +502,7 @@ typedef struct {
 	uint32_t idx;
 } snd;
 uint32_t snd_num;
+uint32_t txtr_num;
 snd sounds[8192];
 uint32_t null_ref = 0xFFFFFFFF;
 uint32_t regular_file_flag = 0x64;
@@ -589,7 +595,45 @@ void populateSoundsTable(FILE *f) {
 	fclose(f);
 }
 
-void externalizeSounds(FILE *f, int audiogroup_idx, zipFile dst_file, const char *assets_path) {
+extern "C" {
+	void *decode_qoi(void *buffer, int size, int *w, int *h);
+};
+
+GLuint ext_texture;
+void dump_pvr_texture(const char *fname, void *buf, int w, int h) {
+	sceKernelWaitSema(gl_mutex, 1, NULL);
+	glBindTexture(GL_TEXTURE_2D, ext_texture);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_COMPRESSED_RGBA_S3TC_DXT5_EXT, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, buf);
+	free(buf);
+	buf = vglGetTexDataPointer(GL_TEXTURE_2D);
+	sceKernelSignalSema(gl_mutex, 1);
+	uint32_t buf_size = ceil(w / 4.0) * ceil(h / 4.0) * 16;
+	FILE *f2 = fopen(fname, "wb+");
+	uint32_t val = 0x03525650;
+	uint64_t format = 0x0B; // DXT5
+	fwrite(&val, 1, 4, f2);
+	val = 0;
+	fwrite(&val, 1, 4, f2);
+	fwrite(&format, 1, 8, f2);
+	fwrite(&val, 1, 4, f2);
+	fwrite(&val, 1, 4, f2);
+	fwrite(&h, 1, 4, f2);
+	fwrite(&w, 1, 4, f2);
+	val = 1;
+	fwrite(&val, 1, 4, f2);
+	fwrite(&val, 1, 4, f2);
+	fwrite(&val, 1, 4, f2);
+	fwrite(&val, 1, 4, f2);
+	val = 4;
+	fwrite(&val, 1, 4, f2);
+	val = 0x03525650;
+	fwrite(&val, 1, 4, f2);
+	fwrite(buf, 1, buf_size, f2);
+	fclose(f2);
+}
+
+void externalizeSoundsAndTextures(FILE *f, int audiogroup_idx, zipFile dst_file, const char *assets_path) {
+	glGenTextures(1, &ext_texture);
 	uint32_t total_size;
 	uint32_t size;
 	uint32_t entries;
@@ -599,7 +643,6 @@ void externalizeSounds(FILE *f, int audiogroup_idx, zipFile dst_file, const char
 	fread(&total_size, 1, 4, f);
 	//printf("Total Size: %u\n", total_size);
 	while (!feof(f)) {
-		uint32_t base_off = ftell(f);
 		int bytes = fread(chunk_name, 1, 4, f);
 		if (!bytes)
 			break;
@@ -658,6 +701,66 @@ void externalizeSounds(FILE *f, int audiogroup_idx, zipFile dst_file, const char
 					zipCloseFileInZip(dst_file);
 				}
 			}
+			free(offsets);
+			fseek(f, start, SEEK_SET);
+			fseek(f, size, SEEK_CUR);
+		} else if (!strcmp(chunk_name, "TXTR")) {
+			uint32_t start = ftell(f);
+			char fname[256];
+			fread(&entries, 1, 4, f);
+			txtr_num = entries;
+			uint32_t *offsets = (uint32_t *)malloc((entries + 1) * sizeof(uint32_t));
+			offsets[entries] = ftell(f) - 4 + size;
+			for (int i = 0; i < entries; i++) {
+				fread(&offsets[i], 1, 4, f);
+				uint32_t backup = ftell(f);
+				fseek(f, offsets[i] + 4, SEEK_SET);
+				uint32_t extra;
+				fread(&extra, 1, 4, f);
+				if (!extra)
+					fread(&offsets[i], 1, 4, f);
+				else
+					offsets[i] = extra;
+				fseek(f, backup, SEEK_SET);
+			}
+			tot_idx = entries;
+			for (int i = 0; i < entries; i++) {
+				cur_idx = i;
+				sprintf(fname, "%s/%d.%s", assets_path, i, has_pvr ? "pvr" : "png");
+				fseek(f, offsets[i], SEEK_SET);
+				fread(generic_mem_buffer, 1, offsets[i + 1] - offsets[i], f);
+				uint32_t *buffer32 = (uint32_t *)generic_mem_buffer;
+				uint32_t buf_size;
+				void *buf;
+				int w, h;
+				FILE *f2;
+				switch (*buffer32) {
+				case 0x716F7A32: // Bzip2 + Qoi
+				case 0x716F6966: // Qoi
+					buf = decode_qoi(generic_mem_buffer, offsets[i + 1] - offsets[i], &w, &h);
+					if (has_pvr) {
+						dump_pvr_texture(fname, buf, w, h);
+					} else {
+						stbi_write_png(fname, w, h, 4, buf, w * 4);
+						free(buf);
+					}
+					break;
+				default: // Png
+					if (offsets[i + 1] - offsets[i] != 76) { // Skipping already externalized textures
+						if (has_pvr) {
+							int dummy;
+							buf = stbi_load_from_memory(generic_mem_buffer, offsets[i + 1] - offsets[i], &w, &h, NULL, 4);
+							dump_pvr_texture(fname, buf, w, h);
+						} else {
+							f2 = fopen(fname, "wb+");
+							fwrite(generic_mem_buffer, 1, offsets[i + 1] - offsets[i], f2);
+							fclose(f2);
+						}
+					}
+					break;
+				}
+			}
+			free(offsets);
 			fseek(f, start, SEEK_SET);
 			fseek(f, size, SEEK_CUR);
 		} else {
@@ -665,6 +768,7 @@ void externalizeSounds(FILE *f, int audiogroup_idx, zipFile dst_file, const char
 		}
 	}
 	fclose(f);
+	glDeleteTextures(1, &ext_texture);
 }
 
 void patchForExternalization(FILE *in, FILE *out) {
@@ -672,28 +776,33 @@ void patchForExternalization(FILE *in, FILE *out) {
 	uint32_t total_size;
 	uint32_t size;
 	uint32_t entries;
+	uint8_t has_txtr_chunk = 0;
 	char chunk_name[5];
 	chunk_name[4] = 0;
 	fseek(in, 4, SEEK_SET);
 	fread(&total_size, 1, 4, in);
 	//printf("Total Size: %u\n", total_size);
 	while (!feof(in)) {
-		uint32_t base_off = ftell(in);
 		int bytes = fread(chunk_name, 1, 4, in);
 		if (!bytes)
 			break;
 		fread(&size, 1, 4, in);
 		//printf("Chunk %s with size %u\n", chunk_name, size);
 		if (!strcmp(chunk_name, "AUDO")) {
-			int pre_audo_size = ftell(in) - 4;
-			fread(&entries, 1, 4, in);
-			fseek(in, 0, SEEK_SET);
-			uint32_t executed_bytes = 0;
-			while (executed_bytes < pre_audo_size) {
-				uint32_t read_size = (pre_audo_size - executed_bytes) > MEM_BUFFER_SIZE ? MEM_BUFFER_SIZE : (pre_audo_size - executed_bytes);
-				fread(generic_mem_buffer, 1, read_size, in);
-				fwrite(generic_mem_buffer, 1, read_size, out);
-				executed_bytes += read_size;
+			if (has_txtr_chunk) {
+				fwrite(chunk_name, 1, 4, out);
+				fread(&entries, 1, 4, in);
+			} else {
+				int pre_audo_size = ftell(in) - 4;
+				fread(&entries, 1, 4, in);
+				fseek(in, 0, SEEK_SET);
+				uint32_t executed_bytes = 0;
+				while (executed_bytes < pre_audo_size) {
+					uint32_t read_size = (pre_audo_size - executed_bytes) > MEM_BUFFER_SIZE ? MEM_BUFFER_SIZE : (pre_audo_size - executed_bytes);
+					fread(generic_mem_buffer, 1, read_size, in);
+					fwrite(generic_mem_buffer, 1, read_size, out);
+					executed_bytes += read_size;
+				}
 			}
 			uint32_t new_audo_size = 4 + entries * 12;
 			fwrite(&new_audo_size, 1, 4, out);
@@ -711,7 +820,71 @@ void patchForExternalization(FILE *in, FILE *out) {
 			fseek(out, 4, SEEK_SET);
 			fwrite(&full_size, 1, 4, out);
 			break;
-		}  else {
+		} else if (!strcmp(chunk_name, "TXTR")) {
+			has_txtr_chunk = 1;
+			uint32_t start = ftell(in);
+			int pre_txtr_size = ftell(in) - 4;
+			fread(&entries, 1, 4, in);
+			uint32_t first_offset;
+			fread(&first_offset, 1, 4, in);
+			fseek(in, first_offset + 4, SEEK_SET);
+			uint32_t extra;
+			fread(&extra, 1, 4, in);
+			if (!extra)
+				fread(&first_offset, 1, 4, in);
+			else
+				first_offset = extra;
+			fseek(in, 0, SEEK_SET);
+			uint32_t executed_bytes = 0;
+			while (executed_bytes < pre_txtr_size) {
+				uint32_t read_size = (pre_txtr_size - executed_bytes) > MEM_BUFFER_SIZE ? MEM_BUFFER_SIZE : (pre_txtr_size - executed_bytes);
+				fread(generic_mem_buffer, 1, read_size, in);
+				fwrite(generic_mem_buffer, 1, read_size, out);
+				executed_bytes += read_size;
+			}
+			uint32_t new_txtr_size = (first_offset - (pre_txtr_size + 4)) + entries * 76;
+			fwrite(&new_txtr_size, 1, 4, out);
+			fwrite(&entries, 1, 4, out);
+			fseek(in, pre_txtr_size + 8, SEEK_SET);
+			fread(generic_mem_buffer, 1, entries * 4, in);
+			fwrite(generic_mem_buffer, 1, entries * 4, out);
+			uint32_t *buffer32 = (uint32_t *)generic_mem_buffer;
+			uint32_t has_extra;
+			for (int i = 0; i < entries; i++) {
+				has_extra = 0;
+				fseek(in, buffer32[i], SEEK_SET);
+				fread(&extra, 1, 4, in);
+				fwrite(&extra, 1, 4, out);
+				fread(&extra, 1, 4, in);
+				if (!extra) {
+					fwrite(&extra, 1, 4, out);
+					has_extra = 1;
+				}
+				extra = first_offset + i * 76;
+				fwrite(&extra, 1, 4, out);
+			}
+			if (has_extra)
+				fseek(in, 4, SEEK_CUR);
+			uint32_t cur_pos = ftell(in);
+			if (cur_pos < first_offset) {
+				//printf("%u bytes of padding required\n", first_offset - cur_pos);
+				fread(generic_mem_buffer, 1, first_offset - cur_pos, in);
+				fwrite(generic_mem_buffer, 1, first_offset - cur_pos, out);
+			}
+			uint32_t img_data[2];
+			img_data[0] = 0xFFBEADDE;
+			img_data[1] = 0xFF000000;
+			uint16_t padding = 0;
+			for (int i = 0; i < entries; i++) {
+				int out_len;
+				unsigned char *placeholder = stbi_write_png_to_mem((unsigned char *)img_data, 8, 2, 1, 4, &out_len);
+				fwrite(placeholder, 1, 74, out);
+				fwrite(&padding, 1, 2, out);
+				img_data[1]++;
+			}
+			fseek(in, start, SEEK_SET);
+			fseek(in, size, SEEK_CUR);
+		} else {
 			fseek(in, size, SEEK_CUR);
 		}
 	}
@@ -732,6 +905,7 @@ bool isExternalizedSound(char *fname) {
 }
 
 int externalizer_thread(unsigned int argc, void *argv) {
+	int has_runner_extracted = 0;
 	cur_step = 0;
 	char *game = (char *)argv;
 	char apk_path[256], tmp_path[256], fname[512], fname2[512], assets_path[256];
@@ -778,6 +952,7 @@ int externalizer_thread(unsigned int argc, void *argv) {
 			} else if (strstr(fname, "game.droid") || (strstr(fname, "audiogroup") && strstr(fname, ".dat"))) {
 				extra_audiogroups++;
 				unzGoToNextFile(src_file);
+				cur_idx++;
 				continue;
 			} else {
 				/*
@@ -814,11 +989,24 @@ int externalizer_thread(unsigned int argc, void *argv) {
 					fclose(f);
 				}
 			} else {
-				while (executed_bytes < file_info.uncompressed_size) {
-					uint32_t read_size = (file_info.uncompressed_size - executed_bytes) > MEM_BUFFER_SIZE ? MEM_BUFFER_SIZE : (file_info.uncompressed_size - executed_bytes);
-					unzReadCurrentFile(src_file, generic_mem_buffer, read_size);
-					zipWriteInFileInZip(dst_file, generic_mem_buffer, read_size);
-					executed_bytes += read_size;
+				if (!runner_loaded && strstr(fname, "libyoyo.so")) { // We may need the runner if the game has QOI textures
+					has_runner_extracted = 1;
+					FILE *y = fopen("ux0:data/gms/libyoyo.tmp", "wb+");
+					while (executed_bytes < file_info.uncompressed_size) {
+						uint32_t read_size = (file_info.uncompressed_size - executed_bytes) > MEM_BUFFER_SIZE ? MEM_BUFFER_SIZE : (file_info.uncompressed_size - executed_bytes);
+						unzReadCurrentFile(src_file, generic_mem_buffer, read_size);
+						fwrite(generic_mem_buffer, 1, read_size, y);
+						zipWriteInFileInZip(dst_file, generic_mem_buffer, read_size);
+						executed_bytes += read_size;
+					}
+					fclose(y);
+				} else {
+					while (executed_bytes < file_info.uncompressed_size) {
+						uint32_t read_size = (file_info.uncompressed_size - executed_bytes) > MEM_BUFFER_SIZE ? MEM_BUFFER_SIZE : (file_info.uncompressed_size - executed_bytes);
+						unzReadCurrentFile(src_file, generic_mem_buffer, read_size);
+						zipWriteInFileInZip(dst_file, generic_mem_buffer, read_size);
+						executed_bytes += read_size;
+					}
 				}
 			}
 			unzCloseCurrentFile(src_file);
@@ -830,11 +1018,12 @@ int externalizer_thread(unsigned int argc, void *argv) {
 	
 	cur_step = 1;
 	f = fopen("ux0:data/gms/shared/tmp/tmp.droid", "rb+");
-	externalizeSounds(f, 0, dst_file, assets_path);
+	externalizeSoundsAndTextures(f, 0, dst_file, assets_path);
+	if (has_runner_extracted)
+		sceIoRemove("ux0:data/gms/libyoyo.tmp");
 	f = fopen("ux0:data/gms/shared/tmp/tmp.droid", "rb");
 	FILE *f2 = fopen("ux0:data/gms/shared/tmp/tmp2.droid", "wb+");
 	patchForExternalization(f, f2);
-	
 	sceIoRemove("ux0:data/gms/shared/tmp/tmp.droid");
 	f2 = fopen("ux0:data/gms/shared/tmp/tmp2.droid", "rb");
 	fseek(f2, 0, SEEK_END);
@@ -870,7 +1059,7 @@ int externalizer_thread(unsigned int argc, void *argv) {
 		unzCloseCurrentFile(src_file);
 		fclose(f);
 		f = fopen(fname, "rb");
-		externalizeSounds(f, i, dst_file, assets_path);
+		externalizeSoundsAndTextures(f, i, dst_file, assets_path);
 		f = fopen(fname, "rb");
 		sprintf(fname2, "ux0:data/gms/shared/tmp/_audiogroup%d.tmp", i);
 		f2 = fopen(fname2, "wb+");
@@ -946,7 +1135,7 @@ void ExternalizeApk(char *game) {
 	saved_size = -1.0f;
 	extracting = true;
 	externalizing = true;
-	SceUID externalizer_thid = sceKernelCreateThread("Externalizer Thread", &externalizer_thread, 0x10000100, 0x100000, 0, 0, NULL);
+	SceUID externalizer_thid = sceKernelCreateThread("Externalizer Thread", &externalizer_thread, 0x10000100, 0x800000, 0, 0, NULL);
 	sceKernelStartThread(externalizer_thid, strlen(game) + 1, game);
 }
 
@@ -1213,6 +1402,9 @@ void setTranslation(int idx) {
 	case SCE_SYSTEM_PARAM_LANG_UKRAINIAN:
 		sprintf(langFile, "app0:lang/Ukrainian.ini");
 		break;
+	case SCE_SYSTEM_PARAM_LANG_CZECH:
+		sprintf(langFile, "app0:lang/Czech.ini");
+		break;
 	default:
 		sprintf(langFile, "app0:lang/English.ini");
 		break;
@@ -1280,6 +1472,8 @@ void setImguiTheme() {
 }
 
 int main(int argc, char *argv[]) {
+	gl_mutex = sceKernelCreateSema("GL Mutex", 0, 1, 1, NULL);
+	
 	sceSysmoduleLoadModule(SCE_SYSMODULE_AVPLAYER);
 	
 	sceIoMkdir("ux0:data/gms", 0777);
@@ -1320,7 +1514,7 @@ int main(int argc, char *argv[]) {
 	}
 	
 	GameSelection *hovered = nullptr;
-	vglInitExtended(0, 960, 544, 0x1800000, SCE_GXM_MULTISAMPLE_4X);
+	vglInitExtended(0, 960, 544, 0x1800000, SCE_GXM_MULTISAMPLE_NONE);
 	ImGui::CreateContext();
 	SceKernelThreadInfo info;
 	info.size = sizeof(SceKernelThreadInfo);
@@ -1494,6 +1688,8 @@ int main(int argc, char *argv[]) {
 	sceIoDclose(fd);
 	
 	while (!launch_item) {
+		sceKernelWaitSema(gl_mutex, 1, NULL);
+		
 		if (old_sort_idx != sort_idx) {
 			old_sort_idx = sort_idx;
 			sort_gamelist(games);
@@ -1635,9 +1831,6 @@ int main(int argc, char *argv[]) {
 			ImGui::Checkbox(lang_strings[STR_BILINEAR], &hovered->bilinear);
 			if (ImGui::IsItemHovered())
 				desc = lang_strings[STR_BILINEAR_DESC];
-			ImGui::Checkbox(lang_strings[STR_COMPRESS], &hovered->compress_textures);
-			if (ImGui::IsItemHovered())
-				desc = lang_strings[STR_COMPRESS_DESC];
 			ImGui::Separator();
 			ImGui::Checkbox(lang_strings[STR_SPLASH_SKIP], &hovered->skip_splash);
 			if (ImGui::IsItemHovered())
@@ -1665,6 +1858,12 @@ int main(int argc, char *argv[]) {
 			}
 			if (ImGui::IsItemHovered())
 				desc = lang_strings[STR_EXTERNALIZE_DESC];
+			ImGui::SameLine();
+			ImGui::Text("   ");
+			ImGui::SameLine();
+			ImGui::Checkbox(lang_strings[STR_COMPRESS], (bool *)&has_pvr);
+			if (ImGui::IsItemHovered())
+				desc = lang_strings[STR_COMPRESS_DESC];
 			if (saved_size != -1.0f) {
 				ImGui::Text(" ");
 				ImGui::Text(lang_strings[STR_OPTIMIZE_END]);
@@ -1753,7 +1952,6 @@ int main(int argc, char *argv[]) {
 			ImGui::Text("%s: %s", lang_strings[STR_AUDIO], hovered->no_audio ? lang_strings[STR_YES] : lang_strings[STR_NO]);
 			ImGui::Separator();
 			ImGui::Text("%s: %s", lang_strings[STR_BILINEAR], hovered->bilinear ? lang_strings[STR_YES] : lang_strings[STR_NO]);
-			ImGui::Text("%s: %s", lang_strings[STR_COMPRESS], hovered->compress_textures ? lang_strings[STR_YES] : lang_strings[STR_NO]);
 			ImGui::Separator();
 			ImGui::Text("%s: %s", lang_strings[STR_SPLASH_SKIP], hovered->skip_splash ? lang_strings[STR_YES] : lang_strings[STR_NO]);
 			ImGui::Separator();
@@ -1772,6 +1970,7 @@ int main(int argc, char *argv[]) {
 		ImGui::Render();
 		ImGui_ImplVitaGL_RenderDrawData(ImGui::GetDrawData());
 		vglSwapBuffers(GL_FALSE);
+		sceKernelSignalSema(gl_mutex, 1);
 	}
 
 	f = fopen(LAUNCH_FILE_PATH, "w+");
@@ -1785,7 +1984,6 @@ int main(int argc, char *argv[]) {
 	fprintf(f, "%s=%d\n", "noSplash", (int)hovered->skip_splash);
 	fprintf(f, "%s=%d\n", "forceBilinear", (int)hovered->bilinear);
 	fprintf(f, "%s=%d\n", "winMode", (int)hovered->fake_win_mode);
-	fprintf(f, "%s=%d\n", "compressTextures", (int)hovered->compress_textures);
 	fprintf(f, "%s=%d\n", "debugMode", (int)hovered->debug_mode);
 	fprintf(f, "%s=%d\n", "debugShaders", (int)hovered->debug_shaders);
 	fprintf(f, "%s=%d\n", "maximizeMem", (int)hovered->mem_extended);

@@ -12,18 +12,18 @@ This enables to run potentially any game made with GameMaker Studio.
 
 | Type of Game         | Compatibility                                                            |
 | :------------------- |:------------------------------------------------------------------------ |
-| Android Bytecode     | ![#c5f015](https://via.placeholder.com/15/c5f015/000000?text=+) `Native` |
-| Android YYC          | ![#c5f015](https://via.placeholder.com/15/c5f015/000000?text=+) `Native` |
-| PC/Console Bytecode  | ![#1589f0](https://via.placeholder.com/15/1589f0/000000?text=+) `Yes`    |
-| PC/Console YYC       | ![#f03c15](https://via.placeholder.com/15/f03c15/000000?text=+) `No`     |
+| Android Bytecode     | <img src="./images/green.png"> `Native` |
+| Android YYC          | <img src="./images/green.png"> `Native` |
+| PC/Console Bytecode  | <img src="./images/blue.png"> `Yes`    |
+| PC/Console YYC       | <img src="./images/red.png"> `No`     |
 
 For PC/Console exported games, you will need to perform an assets swap with a blank Android exported project with a Game Maker Studio version similar or equal of the one of the game you want to attempt to run. You can find a small guide on how to perform an Asset Swap here: https://gist.github.com/CatoTheYounger97/fa47e7eef92f772e4004d4dac22f9bdb
 
-Note that patches to the bytecode may still be required in order to fix resolution, inputs or performances issues. Any game reported as ![#c5f015](https://via.placeholder.com/15/c5f015/000000?text=+) `Native`, instead, will work with simple drag'n'drop of the apk.
+Note that patches to the bytecode may still be required in order to fix resolution, inputs or performances issues. Any game reported as <img src="./images/green.png"> `Native`, instead, will work with simple drag'n'drop of the apk.
 
 A comprehensive Compatibility List can be found here: https://yoyo.rinnegatamante.it. You can contribute to it by opening an Issue here: https://github.com/Rinnegatamante/YoYo-Loader-Vita-Compatibility/issues.
 
-If a game seems to be running out of memory, you can try to fix this issue by applying pngquant on images inside game.droid (A guide about this can be found here: https://gist.github.com/CatoTheYounger97/10db240958c9ba17af9069a7f8cc1716 ) or by externalizing musics and sounds loading (A built-in feature to apply this can be found in the Settings menu in the Game Selector).
+If a game seems to be running out of memory, you can try to fix this issue by externalizing its assets with the related built-in function in the Game Selector. It is also possible to squeeze even more available mem by manually compressing externalized textures in PVRTC2 format (A guide can be found here: https://gist.github.com/CatoTheYounger97/ddc2dd4ec459212466ea6f9887bc764b ).
 
 ## Keyboard keys emulation
 
@@ -74,7 +74,7 @@ After all these requirements are met, you can compile the loader similarly to ho
 ## Credits
 
 - TheFloW for the original .so loader.
-- JohnnyonFlame for GMSLoader used as reference for some implementations and for generic advices.
+- JohnnyonFlame for GMLoader used as reference for some implementations, for generic advices and for maintaining the Brazilian Portuguese translation.
 - Once13One for the Livearea assets and the README showcase image.
 - hatoving for the German translation.
 - BetterWinds and SofyUchiha for the Spanish translation.
@@ -82,5 +82,6 @@ After all these requirements are met, you can compile the loader similarly to ho
 - Titi Clash for the Brazilian Portuguese translation.
 - kuragehime for the Japanese translation.
 - ikzouo for the Simplified and Traditional Chinese translations.
+- Grip-hearttin' for the Czech translation.
 - CatoTheYounger for providing most of the banners used in the game selector and testing several new features of the loader.
 - Everyone who contributed, tested and provided support over Vita Nuova Discord channel.
