@@ -1402,7 +1402,7 @@ void setTranslation(int idx) {
 	case SCE_SYSTEM_PARAM_LANG_UKRAINIAN:
 		sprintf(langFile, "app0:lang/Ukrainian.ini");
 		break;
-	case SCE_SYSTEM_PARM_LANG_CZECH:
+	case SCE_SYSTEM_PARAM_LANG_CZECH:
 		sprintf(langFile, "app0:lang/Czech.ini");
 		break;
 	default:
