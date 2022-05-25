@@ -37,7 +37,6 @@ void (*IO_UpdateM) ();
 void (*CreateAsynEventWithDSMap) (int dsMap, int a2);
 void (*CheckKeyPressed) (retval_t *ret, void *self, void *other, int argc, retval_t *args);
 int (*Java_com_yoyogames_runner_RunnerJNILib_KeyEvent) (void *env, int a2, int state, int key_code, int unicode_key, int source);
-extern int (*Java_com_yoyogames_runner_RunnerJNILib_TouchEvent) (void *env, int a2, int type, int id, float x, float y);
 extern void (*Function_Add)(const char *name, intptr_t func, int argc, char ret);
 int *g_MousePosX, *g_MousePosY, *g_DoMouseButton;
 
@@ -363,6 +362,7 @@ static int update_button(int new_state, int old_state) {
 }
 
 void GamePadUpdate() {
+	*g_DoMouseButton = 0;
 	int num_controllers = GamePadCheck(0);
 	
 	for (int i = 0; i < 4; i++) {
@@ -420,8 +420,8 @@ void GamePadUpdate() {
 			}
 		}
 		
-		int leftClickState = -1;
-		int rightClickState = -1;
+		int leftClickState = 0;
+		int rightClickState = 0;
 		if (has_kb_mapping) {
 			for (int j = 0; j < NUM_BUTTONS; j++) {
 				if (keyboard_mapping[j] != UNK_BTN) {
@@ -435,18 +435,18 @@ void GamePadUpdate() {
 						} else if (is_key_pressed[j] || new_states[j]) {
 							is_key_pressed[j] = new_states[j];
 							if (keyboard_mapping[j] == 0x01) // Left Mouse Click
-								leftClickState = TOUCH_DOWN;
+								leftClickState = is_key_pressed[j];
 							else if (keyboard_mapping[j] == 0x02) // Right Mouse Click
-								rightClickState = TOUCH_DOWN;
+								rightClickState = is_key_pressed[j];
 							else
 								Java_com_yoyogames_runner_RunnerJNILib_KeyEvent(fake_env, 0, !is_key_pressed[j], keyboard_mapping[j], keyboard_mapping[j], 0x101);
 						}
 					} else if (is_key_pressed[j] || new_states[j]) {
 						is_key_pressed[j] = new_states[j];
 						if (keyboard_mapping[j] == 0x01) // Left Mouse Click
-							leftClickState = is_key_pressed[j] ? TOUCH_MOVE : TOUCH_UP;
+							leftClickState = is_key_pressed[j];
 						else if (keyboard_mapping[j] == 0x02) // Right Mouse Click
-							rightClickState = is_key_pressed[j] ? TOUCH_MOVE : TOUCH_UP;
+							rightClickState = is_key_pressed[j];
 						else
 							Java_com_yoyogames_runner_RunnerJNILib_KeyEvent(fake_env, 0, !is_key_pressed[j], keyboard_mapping[j], keyboard_mapping[j], 0x101);
 					}
@@ -476,14 +476,6 @@ void GamePadUpdate() {
 				*g_MousePosY = SCREEN_H / 2;
 			else
 				*g_MousePosY = (pad.ry * SCREEN_H) / 255;
-			if (leftClickState >= 0)
-				Java_com_yoyogames_runner_RunnerJNILib_TouchEvent(fake_env, 0, leftClickState, 0, *g_MousePosX, *g_MousePosY);
-			if (rightClickState >= 0 && rightClickState != TOUCH_UP) {
-				int overloadMouseButton = *g_DoMouseButton;
-				Java_com_yoyogames_runner_RunnerJNILib_TouchEvent(fake_env, 0, rightClickState, 0, *g_MousePosX, *g_MousePosY);
-				*g_DoMouseButton = 0x80000002 | overloadMouseButton;
-			} else if (*g_DoMouseButton == 0x80000002)
-				*g_DoMouseButton = 0;
 		} else if (analog_as_mouse == CURSOR_MODE) {
 			if (pad.rx > 127 - ANALOG_DEADZONE && pad.rx < 127 + ANALOG_DEADZONE)
 				*g_MousePosX = oldMousePosX;
@@ -507,24 +499,11 @@ void GamePadUpdate() {
 				*g_MousePosY = SCREEN_H;
 			oldMousePosX = *g_MousePosX;
 			oldMousePosY = *g_MousePosY;
-			if (leftClickState >= 0)
-				Java_com_yoyogames_runner_RunnerJNILib_TouchEvent(fake_env, 0, leftClickState, 0, oldMousePosX, oldMousePosY);
-			if (rightClickState >= 0 && rightClickState != TOUCH_UP) {
-				int overloadMouseButton = *g_DoMouseButton;
-				Java_com_yoyogames_runner_RunnerJNILib_TouchEvent(fake_env, 0, rightClickState, 0, oldMousePosX, oldMousePosY);
-				*g_DoMouseButton = 0x80000002 | overloadMouseButton;
-			} else if (*g_DoMouseButton == 0x80000002)
-				*g_DoMouseButton = 0;
-		} else {
-			if (leftClickState >= 0)
-				Java_com_yoyogames_runner_RunnerJNILib_TouchEvent(fake_env, 0, leftClickState, 0, SCREEN_W / 2, SCREEN_H / 2);
-			if (rightClickState >= 0 && rightClickState != TOUCH_UP) {
-				int overloadMouseButton = *g_DoMouseButton;
-				Java_com_yoyogames_runner_RunnerJNILib_TouchEvent(fake_env, 0, rightClickState, 0, oldMousePosX, oldMousePosY);
-				*g_DoMouseButton = 0x80000002 | overloadMouseButton;
-			} else if (*g_DoMouseButton == 0x80000002)
-				*g_DoMouseButton = 0;
 		}
+		if (leftClickState)
+			*g_DoMouseButton = *g_DoMouseButton | 0x01;
+		if (rightClickState)
+			*g_DoMouseButton = *g_DoMouseButton | 0x80000002;
 	}
 }
 
@@ -581,11 +560,9 @@ void IO_Update() {
 }
 
 void patch_gamepad(const char *game_name) {
-	g_DoMouseButton = (int *)so_symbol(&yoyoloader_mod, "g_DoMouseButton");
 	IO_UpdateM = (void *)so_symbol(&yoyoloader_mod, "_Z10IO_UpdateMv");
 	GamepadUpdateM = (void *)so_symbol(&yoyoloader_mod, "_Z14GamepadUpdateMv");
 	ProcessVirtualKeys = (void *)so_symbol(&yoyoloader_mod, "_Z18ProcessVirtualKeysv");
-
 	CheckKeyPressed = (void *)so_symbol(&yoyoloader_mod, "_Z17F_CheckKeyPressedR6RValueP9CInstanceS2_iPS_");
 	CreateDsMap = (void *)so_symbol(&yoyoloader_mod, "_Z11CreateDsMapiz");
 	CreateAsynEventWithDSMap = (void *)so_symbol(&yoyoloader_mod, "_Z24CreateAsynEventWithDSMapii");
