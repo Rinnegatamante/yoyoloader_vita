@@ -173,9 +173,6 @@ void loadConfig(const char *game) {
 extern void *GetPlatformInstance;
 
 static int __stack_chk_guard_fake = 0x42424242;
-ALCdevice *ALDevice;
-ALvoid *ALContext;
-
 static char fake_vm[0x1000];
 char fake_env[0x1000];
 
@@ -350,7 +347,7 @@ int ret1(void) {
 }
 
 int pthread_mutex_init_fake(pthread_mutex_t **uid, const pthread_mutexattr_t *mutexattr) {
-	pthread_mutex_t *m = calloc(1, sizeof(pthread_mutex_t));
+	pthread_mutex_t *m = vglCalloc(1, sizeof(pthread_mutex_t));
 	if (!m)
 		return -1;
 
@@ -371,7 +368,7 @@ int pthread_mutex_init_fake(pthread_mutex_t **uid, const pthread_mutexattr_t *mu
 int pthread_mutex_destroy_fake(pthread_mutex_t **uid) {
 	if (uid && *uid && (uintptr_t)*uid > 0x8000) {
 		pthread_mutex_destroy(*uid);
-		free(*uid);
+		vglFree(*uid);
 		*uid = NULL;
 	}
 	return 0;
@@ -422,7 +419,7 @@ int pthread_mutex_unlock_fake(pthread_mutex_t **uid) {
 }
 
 int pthread_cond_init_fake(pthread_cond_t **cnd, const int *condattr) {
-	pthread_cond_t *c = calloc(1, sizeof(pthread_cond_t));
+	pthread_cond_t *c = vglCalloc(1, sizeof(pthread_cond_t));
 	if (!c)
 		return -1;
 
@@ -458,7 +455,7 @@ int pthread_cond_signal_fake(pthread_cond_t **cnd) {
 int pthread_cond_destroy_fake(pthread_cond_t **cnd) {
 	if (cnd && *cnd) {
 		pthread_cond_destroy(*cnd);
-		free(*cnd);
+		vglFree(*cnd);
 		*cnd = NULL;
 	}
 	return 0;
