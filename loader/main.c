@@ -78,6 +78,8 @@ extern char *get_url;
 extern unsigned _newlib_heap_size;
 
 int disableObjectsArray = 0;
+int uncached_mem = 0;
+int double_buffering = 0;
 int forceGL1 = 0;
 int forceSplashSkip = 0;
 int forceWinMode = 0;
@@ -161,6 +163,8 @@ void loadConfig(const char *game) {
 			else if (strcmp("netSupport", buffer) == 0) has_net = value;
 			else if (strcmp("squeezeMem", buffer) == 0) squeeze_mem = value;
 			else if (strcmp("disableAudio", buffer) == 0) disableAudio = value;
+			else if (strcmp("uncachedMem", buffer) == 0) uncached_mem = value;
+			else if (strcmp("doubleBuffering", buffer) == 0) double_buffering = value;
 		}
 		fclose(config);
 	}
@@ -2276,9 +2280,11 @@ int main(int argc, char **argv)
 	debugPrintf("|Force GLES1 Mode: %s                         |\n", forceGL1 ? "Y" : "N");
 	debugPrintf("|Skip Splashscreen at Boot: %s                |\n", forceSplashSkip ? "Y" : "N");
 	debugPrintf("|Fake Windows as Platform: %s                 |\n", forceWinMode ? "Y" : "N");
+	debugPrintf("|Use Uncached Mem: %s                         |\n", uncached_mem ? "Y" : "N");
 	debugPrintf("|Run with Extended Mem Mode: %s               |\n", maximizeMem ? "Y" : "N");
 	debugPrintf("|Run with Extended Runner Pool: %s            |\n", _newlib_heap_size > 256 * 1024 * 1024 ? "Y" : "N");
 	debugPrintf("|Run with Mem Squeezing: %s                   |\n", squeeze_mem ? "Y" : "N");
+	debugPrintf("|Use Double Buffering: %s                     |\n", double_buffering ? "Y" : "N");
 #ifdef HAS_VIDEO_PLAYBACK_SUPPORT
 	debugPrintf("|Enable Video Player: Y                      |\n");
 #else
@@ -2351,6 +2357,10 @@ int main(int argc, char **argv)
 	vglSetupGarbageCollector(127, 0x20000);
 	if (squeeze_mem)
 		vglSetParamBufferSize(2 * 1024 * 1024);
+	if (!uncached_mem)
+		vglUseCachedMem(GL_TRUE);
+	if (double_buffering)
+		vglUseTripleBuffering(GL_FALSE);
 	if (maximizeMem)
 		vglInitWithCustomThreshold(0, SCREEN_W, SCREEN_H, MEMORY_VITAGL_THRESHOLD_MB * 1024 * 1024, 0, 0, 0, SCE_GXM_MULTISAMPLE_NONE);
 	else
@@ -2406,7 +2416,7 @@ int main(int argc, char **argv)
 	*(uintptr_t *)(fake_env + 0x36C) = (uintptr_t)GetJavaVM;
 	*(uintptr_t *)(fake_env + 0x394) = (uintptr_t)NewWeakGlobalRef;
 	
-	int (*Java_com_yoyogames_runner_RunnerJNILib_Startup) (void *env, int a2, char *apk_path, char *save_dir, char *pkg_dir, int sleep_margin) = (void *)so_symbol(&yoyoloader_mod, "Java_com_yoyogames_runner_RunnerJNILib_Startup");
+	void (*Java_com_yoyogames_runner_RunnerJNILib_Startup) (void *env, int a2, char *apk_path, char *save_dir, char *pkg_dir, int sleep_margin) = (void *)so_symbol(&yoyoloader_mod, "Java_com_yoyogames_runner_RunnerJNILib_Startup");
 	Java_com_yoyogames_runner_RunnerJNILib_CreateVersionDSMap = (void *)so_symbol(&yoyoloader_mod, "Java_com_yoyogames_runner_RunnerJNILib_CreateVersionDSMap");
 	Java_com_yoyogames_runner_RunnerJNILib_TouchEvent  = (void *)so_symbol(&yoyoloader_mod, "Java_com_yoyogames_runner_RunnerJNILib_TouchEvent");
 	

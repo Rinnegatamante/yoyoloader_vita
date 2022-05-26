@@ -71,5 +71,9 @@ char lang_strings[LANG_STRINGS_NUM][LANG_STR_SIZE] = {
 	"Optimize Apk with Sounds Externalization", // STR_EXTERNALIZE
 	"Reduces apk size by removing unnecessary data inside it and by externalizing and compressing all game's audio files, and improves performances by recompressing files one by one depending on their expected use.", // STR_EXTERNALIZE_DESC
 	"Disable Audio", // STR_AUDIO
-	"Disables audio playback in order to reduce memory usage of the game." // STR_AUDIO_DESC
+	"Disables audio playback in order to reduce memory usage of the game.", // STR_AUDIO_DESC
+	"Use Double Buffering", // STR_DOUBLE_BUFFERING
+	"Use double buffering instead of triple buffering. Lowers mem usage but may cause some artifacts.", // STR_DOUBLE_BUFFERING_DESC
+	"Use Uncached Memory", // STR_UNCACHED_MEM
+	"Makes the game use mostly uncached memory internally. Reduces GPU workload and can potentially fasten memory copies but increases CPU workload." // STR_UNCACHED_MEM_DESC
 };
