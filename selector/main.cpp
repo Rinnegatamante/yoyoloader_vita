@@ -27,8 +27,8 @@
 #define stringify(x) FUNC_TO_NAME(x)
 #define MIN(x, y) (x) < (y) ? (x) : (y)
 
-#define NUM_OPTIONS 12
-#define NUM_DB_CHUNKS 4
+#define NUM_OPTIONS 14
+#define NUM_DB_CHUNKS 5
 #define MEM_BUFFER_SIZE (32 * 1024 * 1024)
 #define FILTER_MODES_NUM 6
 
@@ -116,6 +116,8 @@ struct GameSelection {
 	bool has_net;
 	bool squeeze_mem;
 	bool no_audio;
+	bool uncached_mem;
+	bool double_buffering;
 	CompatibilityList *status;
 	GameSelection *next;
 };
@@ -343,6 +345,8 @@ void loadConfig(GameSelection *g) {
 			else if (strcmp("netSupport", buffer) == 0) g->has_net = (bool)value;
 			else if (strcmp("squeezeMem", buffer) == 0) g->squeeze_mem = (bool)value;
 			else if (strcmp("disableAudio", buffer) == 0) g->no_audio = (bool)value;
+			else if (strcmp("doubleBuffering", buffer) == 0) g->double_buffering = (bool)value;
+			else if (strcmp("uncachedMem", buffer) == 0) g->uncached_mem = (bool)value;
 		}
 		fclose(config);
 	} else {
@@ -1809,6 +1813,9 @@ int main(int argc, char *argv[]) {
 			ImGui::Checkbox(lang_strings[STR_FAKE_WIN], &hovered->fake_win_mode);
 			if (ImGui::IsItemHovered())
 				desc = lang_strings[STR_FAKE_WIN_DESC];
+			ImGui::Checkbox(lang_strings[STR_UNCACHED_MEM], &hovered->uncached_mem);
+			if (ImGui::IsItemHovered())
+				desc = lang_strings[STR_UNCACHED_MEM_DESC];
 			ImGui::Checkbox(lang_strings[STR_EXTRA_MEM], &hovered->mem_extended);
 			if (ImGui::IsItemHovered())
 				desc = lang_strings[STR_EXTRA_MEM_DESC];
@@ -1818,6 +1825,9 @@ int main(int argc, char *argv[]) {
 			ImGui::Checkbox(lang_strings[STR_SQUEEZE], &hovered->squeeze_mem);
 			if (ImGui::IsItemHovered())
 				desc = lang_strings[STR_SQUEEZE_DESC];
+			ImGui::Checkbox(lang_strings[STR_DOUBLE_BUFFERING], &hovered->double_buffering);
+			if (ImGui::IsItemHovered())
+				desc = lang_strings[STR_DOUBLE_BUFFERING_DESC];
 			ImGui::Checkbox(lang_strings[STR_VIDEO_PLAYER], &hovered->video_support);
 			if (ImGui::IsItemHovered())
 				desc = lang_strings[STR_VIDEO_PLAYER_DESC];
@@ -1944,9 +1954,11 @@ int main(int argc, char *argv[]) {
 			ImGui::Separator();
 			ImGui::Text("%s: %s", lang_strings[STR_GLES1], hovered->gles1 ? lang_strings[STR_YES] : lang_strings[STR_NO]);
 			ImGui::Text("%s: %s", lang_strings[STR_FAKE_WIN], hovered->fake_win_mode ? lang_strings[STR_YES] : lang_strings[STR_NO]);
+			ImGui::Text("%s: %s", lang_strings[STR_UNCACHED_MEM], hovered->uncached_mem ? lang_strings[STR_YES] : lang_strings[STR_NO]);
 			ImGui::Text("%s: %s", lang_strings[STR_EXTRA_MEM], hovered->mem_extended ? lang_strings[STR_YES] : lang_strings[STR_NO]);
 			ImGui::Text("%s: %s", lang_strings[STR_EXTRA_POOL], hovered->newlib_extended ? lang_strings[STR_YES] : lang_strings[STR_NO]);
 			ImGui::Text("%s: %s", lang_strings[STR_SQUEEZE], hovered->squeeze_mem ? lang_strings[STR_YES] : lang_strings[STR_NO]);
+			ImGui::Text("%s: %s", lang_strings[STR_DOUBLE_BUFFERING], hovered->double_buffering ? lang_strings[STR_YES] : lang_strings[STR_NO]);
 			ImGui::Text("%s: %s", lang_strings[STR_VIDEO_PLAYER], hovered->video_support ? lang_strings[STR_YES] : lang_strings[STR_NO]);
 			ImGui::Text("%s: %s", lang_strings[STR_NETWORK], hovered->has_net ? lang_strings[STR_YES] : lang_strings[STR_NO]);
 			ImGui::Text("%s: %s", lang_strings[STR_AUDIO], hovered->no_audio ? lang_strings[STR_YES] : lang_strings[STR_NO]);
@@ -1992,6 +2004,8 @@ int main(int argc, char *argv[]) {
 	fprintf(f, "%s=%d\n", "netSupport", (int)hovered->has_net);
 	fprintf(f, "%s=%d\n", "squeezeMem", (int)hovered->squeeze_mem);
 	fprintf(f, "%s=%d\n", "disableAudio", (int)hovered->no_audio);
+	fprintf(f, "%s=%d\n", "uncachedMem", (int)hovered->uncached_mem);
+	fprintf(f, "%s=%d\n", "doubleBuffering", (int)hovered->double_buffering);
 	fclose(f);
 	
 	sprintf(config_path, "ux0:data/gms/shared/yyl.cfg");
