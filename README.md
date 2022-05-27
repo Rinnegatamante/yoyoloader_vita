@@ -66,7 +66,7 @@ Finally, you'll need to recompile the few missing ones on your own:
 - [vitaGL](https://github.com/Rinnegatamante/vitaGL)
 
     ````bash
-    make SOFTFP_ABI=1 NO_DEBUG=1 SAMPLER_UNIFORMS=1 CACHED_MEM=1 install
+    make SOFTFP_ABI=1 NO_DEBUG=1 SAMPLER_UNIFORMS=1 SHARED_RENDERTARGETS=1 install
     ````
 
 After all these requirements are met, you can compile the loader similarly to how the CI compiles it for nightly builds: https://github.com/Rinnegatamante/yoyoloader_vita/blob/main/.github/workflows/compilation.yml

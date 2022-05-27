@@ -78,6 +78,8 @@ extern char *get_url;
 extern unsigned _newlib_heap_size;
 
 int disableObjectsArray = 0;
+int uncached_mem = 0;
+int double_buffering = 0;
 int forceGL1 = 0;
 int forceSplashSkip = 0;
 int forceWinMode = 0;
@@ -161,6 +163,8 @@ void loadConfig(const char *game) {
 			else if (strcmp("netSupport", buffer) == 0) has_net = value;
 			else if (strcmp("squeezeMem", buffer) == 0) squeeze_mem = value;
 			else if (strcmp("disableAudio", buffer) == 0) disableAudio = value;
+			else if (strcmp("uncachedMem", buffer) == 0) uncached_mem = value;
+			else if (strcmp("doubleBuffering", buffer) == 0) double_buffering = value;
 		}
 		fclose(config);
 	}
@@ -169,9 +173,6 @@ void loadConfig(const char *game) {
 extern void *GetPlatformInstance;
 
 static int __stack_chk_guard_fake = 0x42424242;
-ALCdevice *ALDevice;
-ALvoid *ALContext;
-
 static char fake_vm[0x1000];
 char fake_env[0x1000];
 
@@ -346,7 +347,7 @@ int ret1(void) {
 }
 
 int pthread_mutex_init_fake(pthread_mutex_t **uid, const pthread_mutexattr_t *mutexattr) {
-	pthread_mutex_t *m = calloc(1, sizeof(pthread_mutex_t));
+	pthread_mutex_t *m = vglCalloc(1, sizeof(pthread_mutex_t));
 	if (!m)
 		return -1;
 
@@ -367,7 +368,7 @@ int pthread_mutex_init_fake(pthread_mutex_t **uid, const pthread_mutexattr_t *mu
 int pthread_mutex_destroy_fake(pthread_mutex_t **uid) {
 	if (uid && *uid && (uintptr_t)*uid > 0x8000) {
 		pthread_mutex_destroy(*uid);
-		free(*uid);
+		vglFree(*uid);
 		*uid = NULL;
 	}
 	return 0;
@@ -418,7 +419,7 @@ int pthread_mutex_unlock_fake(pthread_mutex_t **uid) {
 }
 
 int pthread_cond_init_fake(pthread_cond_t **cnd, const int *condattr) {
-	pthread_cond_t *c = calloc(1, sizeof(pthread_cond_t));
+	pthread_cond_t *c = vglCalloc(1, sizeof(pthread_cond_t));
 	if (!c)
 		return -1;
 
@@ -454,7 +455,7 @@ int pthread_cond_signal_fake(pthread_cond_t **cnd) {
 int pthread_cond_destroy_fake(pthread_cond_t **cnd) {
 	if (cnd && *cnd) {
 		pthread_cond_destroy(*cnd);
-		free(*cnd);
+		vglFree(*cnd);
 		*cnd = NULL;
 	}
 	return 0;
@@ -2276,9 +2277,11 @@ int main(int argc, char **argv)
 	debugPrintf("|Force GLES1 Mode: %s                         |\n", forceGL1 ? "Y" : "N");
 	debugPrintf("|Skip Splashscreen at Boot: %s                |\n", forceSplashSkip ? "Y" : "N");
 	debugPrintf("|Fake Windows as Platform: %s                 |\n", forceWinMode ? "Y" : "N");
+	debugPrintf("|Use Uncached Mem: %s                         |\n", uncached_mem ? "Y" : "N");
 	debugPrintf("|Run with Extended Mem Mode: %s               |\n", maximizeMem ? "Y" : "N");
 	debugPrintf("|Run with Extended Runner Pool: %s            |\n", _newlib_heap_size > 256 * 1024 * 1024 ? "Y" : "N");
 	debugPrintf("|Run with Mem Squeezing: %s                   |\n", squeeze_mem ? "Y" : "N");
+	debugPrintf("|Use Double Buffering: %s                     |\n", double_buffering ? "Y" : "N");
 #ifdef HAS_VIDEO_PLAYBACK_SUPPORT
 	debugPrintf("|Enable Video Player: Y                      |\n");
 #else
@@ -2351,6 +2354,10 @@ int main(int argc, char **argv)
 	vglSetupGarbageCollector(127, 0x20000);
 	if (squeeze_mem)
 		vglSetParamBufferSize(2 * 1024 * 1024);
+	if (!uncached_mem)
+		vglUseCachedMem(GL_TRUE);
+	if (double_buffering)
+		vglUseTripleBuffering(GL_FALSE);
 	if (maximizeMem)
 		vglInitWithCustomThreshold(0, SCREEN_W, SCREEN_H, MEMORY_VITAGL_THRESHOLD_MB * 1024 * 1024, 0, 0, 0, SCE_GXM_MULTISAMPLE_NONE);
 	else
@@ -2406,7 +2413,7 @@ int main(int argc, char **argv)
 	*(uintptr_t *)(fake_env + 0x36C) = (uintptr_t)GetJavaVM;
 	*(uintptr_t *)(fake_env + 0x394) = (uintptr_t)NewWeakGlobalRef;
 	
-	int (*Java_com_yoyogames_runner_RunnerJNILib_Startup) (void *env, int a2, char *apk_path, char *save_dir, char *pkg_dir, int sleep_margin) = (void *)so_symbol(&yoyoloader_mod, "Java_com_yoyogames_runner_RunnerJNILib_Startup");
+	void (*Java_com_yoyogames_runner_RunnerJNILib_Startup) (void *env, int a2, char *apk_path, char *save_dir, char *pkg_dir, int sleep_margin) = (void *)so_symbol(&yoyoloader_mod, "Java_com_yoyogames_runner_RunnerJNILib_Startup");
 	Java_com_yoyogames_runner_RunnerJNILib_CreateVersionDSMap = (void *)so_symbol(&yoyoloader_mod, "Java_com_yoyogames_runner_RunnerJNILib_CreateVersionDSMap");
 	Java_com_yoyogames_runner_RunnerJNILib_TouchEvent  = (void *)so_symbol(&yoyoloader_mod, "Java_com_yoyogames_runner_RunnerJNILib_TouchEvent");
 	
