@@ -2021,7 +2021,7 @@ int main(int argc, char *argv[]) {
 	if (hovered && sceIoGetstat(config_path, &stat)) {
 		char *p = strstr(hovered->game_id, ":");
 		while (p) {
-			p[0] = ' ';
+			p[0] = '_';
 			p = strstr(p, ":");
 		}
 		char url[512], final_url[512] = "";
