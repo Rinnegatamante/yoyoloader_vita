@@ -68,6 +68,7 @@ enum {
 };
 
 enum {
+	DISABLED,
 	CAMERA_MODE,
 	CURSOR_MODE
 };
