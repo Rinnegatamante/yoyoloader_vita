@@ -1669,7 +1669,9 @@ int main(int argc, char *argv[]) {
 				unzReadCurrentFile(apk_file, generic_mem_buffer, target);
 				unzReadCurrentFile(apk_file, &offs, 4);
 				unzReadCurrentFile(apk_file, g->game_id, offs + 1);
-				if (!strcmp(g->game_id, "Runner") || !strcasecmp(g->game_id, "gbjam4")) {
+				if (!strcmp(g->game_id, "Runner")
+				 || !strcasecmp(g->game_id, "gbjam4") 
+				 || !strcmp(g->game_id, "lucid-dream-pc")) {
 					unzReadCurrentFile(apk_file, &offs, 4);
 					unzReadCurrentFile(apk_file, generic_mem_buffer, offs + 1);
 					unzReadCurrentFile(apk_file, &offs, 4);
