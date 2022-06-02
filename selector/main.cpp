@@ -1669,7 +1669,9 @@ int main(int argc, char *argv[]) {
 				unzReadCurrentFile(apk_file, generic_mem_buffer, target);
 				unzReadCurrentFile(apk_file, &offs, 4);
 				unzReadCurrentFile(apk_file, g->game_id, offs + 1);
-				if (!strcmp(g->game_id, "Runner")) {
+				if (!strcmp(g->game_id, "Runner")
+				 || !strcasecmp(g->game_id, "gbjam4") 
+				 || !strcmp(g->game_id, "lucid-dream-pc")) {
 					unzReadCurrentFile(apk_file, &offs, 4);
 					unzReadCurrentFile(apk_file, generic_mem_buffer, offs + 1);
 					unzReadCurrentFile(apk_file, &offs, 4);
@@ -2017,6 +2019,11 @@ int main(int argc, char *argv[]) {
 	sprintf(config_path, "ux0:data/gms/%s/keys.ini", launch_item);
 	SceIoStat stat;
 	if (hovered && sceIoGetstat(config_path, &stat)) {
+		char *p = strstr(hovered->game_id, ":");
+		while (p) {
+			p[0] = '_';
+			p = strstr(p, ":");
+		}
 		char url[512], final_url[512] = "";
 		curl_handle = curl_easy_init();
 		sprintf(url, "https://github.com/Rinnegatamante/yoyoloader_vita/blob/main/keymaps/%s.ini?raw=true", hovered->game_id);
