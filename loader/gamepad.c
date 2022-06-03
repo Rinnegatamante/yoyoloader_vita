@@ -40,9 +40,15 @@ int (*Java_com_yoyogames_runner_RunnerJNILib_KeyEvent) (void *env, int a2, int s
 extern void (*Function_Add)(const char *name, intptr_t func, int argc, char ret);
 int *g_MousePosX, *g_MousePosY, *g_DoMouseButton;
 
-int analog_as_mouse = 0;
-int analog_as_keys = 0;
-int has_kb_mapping = 0;
+enum {
+	DISABLED,
+	CAMERA_MODE,
+	CURSOR_MODE
+};
+
+int analog_as_mouse = DISABLED;
+int analog_as_keys = DISABLED;
+int has_kb_mapping = DISABLED;
 char keyboard_mapping[NUM_BUTTONS];
 int is_key_pressed[NUM_BUTTONS] = {0};
 enum {
@@ -65,12 +71,6 @@ enum {
 	LEFT_ANALOG,
 	RIGHT_ANALOG,
 	UNK_BTN = 0xFF
-};
-
-enum {
-	DISABLED,
-	CAMERA_MODE,
-	CURSOR_MODE
 };
 
 typedef struct {

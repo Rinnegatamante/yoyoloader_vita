@@ -2047,6 +2047,11 @@ void *CallStaticObjectMethodV(void *env, void *obj, int methodID, uintptr_t *arg
 			} else if (!strcmp(f->module_name, "NOTCH")) { // Used by Forager
 				jni_double = 0.0f;
 				return &jni_double;
+			} else if (!strcmp(f->module_name, "OUYAExt")) { // Used by Angry Ranook
+				if (!strcmp(f->method_name, "ouyaIsOUYA")) {
+					jni_double = 1.0f;
+					return &jni_double;
+				}
 			}
 			debugPrintf("Called undefined extension function from module %s with name %s\n", f->module_name, f->method_name);
 			return NULL;
