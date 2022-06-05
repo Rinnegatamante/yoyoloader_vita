@@ -40,9 +40,16 @@ int (*Java_com_yoyogames_runner_RunnerJNILib_KeyEvent) (void *env, int a2, int s
 extern void (*Function_Add)(const char *name, intptr_t func, int argc, char ret);
 int *g_MousePosX, *g_MousePosY, *g_DoMouseButton;
 
-int analog_as_mouse = 0;
-int analog_as_keys = 0;
-int has_kb_mapping = 0;
+enum {
+	DISABLED,
+	CAMERA_MODE,
+	CURSOR_MODE
+};
+
+int has_click_emulation = DISABLED;
+int analog_as_mouse = DISABLED;
+int analog_as_keys = DISABLED;
+int has_kb_mapping = DISABLED;
 char keyboard_mapping[NUM_BUTTONS];
 int is_key_pressed[NUM_BUTTONS] = {0};
 enum {
@@ -65,12 +72,6 @@ enum {
 	LEFT_ANALOG,
 	RIGHT_ANALOG,
 	UNK_BTN = 0xFF
-};
-
-enum {
-	DISABLED,
-	CAMERA_MODE,
-	CURSOR_MODE
 };
 
 typedef struct {
@@ -363,7 +364,8 @@ static int update_button(int new_state, int old_state) {
 }
 
 void GamePadUpdate() {
-	*g_DoMouseButton = 0;
+	if (has_click_emulation)
+		*g_DoMouseButton = 0;
 	int num_controllers = GamePadCheck(0);
 	
 	for (int i = 0; i < 4; i++) {
@@ -514,6 +516,7 @@ void map_key(int key, const char *val) {
 			keyboard_mapping[key] = (char)strtol(&val[4], NULL, 10);
 			debugPrintf("Mapped button id %d to keycode %hhd.\n", key, keyboard_mapping[key]);
 		} else if (!strncmp("MOUSE", &val[1], 5)) {
+			has_click_emulation = 1;
 			keyboard_mapping[key] = val[0] == 'L' ? 0x01 : 0x02;
 			debugPrintf("Mapped button id %d to %s mouse click.\n", key, val[0] == 'L' ? "left" : "right");
 		} else {
