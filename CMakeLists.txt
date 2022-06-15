@@ -62,11 +62,13 @@ target_link_libraries(YoYoLoader
   ogg
   vitaGL
   vitashark
+  SceShaccCgExt
   mathneon
   mpg123
   curl
   ssl
   crypto
+  taihen_stub
   kubridge_stub
   SceAppMgr_stub
   SceAppUtil_stub
@@ -116,10 +118,12 @@ target_link_libraries(YoYoLoader
   stdc++
   vitaGL
   vitashark
+  SceShaccCgExt
   mathneon
   curl
   ssl
   crypto
+  taihen_stub
   kubridge_stub
   SceAppMgr_stub
   SceAppUtil_stub
