@@ -529,7 +529,7 @@ void main_loop() {
 	int lastY[SCE_TOUCH_MAX_REPORT] = {-1, -1, -1, -1, -1, -1, -1, -1};
 	
 	setup_ended = 1;
-	glReleaseShaderCompiler();
+	//glReleaseShaderCompiler();
 	for (;;) {
 		if (post_active) {
 			SceKernelThreadInfo info;
