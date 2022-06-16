@@ -22,6 +22,11 @@ jobs:
         cd openal-soft/build
         cmake -DCMAKE_TOOLCHAIN_FILE=${VITASDK}/share/vita.toolchain.cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_FLAGS=-mfloat-abi=softfp .. && make -j$(nproc) install
         cd ../..
+        git clone https://github.com/bythos14/SceShaccCgExt.git
+        cd SceShaccCgExt
+        mkdir build && cd build
+        cmake .. && make -j$(nproc) install
+        cd ../..
         git clone https://github.com/Rinnegatamante/vitaShaRK.git
         make -C vitaShaRK -j$(nproc) install
         git clone https://github.com/Rinnegatamante/vitaGL.git
