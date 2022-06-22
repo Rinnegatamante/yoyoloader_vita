@@ -60,35 +60,40 @@ typedef struct ldst_enc {
 static so_module *head = NULL, *tail = NULL;
 
 so_hook hook_thumb(uintptr_t addr, uintptr_t dst) {
+	so_hook h;
+	//printf("THUMB HOOK\n");
 	if (addr == 0)
 		return;
+	h.thumb_addr = addr;
 	addr &= ~1;
 	if (addr & 2) {
 		uint16_t nop = 0xbf00;
 		kuKernelCpuUnrestrictedMemcpy((void *)addr, &nop, sizeof(nop));
 		addr += 2;
+		//printf("THUMB UNALIGNED\n");
 	}
-	so_hook h;
+	
 	h.addr = addr;
 	h.patch_instr[0] = 0xf000f8df; // LDR PC, [PC]
 	h.patch_instr[1] = dst;
 	kuKernelCpuUnrestrictedMemcpy(&h.orig_instr, (void *)addr, sizeof(h.orig_instr));
 	kuKernelCpuUnrestrictedMemcpy((void *)addr, h.patch_instr, sizeof(h.patch_instr));
-	
+
 	return h;
 }
 
 so_hook hook_arm(uintptr_t addr, uintptr_t dst) {
+	//printf("ARM HOOK\n");
 	if (addr == 0)
 		return;
-	
 	so_hook h;
+	h.thumb_addr = 0;
 	h.addr = addr;
 	h.patch_instr[0] = 0xe51ff004; // LDR PC, [PC, #-0x4]
 	h.patch_instr[1] = dst;
 	kuKernelCpuUnrestrictedMemcpy(&h.orig_instr, (void *)addr, sizeof(h.orig_instr));
 	kuKernelCpuUnrestrictedMemcpy((void *)addr, h.patch_instr, sizeof(h.patch_instr));
-	
+
 	return h;
 }
 

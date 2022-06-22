@@ -8,6 +8,7 @@
 
 typedef struct {
 	uintptr_t addr;
+	uintptr_t thumb_addr;
 	uint32_t orig_instr[2];
 	uint32_t patch_instr[2];
 } so_hook;
@@ -65,7 +66,7 @@ uintptr_t so_symbol(so_module *mod, const char *symbol);
 #define SO_CONTINUE(type, h, ...) ({ \
   kuKernelCpuUnrestrictedMemcpy((void *)h.addr, h.orig_instr, sizeof(h.orig_instr)); \
   kuKernelFlushCaches((void *)h.addr, sizeof(h.orig_instr)); \
-  type r = ((type(*)())h.addr)(__VA_ARGS__); \
+  type r = h.thumb_addr ? ((type(*)())h.thumb_addr)(__VA_ARGS__) : ((type(*)())h.addr)(__VA_ARGS__); \
   kuKernelCpuUnrestrictedMemcpy((void *)h.addr, h.patch_instr, sizeof(h.patch_instr)); \
   kuKernelFlushCaches((void *)h.addr, sizeof(h.patch_instr)); \
   r; \
