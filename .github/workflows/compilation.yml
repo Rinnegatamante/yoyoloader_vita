@@ -30,7 +30,7 @@ jobs:
         git clone https://github.com/Rinnegatamante/vitaShaRK.git
         make -C vitaShaRK -j$(nproc) install
         git clone https://github.com/Rinnegatamante/vitaGL.git
-        make -C vitaGL SOFTFP_ABI=1 NO_DEBUG=1 SAMPLER_UNIFORMS=1 SHARED_RENDERTARGETS=1 -j$(nproc) install
+        make -C vitaGL SOFTFP_ABI=1 NO_DEBUG=1 SHARED_RENDERTARGETS=1 -j$(nproc) install
     - name: Compile project
       run: |
         git config --global --add safe.directory /__w/yoyoloader_vita/yoyoloader_vita
@@ -48,8 +48,8 @@ jobs:
         cmake -DLOADER=1 -DSTANDALONE=1 ..
         make -j$(nproc)
         cd ..
-        make -C vitaGL SOFTFP_ABI=1 NO_DEBUG=1 SAMPLER_UNIFORMS=1 PHYCONT_ON_DEMAND=1 SHARED_RENDERTARGETS=1 -j$(nproc) clean
-        make -C vitaGL SOFTFP_ABI=1 NO_DEBUG=1 SAMPLER_UNIFORMS=1 PHYCONT_ON_DEMAND=1 SHARED_RENDERTARGETS=1 -j$(nproc) install
+        make -C vitaGL SOFTFP_ABI=1 NO_DEBUG=1 PHYCONT_ON_DEMAND=1 SHARED_RENDERTARGETS=1 -j$(nproc) clean
+        make -C vitaGL SOFTFP_ABI=1 NO_DEBUG=1 PHYCONT_ON_DEMAND=1 SHARED_RENDERTARGETS=1 -j$(nproc) install
         cd standalone_video
         cmake -DLOADER=1 -DVIDEO_SUPPORT=1 -DSTANDALONE=1 ..
         make -j$(nproc)
