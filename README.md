@@ -6,6 +6,8 @@ YoYo Loader is a loader for libyoyo.so, the official GameMaker Studio Runner app
 
 YoYo Loader works by loading such ARMv7 executable in memory, resolving its imports with native functions and patching it in order to properly run.
 
+By doing so, it's basically as if we emulate a minimalist Android environment in which we run natively the executable as is.
+
 This enables to run potentially any game made with GameMaker Studio.
 
 ## What is supported
