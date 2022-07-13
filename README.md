@@ -6,6 +6,8 @@ YoYo Loader is a loader for libyoyo.so, the official GameMaker Studio Runner app
 
 YoYo Loader works by loading such ARMv7 executable in memory, resolving its imports with native functions and patching it in order to properly run.
 
+By doing so, it's basically as if we emulate a minimalist Android environment in which we run natively the executable as is.
+
 This enables to run potentially any game made with GameMaker Studio.
 
 ## What is supported
@@ -66,7 +68,7 @@ Finally, you'll need to recompile the few missing ones on your own:
 - [vitaGL](https://github.com/Rinnegatamante/vitaGL)
 
     ````bash
-    make SOFTFP_ABI=1 NO_DEBUG=1 SAMPLER_UNIFORMS=1 SHARED_RENDERTARGETS=1 install
+    make SOFTFP_ABI=1 NO_DEBUG=1 SHARED_RENDERTARGETS=1 install
     ````
 
 After all these requirements are met, you can compile the loader similarly to how the CI compiles it for nightly builds: https://github.com/Rinnegatamante/yoyoloader_vita/blob/main/.github/workflows/compilation.yml
