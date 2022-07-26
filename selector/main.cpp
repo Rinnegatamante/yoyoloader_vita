@@ -49,7 +49,8 @@ int init_interactive_msg_dialog(const char *msg) {
 
 enum {
 	SCE_SYSTEM_PARAM_LANG_UKRAINIAN = 20,
-	SCE_SYSTEM_PARAM_LANG_CZECH = 21
+	SCE_SYSTEM_PARAM_LANG_CZECH = 21,
+	SCE_SYSTEM_PARAM_LANG_RYUKYUAN = 22
 };
 
 extern void video_open(const char *path);
@@ -1405,6 +1406,9 @@ void setTranslation(int idx) {
 		break;
 	case SCE_SYSTEM_PARAM_LANG_UKRAINIAN:
 		sprintf(langFile, "app0:lang/Ukrainian.ini");
+		break;
+	case SCE_SYSTEM_PARAM_LANG_RYUKYUAN:
+		sprintf(langFile, "app0:lang/Ryukyuan.ini");
 		break;
 	case SCE_SYSTEM_PARAM_LANG_CZECH:
 		sprintf(langFile, "app0:lang/Czech.ini");
