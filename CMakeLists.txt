@@ -78,6 +78,7 @@ target_link_libraries(YoYoLoader
   SceCommonDialog_stub
   SceDisplay_stub
   SceKernelDmacMgr_stub
+  SceLibcBridge_stub
   SceFios2_stub
   SceGxm_stub
   SceMotion_stub

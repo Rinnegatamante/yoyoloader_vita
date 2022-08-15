@@ -5,3 +5,4 @@ standalone/*
 *.elf
 *.velf
 *.bin
+libc_bridge/out

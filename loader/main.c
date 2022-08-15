@@ -49,6 +49,7 @@
 #include "sha1.h"
 #include "unzip.h"
 
+#include "libc_bridge.h"
 #include "openal_patch.h"
 
 #define STBI_MALLOC vglMalloc
@@ -127,6 +128,14 @@ void GamePadUpdate();
 char *translate_frag_shader(const char *string, int size);
 char *translate_vert_shader(const char *string, int size);
 
+off_t sceLibcBridge_ftello(FILE *stream) {
+	return (off_t)sceLibcBridge_ftell(stream);
+}
+
+int sceLibcBridge_fseeko(FILE *stream, off_t offset, int whence) {
+	return (int)sceLibcBridge_fseek(stream, offset, whence);
+}
+
 void recursive_mkdir(char *dir) {
 	char *p = dir;
 	while (p) {
@@ -149,10 +158,10 @@ void loadConfig(const char *game) {
 #else
 	sprintf(configFile, "%s/%s/yyl.cfg", DATA_PATH, game);
 #endif
-	FILE *config = fopen(configFile, "r");
+	FILE *config = sceLibcBridge_fopen(configFile, "r");
 
 	if (config) {
-		while (EOF != fscanf(config, "%[^=]=%d\n", buffer, &value)) {
+		while (EOF != sceLibcBridge_fscanf(config, "%[^=]=%d\n", buffer, &value)) {
 			if (strcmp("forceGLES1", buffer) == 0) forceGL1 = value;
 			else if (strcmp("forceBilinear", buffer) == 0) forceBilinear = value;
 			else if (strcmp("winMode", buffer) == 0) forceWinMode = value;
@@ -166,7 +175,7 @@ void loadConfig(const char *game) {
 			else if (strcmp("uncachedMem", buffer) == 0) uncached_mem = value;
 			else if (strcmp("doubleBuffering", buffer) == 0) double_buffering = value;
 		}
-		fclose(config);
+		sceLibcBridge_fclose(config);
 	}
 }
 
@@ -705,25 +714,25 @@ void LoadTextureFromPNG_generic(uint32_t arg1, uint32_t arg2, uint32_t *flags, u
 				uint32_t idx = (data[1] << 8) >> 8;
 				char fname[256];
 				sprintf(fname, "%s%u.pvr", data_path, idx);
-				FILE *f = fopen(fname, "rb");
+				FILE *f = sceLibcBridge_fopen(fname, "rb");
 				if (f) {
 					debugPrintf("Loading externalized texture %s (Raw ID: 0x%X)\n", fname, data[1]);
-					fseek(f, 0, SEEK_END);
-					uint32_t size = ftell(f) - 0x34;
+					sceLibcBridge_fseek(f, 0, SEEK_END);
+					uint32_t size = sceLibcBridge_ftell(f) - 0x34;
 					uint32_t metadata_size;
-					fseek(f, 0x08, SEEK_SET);
+					sceLibcBridge_fseek(f, 0x08, SEEK_SET);
 					uint64_t format;
-					fread(&format, 1, 8, f);
-					fseek(f, 0x18, SEEK_SET);
-					fread(&height, 1, 4, f);
-					fread(&width, 1, 4, f);
-					fseek(f, 0x30, SEEK_SET);
-					fread(&metadata_size, 1, 4, f);
+					sceLibcBridge_fread(&format, 1, 8, f);
+					sceLibcBridge_fseek(f, 0x18, SEEK_SET);
+					sceLibcBridge_fread(&height, 1, 4, f);
+					sceLibcBridge_fread(&width, 1, 4, f);
+					sceLibcBridge_fseek(f, 0x30, SEEK_SET);
+					sceLibcBridge_fread(&metadata_size, 1, 4, f);
 					size -= metadata_size;
 					ext_data = vglMalloc(size);
-					fseek(f, metadata_size, SEEK_CUR);
-					fread(ext_data, 1, size, f);
-					fclose(f);
+					sceLibcBridge_fseek(f, metadata_size, SEEK_CUR);
+					sceLibcBridge_fread(ext_data, 1, size, f);
+					sceLibcBridge_fclose(f);
 					switch (format) {
 					case 0x00:
 						glCompressedTexImage2D(GL_TEXTURE_2D, 0, GL_COMPRESSED_RGB_PVRTC_2BPPV1_IMG, width, height, 0, size, ext_data);
@@ -838,12 +847,12 @@ uint32_t png_get_IHDR_hook(uint32_t *png_ptr, uint32_t *info_ptr, uint32_t *widt
 	if (!setup_ended && *width == 2 && *height == 1) {
 		char fname[256];
 		sprintf(fname, "%s%d.pvr", data_path, image_preload_idx);
-		FILE *f = fopen(fname, "rb");
+		FILE *f = sceLibcBridge_fopen(fname, "rb");
 		if (f) {
-			fseek(f, 0x18, SEEK_SET);
-			fread(height, 1, 4, f);
-			fread(width, 1, 4, f);
-			fclose(f);
+			sceLibcBridge_fseek(f, 0x18, SEEK_SET);
+			sceLibcBridge_fread(height, 1, 4, f);
+			sceLibcBridge_fread(width, 1, 4, f);
+			sceLibcBridge_fclose(f);
 		} else {
 			sprintf(fname, "%s%d.png", data_path, image_preload_idx);
 			int dummy;
@@ -1074,17 +1083,17 @@ void glShaderSourceHook(GLuint shader, GLsizei count, const GLchar **string, con
 	char gxp_path[128], glsl_path[128];;
 	snprintf(gxp_path, sizeof(gxp_path), "%s/%s.gxp", GXP_PATH, sha_name);
 
-	FILE *file = fopen(gxp_path, "rb");
+	FILE *file = sceLibcBridge_fopen(gxp_path, "rb");
 	if (!file) {
 		debugPrintf("Could not find %s\n", gxp_path);
 		
 		// Dump GLSL shader earlier if debugging shaders to solve possible translation phase crashes
 		if (debugShaders) {
 			snprintf(glsl_path, sizeof(glsl_path), "%s/%s.glsl", GLSL_PATH, sha_name);
-			file = fopen(glsl_path, "w");
+			file = sceLibcBridge_fopen(glsl_path, "w");
 			if (file) {
-				fwrite(*string, 1, size, file);
-				fclose(file);
+				sceLibcBridge_fwrite(*string, 1, size, file);
+				sceLibcBridge_fclose(file);
 			}
 		}
 		
@@ -1106,10 +1115,10 @@ void glShaderSourceHook(GLuint shader, GLsizei count, const GLchar **string, con
 		if (debugShaders) {
 			snprintf(glsl_path, sizeof(glsl_path), "%s/%s.cg", GLSL_PATH, sha_name);
 			debugPrintf("Saving translated output on %s\n", glsl_path);
-			file = fopen(glsl_path, "w");
+			file = sceLibcBridge_fopen(glsl_path, "w");
 			if (file) {
-				fwrite(cg_shader, 1, strlen(cg_shader), file);
-				fclose(file);
+				sceLibcBridge_fwrite(cg_shader, 1, strlen(cg_shader), file);
+				sceLibcBridge_fclose(file);
 			}
 		}
 		vglFree(cg_shader);
@@ -1118,22 +1127,22 @@ void glShaderSourceHook(GLuint shader, GLsizei count, const GLchar **string, con
 			debugPrintf("Translated shader has errors... Falling back to default shader!\n");
 			if (!debugShaders) {
 				snprintf(glsl_path, sizeof(glsl_path), "%s/%s.glsl", GLSL_PATH, sha_name);
-				file = fopen(glsl_path, "w");
+				file = sceLibcBridge_fopen(glsl_path, "w");
 				if (file) {
-					fwrite(*string, 1, size, file);
-					fclose(file);
+					sceLibcBridge_fwrite(*string, 1, size, file);
+					sceLibcBridge_fclose(file);
 				}
 			}
 			snprintf(gxp_path, sizeof(gxp_path), "%s/%s.gxp", GXP_PATH, type == GL_FRAGMENT_SHADER ? "bb4a9846ba51f476c322f32ddabf6461bc63cc5e" : "eb3eaf87949a211f2cec6acdae6f5d94ba13301e");
-			file = fopen(gxp_path, "rb");
+			file = sceLibcBridge_fopen(gxp_path, "rb");
 		} else {
 			debugPrintf("Translated shader successfully compiled!\n");
 			void *bin = vglMalloc(0x8000);
 			int bin_len;
 			vglGetShaderBinary(shader, 0x8000, &bin_len, bin);
-			file = fopen(gxp_path, "wb");
-			fwrite(bin, 1, bin_len, file);
-			fclose(file);
+			file = sceLibcBridge_fopen(gxp_path, "wb");
+			sceLibcBridge_fwrite(bin, 1, bin_len, file);
+			sceLibcBridge_fclose(file);
 			vglFree(bin);
 			return;		
 		}
@@ -1143,13 +1152,13 @@ void glShaderSourceHook(GLuint shader, GLsizei count, const GLchar **string, con
 		size_t shaderSize;
 		void *shaderBuf;
 
-		fseek(file, 0, SEEK_END);
-		shaderSize = ftell(file);
-		fseek(file, 0, SEEK_SET);
+		sceLibcBridge_fseek(file, 0, SEEK_END);
+		shaderSize = sceLibcBridge_ftell(file);
+		sceLibcBridge_fseek(file, 0, SEEK_SET);
 
 		shaderBuf = vglMalloc(shaderSize);
-		fread(shaderBuf, 1, shaderSize, file);
-		fclose(file);
+		sceLibcBridge_fread(shaderBuf, 1, shaderSize, file);
+		sceLibcBridge_fclose(file);
 
 		glShaderBinary(1, &shader, 0, shaderBuf, shaderSize);
 
@@ -1236,12 +1245,12 @@ FILE *fopen_hook(char *file, char *mode) {
 		if (!s) {
 			char patched_fname[256];
 			sprintf(patched_fname, "%s%s", data_path_root, file);
-			return fopen(patched_fname, mode);
+			return sceLibcBridge_fopen(patched_fname, mode);
 		}
 	}
 	if (mode[0] == 'w')
 		recursive_mkdir(file);
-	return fopen(file, mode);
+	return sceLibcBridge_fopen(file, mode);
 }
 
 void *sceClibMemclr(void *dst, SceSize len) {
@@ -1520,40 +1529,39 @@ static so_default_dynlib default_dynlib[] = {
 	{ "exit", (uintptr_t)&exit },
 	{ "exp", (uintptr_t)&exp },
 	{ "expf", (uintptr_t)&expf },
-	{ "fclose", (uintptr_t)&fclose },
+	{ "fclose", (uintptr_t)&sceLibcBridge_fclose },
 	{ "fcntl", (uintptr_t)&ret0 },
 	{ "fdopen", (uintptr_t)&fdopen },
-	{ "feof", (uintptr_t)&feof },
-	{ "ferror", (uintptr_t)&ferror },
-	{ "fflush", (uintptr_t)&fflush },
-	{ "fgetpos", (uintptr_t)&fgetpos },
-	{ "fgetc", (uintptr_t)&fgetc },
-	{ "fgets", (uintptr_t)&fgets },
+	{ "feof", (uintptr_t)&sceLibcBridge_feof },
+	{ "ferror", (uintptr_t)&sceLibcBridge_ferror },
+	{ "fflush", (uintptr_t)&sceLibcBridge_fflush },
+	{ "fgetc", (uintptr_t)&sceLibcBridge_fgetc },
+	{ "fgets", (uintptr_t)&sceLibcBridge_fgets },
 	{ "floor", (uintptr_t)&floor },
 	{ "floorf", (uintptr_t)&floorf },
 	{ "fmod", (uintptr_t)&fmod },
 	{ "fmodf", (uintptr_t)&fmodf },
 	{ "fopen", (uintptr_t)&fopen_hook },
-	{ "fprintf", (uintptr_t)&fprintf },
-	{ "fputc", (uintptr_t)&fputc },
-	{ "fputs", (uintptr_t)&fputs },
-	{ "fread", (uintptr_t)&fread },
+	{ "fprintf", (uintptr_t)&sceLibcBridge_fprintf },
+	{ "fputc", (uintptr_t)&sceLibcBridge_fputc },
+	{ "fputs", (uintptr_t)&sceLibcBridge_fputs },
+	{ "fread", (uintptr_t)&sceLibcBridge_fread },
 	{ "free", (uintptr_t)&vglFree },
 	//{ "freeaddrinfo", (uintptr_t)&freeaddrinfo },
 	{ "frexp", (uintptr_t)&frexp },
 	{ "frexpf", (uintptr_t)&frexpf },
-	{ "fscanf", (uintptr_t)&fscanf },
-	{ "fseek", (uintptr_t)&fseek },
-	{ "fseeko", (uintptr_t)&fseeko },
+	{ "fscanf", (uintptr_t)&sceLibcBridge_fscanf },
+	{ "fseek", (uintptr_t)&sceLibcBridge_fseek },
+	{ "fseeko", (uintptr_t)&sceLibcBridge_fseeko },
 	{ "fstat", (uintptr_t)&fstat_hook },
-	{ "ftell", (uintptr_t)&ftell },
-	{ "ftello", (uintptr_t)&ftello },
-	{ "fwrite", (uintptr_t)&fwrite },
+	{ "ftell", (uintptr_t)&sceLibcBridge_ftell },
+	{ "ftello", (uintptr_t)&sceLibcBridge_ftello },
+	{ "fwrite", (uintptr_t)&sceLibcBridge_fwrite },
 	{ "getaddrinfo", (uintptr_t)&getaddrinfo },
-	{ "getc", (uintptr_t)&getc },
+	{ "getc", (uintptr_t)&sceLibcBridge_getc },
 	{ "getenv", (uintptr_t)&ret0 },
 	//{ "getsockopt", (uintptr_t)&getsockopt },
-	{ "getwc", (uintptr_t)&getwc },
+	{ "getwc", (uintptr_t)&sceLibcBridge_getwc },
 	{ "gettimeofday", (uintptr_t)&gettimeofday },
 	{ "glAlphaFunc", (uintptr_t)&glAlphaFunc },
 	{ "glBindBuffer", (uintptr_t)&glBindBuffer },
@@ -1694,8 +1702,8 @@ static so_default_dynlib default_dynlib[] = {
 	{ "pthread_mutexattr_settype", (uintptr_t)&pthread_mutexattr_settype},
 	{ "pthread_setspecific", (uintptr_t)&pthread_setspecific},
 	{ "pthread_getspecific", (uintptr_t)&pthread_getspecific},
-	{ "putc", (uintptr_t)&putc },
-	{ "putwc", (uintptr_t)&putwc },
+	{ "putc", (uintptr_t)&sceLibcBridge_putc },
+	{ "putwc", (uintptr_t)&sceLibcBridge_putwc },
 	{ "qsort", (uintptr_t)&qsort },
 	{ "read", (uintptr_t)&read },
 	{ "realloc", (uintptr_t)&vglRealloc },
@@ -1759,11 +1767,11 @@ static so_default_dynlib default_dynlib[] = {
 	{ "toupper", (uintptr_t)&toupper },
 	{ "towlower", (uintptr_t)&towlower },
 	{ "towupper", (uintptr_t)&towupper },
-	{ "ungetc", (uintptr_t)&ungetc },
-	{ "ungetwc", (uintptr_t)&ungetwc },
+	{ "ungetc", (uintptr_t)&sceLibcBridge_ungetc },
+	{ "ungetwc", (uintptr_t)&sceLibcBridge_ungetwc },
 	{ "usleep", (uintptr_t)&usleep },
 	{ "vasprintf", (uintptr_t)&vasprintf },
-	{ "vfprintf", (uintptr_t)&vfprintf },
+	{ "vfprintf", (uintptr_t)&sceLibcBridge_vfprintf },
 	{ "vprintf", (uintptr_t)&vprintf },
 	{ "vsnprintf", (uintptr_t)&vsnprintf },
 	{ "vsprintf", (uintptr_t)&vsprintf },
@@ -2208,14 +2216,14 @@ int main(int argc, char **argv)
 	// Checking requested game launch
 	char game_name[0x200];
 #ifndef STANDALONE_MODE
-	FILE *f = fopen(LAUNCH_FILE_PATH, "r");
+	FILE *f = sceLibcBridge_fopen(LAUNCH_FILE_PATH, "r");
 	if (f) {
-		size_t size = fread(game_name, 1, 0x200, f);
-		fclose(f);
+		size_t size = sceLibcBridge_fread(game_name, 1, 0x200, f);
+		sceLibcBridge_fclose(f);
 		sceIoRemove(LAUNCH_FILE_PATH);
 		game_name[size] = 0;
 	} else {
-		strcpy(game_name, "AM2R"); // Debug
+		strcpy(game_name, "Death's Gambit"); // Debug
 	}
 #else
 	sceAppMgrAppParamGetString(0, 12, game_name, 256);

@@ -1,0 +1,59 @@
+modules:
+  SceLibcBridge:
+    nid: 0x43FBA801
+    libraries:
+      SceLibc:
+        kernel: false
+        nid: 0xBE43BB07
+        functions:
+          sceLibcBridge___cxa_guard_acquire: 0xD0310E31
+          sceLibcBridge___cxa_guard_release: 0x4ED1056F
+          sceLibcBridge_rand: 0xC0883865
+          sceLibcBridge_srand: 0x3AAD41B0
+          sceLibcBridge_qsort: 0xA7CBE4A6
+          sceLibcBridge_sscanf: 0xEC585241
+          sceLibcBridge_calloc: 0xE7EC3D0B
+          sceLibcBridge_free: 0x5B9BB802
+          sceLibcBridge_malloc: 0x775A0CB2
+          sceLibcBridge_memalign: 0xA9363E6B
+          sceLibcBridge_realloc: 0x006B54BA
+          sceLibcBridge_fclose: 0xEC97321C
+          sceLibcBridge_feof: 0xBF96AD71
+          sceLibcBridge_fflush: 0x5AAD2996
+          sceLibcBridge_fgets: 0xBA14322F
+          sceLibcBridge_ferror: 0xB724BFC1
+          sceLibcBridge_fopen: 0xFFFBE239
+          sceLibcBridge_fread: 0xB31C73A9
+          sceLibcBridge_fscanf: 0x505601C6
+          sceLibcBridge_fseek: 0xC3A7CDE1
+          sceLibcBridge_ftell: 0x41C2AF95
+          sceLibcBridge_fwrite: 0x8BCDCC4E
+          sceLibcBridge_fprintf: 0xE0C79764
+          sceLibcBridge_fputc: 0x7E6A6108
+          sceLibcBridge_fputs: 0xC8FF13E5
+          sceLibcBridge_setjmp: 0x50B326CE
+          sceLibcBridge_longjmp: 0x2D81C8C8
+          sceLibcBridge_getc: 0x4BD5212E
+          sceLibcBridge_getwc: 0x23E0F442
+          sceLibcBridge_ungetc: 0x2BCB3F01
+          sceLibcBridge_fflush: 0x5AAD2996
+          sceLibcBridge_fgetc: 0x672C58E0
+          sceLibcBridge_fgetpos: 0x3CDA3118
+          sceLibcBridge_fgets: 0xBA14322F
+          sceLibcBridge_fgetwc: 0x89541CA5
+          sceLibcBridge_fgetws: 0x982AFA4D
+          sceLibcBridge_vfprintf: 0xF7915685
+          sceLibcBridge_putc: 0x995708A6
+          sceLibcBridge_puts: 0x59C3E171
+          sceLibcBridge_putwc: 0x247C71A6
+          sceLibcBridge_ungetc: 0x2BCB3F01
+          sceLibcBridge_ungetwc: 0x39334D9C
+      SceLibstdcxx:
+        kernel: false
+        nid: 0xF7629240
+        functions:
+          sceLibcBridge__ZdaPv: 0x91B0DC47
+          sceLibcBridge__ZdlPv: 0x72293931
+          sceLibcBridge__Znaj: 0xE7FB2BF4
+          sceLibcBridge__Znwj: 0xF99ED5AC
+
