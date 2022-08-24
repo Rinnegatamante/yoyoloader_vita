@@ -2204,31 +2204,6 @@ int main(int argc, char **argv)
 #ifdef HAS_VIDEO_PLAYBACK_SUPPORT
 	sceSysmoduleLoadModule(SCE_SYSMODULE_AVPLAYER);
 #endif
-	int search_unk[2];
-
-	SceIoStat st0, st1, st2, st3, st4;
-	if (!sceIoGetstat("ux0:app/AUTOPLUG2", &st0) ||
-		!sceIoGetstat("ur0:app/AUTOPLUG2", &st1) ||
-		!sceIoGetstat("uma0:app/AUTOPLUG2", &st2) ||
-		!sceIoGetstat("imc0:app/AUTOPLUG2", &st3) ||
-		!sceIoGetstat("xmc0:app/AUTOPLUG2", &st4) ||
-		_vshKernelSearchModuleByName("hideautopl", search_unk) >= 0) {
-		vglInit(0);
-		SceMsgDialogUserMessageParam msg_param;
-		sceClibMemset(&msg_param, 0, sizeof(SceMsgDialogUserMessageParam));
-		msg_param.buttonType = SCE_MSG_DIALOG_BUTTON_TYPE_OK;
-		msg_param.msg = (const SceChar8*)"The author of this software (and the vast majority of the Vita dev scene) repudiates AutoPlugin due to the huge amount of problematics it causes. If you want to run this software, please uninstall AutoPlugin.";
-		SceMsgDialogParam param;
-		sceMsgDialogParamInit(&param);
-		param.mode = SCE_MSG_DIALOG_MODE_USER_MSG;
-		param.userMsgParam = &msg_param;
-		sceMsgDialogInit(&param);
-		while (sceMsgDialogGetStatus() != SCE_COMMON_DIALOG_STATUS_FINISHED) {
-			vglSwapBuffers(GL_TRUE);
-		}
-		sceKernelExitProcess(0);
-	}
-	printf("%X %X %X %X %X\n", st0, st1, st2, st3, st4);
 	
 	// Checking requested game launch
 	char game_name[0x200];
