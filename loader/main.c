@@ -704,7 +704,11 @@ void LoadTextureFromPNG_generic(uint32_t arg1, uint32_t arg2, uint32_t *flags, u
 				uint32_t *ext_data;
 				uint32_t idx = (data[1] << 8) >> 8;
 				char fname[256];
+#ifdef STANDALONE_MODE
+				sprintf(fname, "app0:assets/%u.pvr", idx);
+#else
 				sprintf(fname, "%s%u.pvr", data_path, idx);
+#endif
 				FILE *f = fopen(fname, "rb");
 				if (f) {
 					debugPrintf("Loading externalized texture %s (Raw ID: 0x%X)\n", fname, data[1]);
@@ -770,7 +774,11 @@ void LoadTextureFromPNG_generic(uint32_t arg1, uint32_t arg2, uint32_t *flags, u
 					}
 				} else {
 					debugPrintf("Loading externalized texture %s (Raw ID: 0x%X).\n", fname, data[1]);
+#ifdef STANDALONE_MODE
+					sprintf(fname, "app0:assets/%u.png", idx);
+#else
 					sprintf(fname, "%s%u.png", data_path, idx);
+#endif
 					ext_data = stbi_load(fname, &width, &height, NULL, 4);
 					glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, ext_data);
 				}
@@ -837,7 +845,11 @@ uint32_t png_get_IHDR_hook(uint32_t *png_ptr, uint32_t *info_ptr, uint32_t *widt
 
 	if (!setup_ended && *width == 2 && *height == 1) {
 		char fname[256];
+#ifdef STANDALONE_MODE
+		sprintf(fname, "app0:assets/%d.pvr", image_preload_idx);
+#else
 		sprintf(fname, "%s%d.pvr", data_path, image_preload_idx);
+#endif
 		FILE *f = fopen(fname, "rb");
 		if (f) {
 			fseek(f, 0x18, SEEK_SET);
@@ -845,7 +857,11 @@ uint32_t png_get_IHDR_hook(uint32_t *png_ptr, uint32_t *info_ptr, uint32_t *widt
 			fread(width, 1, 4, f);
 			fclose(f);
 		} else {
+#ifdef STANDALONE_MODE
+			sprintf(fname, "app0:assets/%d.pvr", image_preload_idx);
+#else
 			sprintf(fname, "%s%d.png", data_path, image_preload_idx);
+#endif
 			int dummy;
 			stbi_info(fname, width, height, &dummy);
 		}
@@ -1234,9 +1250,26 @@ FILE *fopen_hook(char *file, char *mode) {
 	else {
 		s = strstr(file, "ux0:");
 		if (!s) {
-			char patched_fname[256];
-			sprintf(patched_fname, "%s%s", data_path_root, file);
-			return fopen(patched_fname, mode);
+#ifdef STANDALONE_MODE
+			s = strstr(file, "app0:");
+			if (!s)
+#endif
+			{
+#ifdef STANDALONE_MODE
+				FILE *f = NULL;
+				if (mode[0] != 'w') {
+					char patched_fname[256];
+					sprintf(patched_fname, "app0:%s", file);
+					f = fopen(patched_fname, mode);
+				}
+				
+				if (f)
+					return f;
+#endif
+				char patched_fname[256];
+				sprintf(patched_fname, "%s%s", data_path_root, file);
+				return fopen(patched_fname, mode);
+			}
 		}
 	}
 	if (mode[0] == 'w')
