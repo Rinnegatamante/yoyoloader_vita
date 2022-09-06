@@ -1,6 +1,7 @@
 #include <vitasdk.h>
 #include <vitaGL.h>
 #include <imgui_vita.h>
+#include <imgui_internal.h>
 #include <bzlib.h>
 #include <curl/curl.h>
 #include <stdio.h>
@@ -1524,33 +1525,6 @@ int main(int argc, char *argv[]) {
 	GameSelection *hovered = nullptr;
 	vglInitExtended(0, 960, 544, 0x1800000, SCE_GXM_MULTISAMPLE_NONE);
 	
-	int search_unk[2];
-	SceIoStat st0, st1, st2, st3, st4;
-	int is_ap_on = 0;
-	int is_bypass_on = _vshKernelSearchModuleByName("hideautopl", search_unk) >= 0;
-	if (is_bypass_on ||
-		!sceIoGetstat("ux0:app/AUTOPLUG2", &st0) ||
-		!sceIoGetstat("ur0:app/AUTOPLUG2", &st1) ||
-		!sceIoGetstat("uma0:app/AUTOPLUG2", &st2) ||
-		!sceIoGetstat("imc0:app/AUTOPLUG2", &st3) ||
-		!sceIoGetstat("xmc0:app/AUTOPLUG2", &st4)) {
-		SceMsgDialogUserMessageParam msg_param;
-		sceClibMemset(&msg_param, 0, sizeof(SceMsgDialogUserMessageParam));
-		msg_param.buttonType = SCE_MSG_DIALOG_BUTTON_TYPE_OK;
-		msg_param.msg = (const SceChar8*)"AutoPlugin 2 installation has been detected. The authors of this software encourage users to uninstall it, since it's well known to be cause of a lot of issues for a wide amount of users.\nBy proceeding, you agree to submit any request for help to the Henkaku Discord Server #help-and-support channel. Invitation Link: https://discord.gg/m7MwpKA.\nAny request for help to the original authors will be ignored unless  AutoPlugin 2 is uninstalled or a server helper agrees the issue is not caused by AutoPlugin 2.";
-		SceMsgDialogParam param;
-		sceMsgDialogParamInit(&param);
-		param.mode = SCE_MSG_DIALOG_MODE_USER_MSG;
-		param.userMsgParam = &msg_param;
-		sceMsgDialogInit(&param);
-		while (sceMsgDialogGetStatus() != SCE_COMMON_DIALOG_STATUS_FINISHED) {
-			vglSwapBuffers(GL_TRUE);
-		}
-		sceMsgDialogTerm();
-		is_ap_on = 1;
-	}
-	printf("AP2 State: %s\nBypass State: %s\n", is_ap_on ? "yes" : "no", is_bypass_on ? "yes" : "no");
-	
 	ImGui::CreateContext();
 	SceKernelThreadInfo info;
 	info.size = sizeof(SceKernelThreadInfo);
@@ -1606,6 +1580,7 @@ int main(int argc, char *argv[]) {
 	
 	ImGui_ImplVitaGL_TouchUsage(false);
 	ImGui_ImplVitaGL_GamepadUsage(true);
+	ImGui_ImplVitaGL_MouseStickUsage(false);
 	setImguiTheme();
 	FILE *f;
 	
@@ -1725,6 +1700,11 @@ int main(int argc, char *argv[]) {
 	}
 	sceIoDclose(fd);
 	
+	bool fast_increment = false;
+	bool fast_decrement = false;
+	GameSelection *decrement_stack[4096];
+	GameSelection *decremented_app = nullptr;
+	int decrement_stack_idx = 0;
 	while (!launch_item) {
 		sceKernelWaitSema(gl_mutex, 1, NULL);
 		
@@ -1771,6 +1751,8 @@ int main(int argc, char *argv[]) {
 
 		ImVec2 config_pos;
 		GameSelection *g = games;
+		int increment_idx = 0;
+		bool is_app_hovered = false;
 		while (g) {
 			if (filter_idx != FILTER_DISABLED && filterGames(g)) {
 				g = g->next;
@@ -1781,9 +1763,36 @@ int main(int argc, char *argv[]) {
 			}
 			if (ImGui::IsItemHovered()) {
 				hovered = g;
+				is_app_hovered = true;
+				if (fast_increment)
+					increment_idx = 1;
+				else if (fast_decrement) {
+					if (decrement_stack_idx == 0)
+						fast_decrement = false;
+					else
+						decremented_app = decrement_stack[decrement_stack_idx >= 20 ? (decrement_stack_idx - 20) : 0];
+				}
+			} else if (increment_idx) {
+				increment_idx++;
+				if (increment_idx == 21 || g->next == NULL) {
+					ImGui::GetCurrentContext()->NavId = ImGui::GetCurrentContext()->CurrentWindow->DC.LastItemId;
+					ImGui::SetScrollHere();
+					increment_idx = 0;
+				}
+			} else if (fast_decrement) {
+				if (!decremented_app)
+					decrement_stack[decrement_stack_idx++] = g;
+				else if (decremented_app == g) {
+					ImGui::GetCurrentContext()->NavId = ImGui::GetCurrentContext()->CurrentWindow->DC.LastItemId;
+					ImGui::SetScrollHere();
+					fast_decrement = false;
+				}	
 			}
 			g = g->next;
 		}
+		if (!is_app_hovered)
+			fast_decrement = false;
+		fast_increment = false;
 		ImGui::End();
 		
 		SceCtrlData pad;
@@ -1806,6 +1815,12 @@ int main(int argc, char *argv[]) {
 			video_close();
 			animated_preview_delayer = ANIMATED_PREVIEW_DELAY;
 			anim_download_request = true;
+		} else if ((pad.buttons & SCE_CTRL_LEFT && !(oldpad & SCE_CTRL_LEFT)) && !is_config_invoked) {
+			fast_decrement = true;
+			decrement_stack_idx = 0;
+			decremented_app = nullptr;
+		} else if ((pad.buttons & SCE_CTRL_RIGHT && !(oldpad & SCE_CTRL_RIGHT)) && !is_config_invoked) {
+			fast_increment = true;
 		}
 		oldpad = pad.buttons;
 		
