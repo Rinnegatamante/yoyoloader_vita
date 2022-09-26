@@ -190,38 +190,48 @@ void AppendCompatibilityDatabase(const char *file) {
 					bool perform_slow_check = true;
 					ptr += 1000; // Let's skip some data to improve performances
 					ptr = strstr(ptr, "\"labels\":");
+					char *old_ptr = ptr;
 					ptr = strstr(ptr + 150, "\"name\":");
-					ptr += 9;
-					if (ptr[0] == 'P') {
-						node->playable = true;
-						node->ingame_low = false;
-						node->ingame_plus = false;
-						node->crash = false;
-					} else if (ptr[0] == 'C') {
-						node->playable = false;
-						node->ingame_low = false;
-						node->ingame_plus = false;
-						node->slow = false;
-						node->crash = true;
-						perform_slow_check = false;
-					} else {
-						node->playable = false;
-						node->crash = false;
-						end = strstr(ptr, "\"");
-						if ((end - ptr) == 13) {
-							node->ingame_plus = true;
+					if (ptr) {
+						ptr += 9;
+						if (ptr[0] == 'P') {
+							node->playable = true;
 							node->ingame_low = false;
-						}else {
-							node->ingame_low = true;
 							node->ingame_plus = false;
+							node->crash = false;
+						} else if (ptr[0] == 'C') {
+							node->playable = false;
+							node->ingame_low = false;
+							node->ingame_plus = false;
+							node->slow = false;
+							node->crash = true;
+							perform_slow_check = false;
+						} else {
+							node->playable = false;
+							node->crash = false;
+							end = strstr(ptr, "\"");
+							if ((end - ptr) == 13) {
+								node->ingame_plus = true;
+								node->ingame_low = false;
+							}else {
+								node->ingame_low = true;
+								node->ingame_plus = false;
+							}
 						}
-					}
-					ptr += 120; // Let's skip some data to improve performances
-					if (perform_slow_check) {
-						end = ptr;
-						ptr = strstr(ptr, "]");
-						if ((ptr - end) > 200) node->slow = true;
-						else node->slow = false;
+						ptr += 120; // Let's skip some data to improve performances
+						if (perform_slow_check) {
+							end = ptr;
+							ptr = strstr(ptr, "]");
+							if ((ptr - end) > 200) node->slow = true;
+							else node->slow = false;
+						}
+					} else {
+						ptr = old_ptr;
+						node->playable = false;
+						node->ingame_low = false;
+						node->ingame_plus = false;
+						node->crash = false;
+						node->slow = false;
 					}
 				
 					ptr += 350; // Let's skip some data to improve performances
