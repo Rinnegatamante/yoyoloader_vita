@@ -929,6 +929,7 @@ void patch_runner(void) {
 	hook_addr(so_symbol(&yoyoloader_mod, "_Z17alBufferDebugNamejPKc"), (uintptr_t)&ret0);
 	hook_addr(so_symbol(&yoyoloader_mod, "_ZN13MemoryManager10DumpMemoryEP7__sFILE"), (uintptr_t)&ret0);
 	hook_addr(so_symbol(&yoyoloader_mod, "_ZN13MemoryManager10DumpMemoryEPvS0_"), (uintptr_t)&ret0);
+	hook_addr(so_symbol(&yoyoloader_mod, "_ZN13MemoryManager10DumpMemoryEPvS0_b"), (uintptr_t)&ret0);
 
 	hook_addr(so_symbol(&yoyoloader_mod, "_Z23YoYo_GetPlatform_DoWorkv"), (uintptr_t)&GetPlatform);
 	hook_addr(so_symbol(&yoyoloader_mod, "_Z20GET_YoYo_GetPlatformP9CInstanceiP6RValue"), (uintptr_t)&GetPlatformInstance);
@@ -1397,6 +1398,58 @@ int nanosleep_hook(const struct timespec *req, struct timespec *rem) {
 	return sceKernelDelayThreadCB(usec);
 }
 
+size_t __strlen_chk(const char *s, size_t s_len) {
+	return strlen(s);
+}
+
+int __vsprintf_chk(char* dest, int flags, size_t dest_len_from_compiler, const char* format, va_list va) {
+	return vsnprintf(dest, dest_len_from_compiler, format, va);
+}
+
+void *__memmove_chk(void *dest, const void *src, size_t len, size_t dstlen) {
+	return memmove(dest, src, len);
+}
+
+void *__memset_chk(void *dest, int val, size_t len, size_t dstlen) {
+	return memset(dest, val, len);
+}
+
+size_t __strlcat_chk (char *dest, char *src, size_t len, size_t dstlen) {
+	return strlcat(dest, src, len);
+}
+
+size_t __strlcpy_chk (char *dest, char *src, size_t len, size_t dstlen) {
+	return strlcpy(dest, src, len);
+}
+
+char* __strchr_chk(const char* p, int ch, size_t s_len) {
+	return strchr(p, ch);
+}
+
+char *__strcat_chk(char *dest, const char *src, size_t destlen) {
+	return strcat(dest, src);
+}
+
+char *__strrchr_chk(const char *p, int ch, size_t s_len) {
+	return strrchr(p, ch);
+}
+
+char *__strcpy_chk(char *dest, const char *src, size_t destlen) {
+	return strcpy(dest, src);
+}
+
+char *__strncat_chk(char *s1, const char *s2, size_t n, size_t s1len) {
+	return strncat(s1, s2, n);
+}
+
+void *__memcpy_chk(void *dest, const void *src, size_t len, size_t destlen) {
+	return memcpy(dest, src, len);
+}
+
+int __vsnprintf_chk(char *s, size_t maxlen, int flag, size_t slen, const char * format, va_list args) {
+	return vsnprintf(s, maxlen, format, args);
+}
+
 static so_default_dynlib net_dynlib[] = {
 	{ "bind", (uintptr_t)&bind },
 	{ "socket", (uintptr_t)&socket },
@@ -1469,11 +1522,24 @@ static so_default_dynlib default_dynlib[] = {
 	{ "__errno", (uintptr_t)&__errno },
 	{ "__gnu_unwind_frame", (uintptr_t)&__gnu_unwind_frame },
 	{ "__gnu_Unwind_Find_exidx", (uintptr_t)&ret0 },
+	{ "__memcpy_chk", (uintptr_t)&__memcpy_chk },
+	{ "__memmove_chk", (uintptr_t)&__memmove_chk },
+	{ "__memset_chk", (uintptr_t)&__memset_chk },
 	{ "__progname", (uintptr_t)&__progname },
 	{ "__page_size", (uintptr_t)&__page_size },
 	{ "__sF", (uintptr_t)&__sF_fake },
 	{ "__stack_chk_fail", (uintptr_t)&__stack_chk_fail_fake },
 	{ "__stack_chk_guard", (uintptr_t)&__stack_chk_guard_fake },
+	{ "__strcat_chk", (uintptr_t)&__strcat_chk },
+	{ "__strchr_chk", (uintptr_t)&__strchr_chk },
+	{ "__strcpy_chk", (uintptr_t)&__strcpy_chk },
+	{ "__strlcat_chk", (uintptr_t)&__strlcat_chk },
+	{ "__strlcpy_chk", (uintptr_t)&__strlcpy_chk },
+	{ "__strlen_chk", (uintptr_t)&__strlen_chk },
+	{ "__strncat_chk", (uintptr_t)&__strncat_chk },
+	{ "__strrchr_chk", (uintptr_t)&__strrchr_chk },
+	{ "__vsprintf_chk", (uintptr_t)&__vsprintf_chk },
+	{ "__vsnprintf_chk", (uintptr_t)&__vsnprintf_chk },
 	{ "_ctype_", (uintptr_t)&BIONIC_ctype_},
 	{ "abort", (uintptr_t)&abort },
 	//{ "accept", (uintptr_t)&accept },
