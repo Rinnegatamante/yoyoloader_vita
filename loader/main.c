@@ -178,7 +178,7 @@ char fake_env[0x1000];
 
 unsigned int _pthread_stack_default_user = 1 * 1024 * 1024;
 
-so_module yoyoloader_mod;
+so_module yoyoloader_mod, cpp_mod;
 
 void *__wrap_memcpy(void *dest, const void *src, size_t n) {
 	return sceClibMemcpy(dest, src, n);
@@ -1464,6 +1464,7 @@ static so_default_dynlib default_dynlib[] = {
 	{ "__cxa_guard_acquire", (uintptr_t)&__cxa_guard_acquire },
 	{ "__cxa_guard_release", (uintptr_t)&__cxa_guard_release },
 	{ "__cxa_pure_virtual", (uintptr_t)&__cxa_pure_virtual },
+	{ "__cxa_thread_atexit_impl", (uintptr_t)&ret0 },
 	{ "__cxa_throw", (uintptr_t)&__cxa_throw_hook },
 	{ "__errno", (uintptr_t)&__errno },
 	{ "__gnu_unwind_frame", (uintptr_t)&__gnu_unwind_frame },
@@ -1584,6 +1585,7 @@ static so_default_dynlib default_dynlib[] = {
 	{ "fwrite", (uintptr_t)&fwrite },
 	{ "getaddrinfo", (uintptr_t)&getaddrinfo },
 	{ "getc", (uintptr_t)&getc },
+	{ "getpid", (uintptr_t)&ret0 },
 	{ "getenv", (uintptr_t)&ret0 },
 	//{ "getsockopt", (uintptr_t)&getsockopt },
 	{ "getwc", (uintptr_t)&getwc },
@@ -1725,6 +1727,7 @@ static so_default_dynlib default_dynlib[] = {
 	{ "pthread_mutexattr_destroy", (uintptr_t)&pthread_mutexattr_destroy},
 	{ "pthread_mutexattr_init", (uintptr_t)&pthread_mutexattr_init},
 	{ "pthread_mutexattr_settype", (uintptr_t)&pthread_mutexattr_settype},
+	{ "pthread_once", (uintptr_t)&pthread_once_fake},
 	{ "pthread_setspecific", (uintptr_t)&pthread_setspecific},
 	{ "pthread_getspecific", (uintptr_t)&pthread_getspecific},
 	{ "putc", (uintptr_t)&putc },
@@ -1777,10 +1780,13 @@ static so_default_dynlib default_dynlib[] = {
 	{ "strrchr", (uintptr_t)&sceClibStrrchr },
 	{ "strstr", (uintptr_t)&sceClibStrstr },
 	{ "strtod", (uintptr_t)&strtod },
+	{ "strtoimax", (uintptr_t)&strtoimax },
 	{ "strtok", (uintptr_t)&strtok },
 	{ "strtol", (uintptr_t)&strtol },
 	{ "strtoll", (uintptr_t)&strtoll },
 	{ "strtoul", (uintptr_t)&strtoul },
+	{ "strtoull", (uintptr_t)&strtoull },
+	{ "strtoumax", (uintptr_t)&strtoumax },
 	{ "strxfrm", (uintptr_t)&strxfrm },
 	{ "sysconf", (uintptr_t)&ret0 },
 	{ "tan", (uintptr_t)&tan },
@@ -2248,7 +2254,7 @@ int main(int argc, char **argv)
 		sceIoRemove(LAUNCH_FILE_PATH);
 		game_name[size] = 0;
 	} else {
-		strcpy(game_name, "AM2R"); // Debug
+		strcpy(game_name, "test"); // Debug
 	}
 #else
 	sceAppMgrAppParamGetString(0, 12, game_name, 256);
@@ -2289,11 +2295,27 @@ int main(int argc, char **argv)
 	if (!file_exists("ur0:/data/libshacccg.suprx") && !file_exists("ur0:/data/external/libshacccg.suprx"))
 		fatal_error("Error: libshacccg.suprx is not installed.");
 	
-	// Loading ARMv7 executable from the apk
+	// Loading shared C++ executable, if present, from the apk
+	uint8_t has_cpp_so = GL_FALSE;
 	unz_file_info file_info;
 	unzFile apk_file = unzOpen(apk_path);
 	if (!apk_file)
 		fatal_error("Error could not find %s.", apk_path);
+	int res = unzLocateFile(apk_file, "lib/armeabi-v7a/libc++_shared.so", NULL);
+	if (res == UNZ_OK) {
+		unzGetCurrentFileInfo(apk_file, &file_info, NULL, 0, NULL, 0, NULL, 0);
+		unzOpenCurrentFile(apk_file);
+		uint64_t so_size = file_info.uncompressed_size;
+		uint8_t *so_buffer = (uint8_t *)malloc(so_size);
+		unzReadCurrentFile(apk_file, so_buffer, so_size);
+		unzCloseCurrentFile(apk_file);
+		res = so_mem_load(&cpp_mod, so_buffer, so_size, LOAD_ADDRESS);
+		if (res >= 0)
+			has_cpp_so = GL_TRUE;
+		free(so_buffer);
+	}
+	
+	// Loading ARMv7 executable from the apk
 	unzLocateFile(apk_file, "lib/armeabi-v7a/libyoyo.so", NULL);
 	unzGetCurrentFileInfo(apk_file, &file_info, NULL, 0, NULL, 0, NULL, 0);
 	unzOpenCurrentFile(apk_file);
@@ -2301,7 +2323,7 @@ int main(int argc, char **argv)
 	uint8_t *so_buffer = (uint8_t *)malloc(so_size);
 	unzReadCurrentFile(apk_file, so_buffer, so_size);
 	unzCloseCurrentFile(apk_file);
-	int res = so_mem_load(&yoyoloader_mod, so_buffer, so_size, LOAD_ADDRESS);
+	res = so_mem_load(&yoyoloader_mod, so_buffer, so_size, LOAD_ADDRESS + 0x1000000);
 	if (res < 0)
 		fatal_error("Error could not load lib/armeabi-v7a/libyoyo.so from inside game.apk. (Errorcode: 0x%08X)", res);
 	free(so_buffer);
@@ -2326,6 +2348,7 @@ int main(int argc, char **argv)
 #endif
 	debugPrintf("|Enable Network Features: %s                  |\n", has_net ? "Y" : "N");
 	debugPrintf("|Force Bilinear Filtering: %s                 |\n", forceBilinear ? "Y" : "N");
+	debugPrintf("|Has custom C++ shared lib: %s                |\n", has_cpp_so ? "Y" : "N");
 	debugPrintf("+--------------------------------------------+\n\n\n");
 	
 	if (has_net) {
@@ -2359,6 +2382,14 @@ int main(int argc, char **argv)
 		splash_buf = (uint8_t *)malloc(splash_size);
 		unzReadCurrentFile(apk_file, splash_buf, splash_size);
 		unzCloseCurrentFile(apk_file);
+	}
+	
+	// Loading cpp library if present
+	if (has_cpp_so) {
+		so_relocate(&cpp_mod);
+		so_resolve(&cpp_mod, default_dynlib, sizeof(default_dynlib), 0);
+		so_flush_caches(&cpp_mod);
+		so_initialize(&cpp_mod);
 	}
 
 	// Patching the executable
