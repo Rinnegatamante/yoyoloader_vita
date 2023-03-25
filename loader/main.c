@@ -1072,108 +1072,6 @@ void *dlopen_hook(const char *filename, int flags) {
 	return (void *)0xDEADBEEF;
 }
 
-void glShaderSourceHook(GLuint shader, GLsizei count, const GLchar **string, const GLint *length) {
-	uint32_t sha1[5];
-	SHA1_CTX ctx;
-	
-	int size = length ? *length : strlen(*string);
-	if (size == 0) {
-		debugPrintf("Attempt to load an empty shader, may be an unsupported platform target\n");
-		return;
-	}
-	sha1_init(&ctx);
-	sha1_update(&ctx, (uint8_t *)*string, size);
-	sha1_final(&ctx, (uint8_t *)sha1);
-
-	char sha_name[64];
-	snprintf(sha_name, sizeof(sha_name), "%08x%08x%08x%08x%08x", sha1[0], sha1[1], sha1[2], sha1[3], sha1[4]);
-
-	char gxp_path[128], glsl_path[128];;
-	snprintf(gxp_path, sizeof(gxp_path), "%s/%s.gxp", GXP_PATH, sha_name);
-
-	FILE *file = fopen(gxp_path, "rb");
-	if (!file) {
-		debugPrintf("Could not find %s\n", gxp_path);
-		
-		// Dump GLSL shader earlier if debugging shaders to solve possible translation phase crashes
-		if (debugShaders) {
-			snprintf(glsl_path, sizeof(glsl_path), "%s/%s.glsl", GLSL_PATH, sha_name);
-			file = fopen(glsl_path, "w");
-			if (file) {
-				fwrite(*string, 1, size, file);
-				fclose(file);
-			}
-		}
-		
-		char *cg_shader;
-		int type;
-		glGetShaderiv(shader, GL_SHADER_TYPE, &type);
-		if (type == GL_FRAGMENT_SHADER) {
-			cg_shader = translate_frag_shader(*string, size);
-		} else {
-			cg_shader = translate_vert_shader(*string, size);
-		}
-	
-		glShaderSource(shader, 1, &cg_shader, NULL);
-		glCompileShader(shader);
-		int compiled;
-		glGetShaderiv(shader, GL_COMPILE_STATUS, &compiled);
-		
-		// Debug
-		if (debugShaders) {
-			snprintf(glsl_path, sizeof(glsl_path), "%s/%s.cg", GLSL_PATH, sha_name);
-			debugPrintf("Saving translated output on %s\n", glsl_path);
-			file = fopen(glsl_path, "w");
-			if (file) {
-				fwrite(cg_shader, 1, strlen(cg_shader), file);
-				fclose(file);
-			}
-		}
-		vglFree(cg_shader);
-
-		if (!compiled) {
-			debugPrintf("Translated shader has errors... Falling back to default shader!\n");
-			if (!debugShaders) {
-				snprintf(glsl_path, sizeof(glsl_path), "%s/%s.glsl", GLSL_PATH, sha_name);
-				file = fopen(glsl_path, "w");
-				if (file) {
-					fwrite(*string, 1, size, file);
-					fclose(file);
-				}
-			}
-			snprintf(gxp_path, sizeof(gxp_path), "%s/%s.gxp", GXP_PATH, type == GL_FRAGMENT_SHADER ? "bb4a9846ba51f476c322f32ddabf6461bc63cc5e" : "eb3eaf87949a211f2cec6acdae6f5d94ba13301e");
-			file = fopen(gxp_path, "rb");
-		} else {
-			debugPrintf("Translated shader successfully compiled!\n");
-			void *bin = vglMalloc(0x8000);
-			int bin_len;
-			vglGetShaderBinary(shader, 0x8000, &bin_len, bin);
-			file = fopen(gxp_path, "wb");
-			fwrite(bin, 1, bin_len, file);
-			fclose(file);
-			vglFree(bin);
-			return;		
-		}
-	}
-
-	if (file) {
-		size_t shaderSize;
-		void *shaderBuf;
-
-		fseek(file, 0, SEEK_END);
-		shaderSize = ftell(file);
-		fseek(file, 0, SEEK_SET);
-
-		shaderBuf = vglMalloc(shaderSize);
-		fread(shaderBuf, 1, shaderSize, file);
-		fclose(file);
-
-		glShaderBinary(1, &shader, 0, shaderBuf, shaderSize);
-
-		vglFree(shaderBuf);
-	}
-}
-
 void glTexParameteriHook(GLenum target, GLenum pname, GLint param) {
 	if (forceBilinear && (pname == GL_TEXTURE_MIN_FILTER || pname == GL_TEXTURE_MAG_FILTER)) {
 		param = GL_LINEAR;
@@ -1200,7 +1098,6 @@ void glBindFramebufferHook(GLenum target, GLuint framebuffer) {
 }
 
 const char *gl_ret0[] = {
-	"glCompileShader",
 	"glDeleteRenderbuffers",
 	"glDiscardFramebufferEXT",
 	"glFramebufferRenderbuffer",
@@ -1221,7 +1118,69 @@ void glReadPixelsHook(GLint x, GLint y, GLsizei width, GLsizei height, GLenum fo
 	glReadPixels(x, y, width, height, format, type, data);
 }
 
+GLboolean skip_next_compile = GL_FALSE;
+char next_shader_fname[128];
+void glShaderSourceHook(GLuint shader, GLsizei count, const GLchar **string, const GLint *length) {
+	uint32_t sha1[5];
+	SHA1_CTX ctx;
+	
+	int size = length ? *length : strlen(*string);
+	if (size == 0) {
+		debugPrintf("Attempt to load an empty shader, may be an unsupported platform target\n");
+		return;
+	}
+	sha1_init(&ctx);
+	sha1_update(&ctx, (uint8_t *)*string, size);
+	sha1_final(&ctx, (uint8_t *)sha1);
+
+	char sha_name[64];
+	snprintf(sha_name, sizeof(sha_name), "%08x%08x%08x%08x%08x", sha1[0], sha1[1], sha1[2], sha1[3], sha1[4]);
+
+	char gxp_path[128], glsl_path[128];;
+	snprintf(gxp_path, sizeof(gxp_path), "%s/%c%c/%s.gxp", GXP_PATH, sha_name[0], sha_name[1], sha_name);
+
+	FILE *file = fopen(gxp_path, "rb");
+	if (!file) {
+		debugPrintf("Could not find cached shader: %s\n", gxp_path);
+		glShaderSource(shader, count, string, length);
+		sprintf(next_shader_fname, gxp_path);
+		snprintf(gxp_path, sizeof(gxp_path), "%s/%c%c", GXP_PATH, sha_name[0], sha_name[1]);
+		sceIoMkdir(gxp_path, 0777);
+	} else {
+		size_t shaderSize;
+		void *shaderBuf;
+
+		fseek(file, 0, SEEK_END);
+		shaderSize = ftell(file);
+		fseek(file, 0, SEEK_SET);
+
+		shaderBuf = vglMalloc(shaderSize);
+		fread(shaderBuf, 1, shaderSize, file);
+		fclose(file);
+
+		glShaderBinary(1, &shader, 0, shaderBuf, shaderSize);
+
+		vglFree(shaderBuf);
+		skip_next_compile = GL_TRUE;
+	}
+}
+
+void glCompileShaderHook(GLuint shader) {
+	if (!skip_next_compile) {
+		glCompileShader(shader);
+		void *bin = vglMalloc(32 * 1024);
+		GLsizei len;
+		vglGetShaderBinary(shader, 32 * 1024, &len, bin);
+		FILE *file = fopen(next_shader_fname, "wb");
+		fwrite(bin, 1, len, file);
+		fclose(file);
+		vglFree(bin);
+	}
+	skip_next_compile = GL_FALSE;
+}
+
 static so_default_dynlib gl_hook[] = {
+	{"glCompileShader", (uintptr_t)&glCompileShaderHook},
 	{"glShaderSource", (uintptr_t)&glShaderSourceHook},
 	{"glTexParameterf", (uintptr_t)&glTexParameterfHook},
 	{"glTexParameteri", (uintptr_t)&glTexParameteriHook},
@@ -1402,7 +1361,7 @@ size_t __strlen_chk(const char *s, size_t s_len) {
 	return strlen(s);
 }
 
-int __vsprintf_chk(char* dest, int flags, size_t dest_len_from_compiler, const char* format, va_list va) {
+int __vsprintf_chk(char* dest, int flags, size_t dest_len_from_compiler, const char *format, va_list va) {
 	return vsnprintf(dest, dest_len_from_compiler, format, va);
 }
 
@@ -1446,7 +1405,7 @@ void *__memcpy_chk(void *dest, const void *src, size_t len, size_t destlen) {
 	return memcpy(dest, src, len);
 }
 
-int __vsnprintf_chk(char *s, size_t maxlen, int flag, size_t slen, const char * format, va_list args) {
+int __vsnprintf_chk(char *s, size_t maxlen, int flag, size_t slen, const char *format, va_list args) {
 	return vsnprintf(s, maxlen, format, args);
 }
 

@@ -38,7 +38,6 @@ add_executable(YoYoLoader
   loader/so_util.c
   loader/sha1.c
   loader/openal_patch.c
-  loader/glsl2cg.c
   loader/gamepad.c
   loader/ioapi.c
   loader/unzip.c

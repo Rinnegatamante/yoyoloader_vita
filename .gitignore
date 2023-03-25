@@ -1,5 +1,4 @@
-build/*
-build_test/*
+build*
 standalone/*
 *.o
 *.elf
