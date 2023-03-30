@@ -120,6 +120,7 @@ int is_portrait = 0;
 char data_path[256];
 char data_path_root[256];
 char apk_path[256];
+char gxp_path[256];
 
 void patch_gamepad();
 void GamePadUpdate();
@@ -1118,8 +1119,6 @@ void glReadPixelsHook(GLint x, GLint y, GLsizei width, GLsizei height, GLenum fo
 	glReadPixels(x, y, width, height, format, type, data);
 }
 
-GLboolean skip_next_compile = GL_FALSE;
-char next_shader_fname[128];
 void glShaderSourceHook(GLuint shader, GLsizei count, const GLchar **string, const GLint *length) {
 	uint32_t sha1[5];
 	SHA1_CTX ctx;
@@ -1136,16 +1135,27 @@ void glShaderSourceHook(GLuint shader, GLsizei count, const GLchar **string, con
 	char sha_name[64];
 	snprintf(sha_name, sizeof(sha_name), "%08x%08x%08x%08x%08x", sha1[0], sha1[1], sha1[2], sha1[3], sha1[4]);
 
-	char gxp_path[128], glsl_path[128];;
-	snprintf(gxp_path, sizeof(gxp_path), "%s/%c%c/%s.gxp", GXP_PATH, sha_name[0], sha_name[1], sha_name);
+	char full_gxp_path[256], glsl_path[256];
+	snprintf(full_gxp_path, sizeof(full_gxp_path), "%s/%s.gxp", gxp_path, sha_name);
 
-	FILE *file = fopen(gxp_path, "rb");
+	FILE *file = fopen(full_gxp_path, "rb");
 	if (!file) {
-		debugPrintf("Could not find cached shader: %s\n", gxp_path);
+		debugPrintf("Could not find cached shader: %s\n", full_gxp_path);
+		if (debugShaders) {
+			snprintf(glsl_path, sizeof(glsl_path), "%s/%s.glsl", GLSL_PATH, sha_name);
+			file = fopen(glsl_path, "w");
+			fprintf(file, "%s", *string);
+			fclose(file);
+		}
 		glShaderSource(shader, count, string, length);
-		sprintf(next_shader_fname, gxp_path);
-		snprintf(gxp_path, sizeof(gxp_path), "%s/%c%c", GXP_PATH, sha_name[0], sha_name[1]);
-		sceIoMkdir(gxp_path, 0777);
+		glCompileShader(shader);
+		void *bin = vglMalloc(32 * 1024);
+		GLsizei len;
+		vglGetShaderBinary(shader, 32 * 1024, &len, bin);
+		FILE *file = fopen(full_gxp_path, "wb");
+		fwrite(bin, 1, len, file);
+		fclose(file);
+		vglFree(bin);
 	} else {
 		size_t shaderSize;
 		void *shaderBuf;
@@ -1161,26 +1171,11 @@ void glShaderSourceHook(GLuint shader, GLsizei count, const GLchar **string, con
 		glShaderBinary(1, &shader, 0, shaderBuf, shaderSize);
 
 		vglFree(shaderBuf);
-		skip_next_compile = GL_TRUE;
 	}
-}
-
-void glCompileShaderHook(GLuint shader) {
-	if (!skip_next_compile) {
-		glCompileShader(shader);
-		void *bin = vglMalloc(32 * 1024);
-		GLsizei len;
-		vglGetShaderBinary(shader, 32 * 1024, &len, bin);
-		FILE *file = fopen(next_shader_fname, "wb");
-		fwrite(bin, 1, len, file);
-		fclose(file);
-		vglFree(bin);
-	}
-	skip_next_compile = GL_FALSE;
 }
 
 static so_default_dynlib gl_hook[] = {
-	{"glCompileShader", (uintptr_t)&glCompileShaderHook},
+	{"glCompileShader", (uintptr_t)&ret0},
 	{"glShaderSource", (uintptr_t)&glShaderSourceHook},
 	{"glTexParameterf", (uintptr_t)&glTexParameterfHook},
 	{"glTexParameteri", (uintptr_t)&glTexParameteriHook},
@@ -2309,10 +2304,12 @@ int main(int argc, char **argv)
 	sprintf(data_path, "%s/%s/assets/", DATA_PATH, game_name);
 	recursive_mkdir(data_path);
 	
-	strcpy(pkg_name, "com.rinnegatamante.loader");
+	sprintf(gxp_path, "ux0:data/gms/shared/gxp/%s", game_name);
 	sceIoMkdir("ux0:data/gms/shared", 0777);
 	sceIoMkdir("ux0:data/gms/shared/gxp", 0777);
 	sceIoMkdir("ux0:data/gms/shared/glsl", 0777);
+	sceIoMkdir(gxp_path, 0777);
+	strcpy(pkg_name, "com.rinnegatamante.loader");
 
 	// Checking for dependencies
 	if (check_kubridge() < 0)
@@ -2442,6 +2439,7 @@ int main(int argc, char **argv)
 	so_flush_caches(&yoyoloader_mod);
 	
 	// Initializing vitaGL
+	vglSetSemanticBindingMode(VGL_MODE_GLOBAL);
 	if (debugMode)
 		vglSetDisplayCallback(mem_profiler);
 	vglSetupGarbageCollector(127, 0x20000);

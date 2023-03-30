@@ -12,7 +12,6 @@
 #define MEMORY_VITAGL_THRESHOLD_MB 12
 
 #define DATA_PATH "ux0:data/gms"
-#define GXP_PATH DATA_PATH "/shared/gxp"
 #define GLSL_PATH DATA_PATH "/shared/glsl"
 #define LAUNCH_FILE_PATH DATA_PATH "/launch.txt"
 
