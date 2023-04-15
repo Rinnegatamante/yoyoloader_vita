@@ -328,8 +328,6 @@ int so_relocate(so_module *mod) {
 		case R_ARM_ABS32:
 			if (sym->st_shndx != SHN_UNDEF)
 				*ptr += mod->text_base + sym->st_value;
-			else
-				*ptr = mod->text_base + rel->r_offset; // make it crash for debugging
 			break;
 		case R_ARM_RELATIVE:
 			*ptr += mod->text_base;
@@ -339,8 +337,6 @@ int so_relocate(so_module *mod) {
 		{
 			if (sym->st_shndx != SHN_UNDEF)
 				*ptr = mod->text_base + sym->st_value;
-			else
-				*ptr = mod->text_base + rel->r_offset; // make it crash for debugging
 			break;
 		}
 		default:
@@ -384,7 +380,7 @@ void reloc_err(uintptr_t got0)
 	so_module *curr = head;
 	while (curr && !found) {
 		for (int i = 0; i < curr->n_data; i++)
-			if ((got0 >= curr->data_base[i]) && (got0 <= (uintptr_t)(curr->data_base[i] + curr->data_size)))
+			if ((got0 >= curr->data_base[i]) && (got0 <= (uintptr_t)(curr->data_base[i] + curr->data_size[i])))
 				found = 1;
 		
 		if (!found)
@@ -439,7 +435,10 @@ int so_resolve(so_module *mod, so_default_dynlib *default_dynlib, int size_defau
 					uintptr_t link = so_resolve_link(mod, mod->dynstr + sym->st_name);
 					if (link) {
 						// debugPrintf("Resolved from dependencies: %s\n", mod->dynstr + sym->st_name);
-						*ptr = link;
+						if (type == R_ARM_ABS32)
+							*ptr += link;
+						else
+							*ptr = link;
 						resolved = 1;
 					}
 				}
@@ -451,6 +450,15 @@ int so_resolve(so_module *mod, so_default_dynlib *default_dynlib, int size_defau
 						break;
 					}
 				}
+				
+				if (!resolved) {
+					void *f = vglGetProcAddress(mod->dynstr + sym->st_name);
+					if (f) {
+						*ptr = f;
+						resolved = 1;
+						break;
+					}
+				}
 
 				if (!resolved) {
 					if (type == R_ARM_JUMP_SLOT) {
@@ -458,7 +466,7 @@ int so_resolve(so_module *mod, so_default_dynlib *default_dynlib, int size_defau
 						*ptr = (uintptr_t)&plt0_stub;
 					}
 					else {
-						fatal_error("Unresolved import: %s\n", mod->dynstr + sym->st_name);
+						//printf("Unresolved import: %s\n", mod->dynstr + sym->st_name);
 					}
 				}
 			}
