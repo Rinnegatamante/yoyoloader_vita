@@ -1358,7 +1358,7 @@ size_t __strlen_chk(const char *s, size_t s_len) {
 }
 
 int __vsprintf_chk(char* dest, int flags, size_t dest_len_from_compiler, const char *format, va_list va) {
-	return vsnprintf(dest, dest_len_from_compiler, format, va);
+	return vsprintf(dest, format, va);
 }
 
 void *__memmove_chk(void *dest, const void *src, size_t len, size_t dstlen) {
