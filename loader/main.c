@@ -58,6 +58,8 @@
 #define STB_ONLY_PNG
 #include "stb_image.h"
 
+extern int trophies_init();
+extern void patch_trophies();
 extern void audio_player_play(char *path, int loop);
 extern void audio_player_stop();
 extern void audio_player_pause();
@@ -82,7 +84,7 @@ int uncached_mem = 0;
 int double_buffering = 0;
 int forceGL1 = 0;
 int forceSplashSkip = 0;
-int forceWinMode = 0;
+int platTarget = 0;
 int forceBilinear = 0;
 int has_net = 0;
 extern int maximizeMem;
@@ -156,7 +158,8 @@ void loadConfig(const char *game) {
 		while (EOF != fscanf(config, "%[^=]=%d\n", buffer, &value)) {
 			if (strcmp("forceGLES1", buffer) == 0) forceGL1 = value;
 			else if (strcmp("forceBilinear", buffer) == 0) forceBilinear = value;
-			else if (strcmp("winMode", buffer) == 0) forceWinMode = value;
+			else if (strcmp("winMode", buffer) == 0) platTarget = value ? 1 : 0; // Retrocompatibility
+			else if (strcmp("platTarget", buffer) == 0) platTarget = value;
 			else if (strcmp("debugShaders", buffer) == 0) debugShaders = value;
 			else if (strcmp("debugMode", buffer) == 0) debugMode = value;
 			else if (strcmp("noSplash", buffer) == 0) forceSplashSkip = value;
@@ -686,7 +689,14 @@ void __stack_chk_fail_fake() {
 }
 
 double GetPlatform() {
-	return forceWinMode ? 0.0f : 4.0f;
+	switch (platTarget) {
+	case 1: // Windows
+		return 0.0f;
+	case 2: // PS4
+		return 14.0f;
+	default: // Android
+		return 4.0f;
+	}
 }
 
 uint32_t *(*ReadPNGFile) (void *a1, int a2, int *a3, int *a4, int a5);
@@ -2352,13 +2362,18 @@ int main(int argc, char **argv)
 	free(so_buffer);
 	
 	// Loading config file
+	char *platforms[] = {
+		"Mob",
+		"Win",
+		"PS4"
+	};
 	loadConfig(game_name);
 	debugPrintf("+--------------------------------------------+\n");
 	debugPrintf("|YoYo Loader Setup                           |\n");
 	debugPrintf("+--------------------------------------------+\n");
 	debugPrintf("|Force GLES1 Mode: %s                         |\n", forceGL1 ? "Y" : "N");
 	debugPrintf("|Skip Splashscreen at Boot: %s                |\n", forceSplashSkip ? "Y" : "N");
-	debugPrintf("|Fake Windows as Platform: %s                 |\n", forceWinMode ? "Y" : "N");
+	debugPrintf("|Platform Target: %s                        |\n", platforms[platTarget]);
 	debugPrintf("|Use Uncached Mem: %s                         |\n", uncached_mem ? "Y" : "N");
 	debugPrintf("|Run with Extended Mem Mode: %s               |\n", maximizeMem ? "Y" : "N");
 	debugPrintf("|Run with Extended Runner Pool: %s            |\n", _newlib_heap_size > 256 * 1024 * 1024 ? "Y" : "N");
@@ -2427,17 +2442,6 @@ int main(int argc, char **argv)
 #endif
 	so_flush_caches(&yoyoloader_mod);
 	so_initialize(&yoyoloader_mod);
-	patch_runner_post_init();
-	
-	Function_Add = (void *)so_symbol(&yoyoloader_mod, "_Z12Function_AddPKcPFvR6RValueP9CInstanceS4_iPS1_Eib");
-	if (Function_Add == NULL)
-		Function_Add = (void *)so_symbol(&yoyoloader_mod, "_Z12Function_AddPcPFvR6RValueP9CInstanceS3_iPS0_Eib");
-	
-	Function_Add("game_end", (intptr_t)game_end, 1, 1);
-	Function_Add("audio_sound_get_track_position", (intptr_t)audio_sound_get_track_position, 1, 1);
-	
-	patch_gamepad(game_name);
-	so_flush_caches(&yoyoloader_mod);
 	
 	// Initializing vitaGL
 	vglSetSemanticBindingMode(VGL_MODE_GLOBAL);
@@ -2455,6 +2459,27 @@ int main(int argc, char **argv)
 	else
 		vglInitExtended(0, SCREEN_W, SCREEN_H, MEMORY_VITAGL_THRESHOLD_MB * 1024 * 1024, SCE_GXM_MULTISAMPLE_NONE);
 	vgl_booted = 1;
+	
+	// Applying extra patches to the runner
+	patch_runner_post_init();
+	Function_Add = (void *)so_symbol(&yoyoloader_mod, "_Z12Function_AddPKcPFvR6RValueP9CInstanceS4_iPS1_Eib");
+	if (Function_Add == NULL)
+		Function_Add = (void *)so_symbol(&yoyoloader_mod, "_Z12Function_AddPcPFvR6RValueP9CInstanceS3_iPS0_Eib");
+	
+	Function_Add("game_end", (intptr_t)game_end, 1, 1);
+	Function_Add("audio_sound_get_track_position", (intptr_t)audio_sound_get_track_position, 1, 1);
+	
+	//uint8_t *g_fSuppressErrors = (uint8_t *)so_symbol(&yoyoloader_mod, "g_fSuppressErrors");
+	//*g_fSuppressErrors = 1;
+	
+	patch_gamepad(game_name);
+#ifdef STANDALONE_MODE
+	int has_trophies = trophies_init();
+	if (has_trophies > 0) {
+		patch_trophies();
+	}
+#endif
+	so_flush_caches(&yoyoloader_mod);
 
 	// Initializing Java VM and JNI Interface
 	memset(fake_vm, 'A', sizeof(fake_vm));

@@ -48,6 +48,7 @@ add_executable(YoYoLoader
   loader/net.c
   loader/profiler.c
   loader/audio_player.c
+  loader/trophies.c
 )
 
 target_link_libraries(YoYoLoader
@@ -87,6 +88,7 @@ target_link_libraries(YoYoLoader
   SceTouch_stub
   SceVshBridge_stub
   SceAvPlayer_stub
+  SceNpTrophy_stub
 )
 
 vita_create_self(loader2.bin YoYoLoader UNSAFE)

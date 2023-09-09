@@ -26,7 +26,7 @@
 #define ANALOG_DEADZONE 30
 
 extern so_module yoyoloader_mod;
-extern uint8_t forceWinMode;
+extern int platTarget;
 extern char fake_env[0x1000];
 
 int (*YYGetInt32) (void *args, int idx);
@@ -144,7 +144,18 @@ int is_gamepad_connected(int id) {
 
 void GetPlatformInstance(void *self, int n, retval_t *args) {
 	args[0].kind = VALUE_REAL;
-	args[0].rvalue.val = forceWinMode ? 0.0f : 4.0f;
+	
+	switch (platTarget) {
+	case 1: // Windows
+		args[0].rvalue.val = 0.0f;
+		break;
+	case 2: // PS4
+		args[0].rvalue.val = 14.0f;
+		break;
+	default: // Android
+		args[0].rvalue.val = 4.0f;
+		break;
+	}
 }
 
 void gamepad_is_supported(retval_t *ret, void *self, void *other, int argc, retval_t *args) {
@@ -312,7 +323,7 @@ void mouse_get_y(retval_t *ret, void *self, void *other, int argc, retval_t *arg
 }
 
 int GamePadCheck(int startup) {
-	if (sceCtrlIsMultiControllerSupported() && forceWinMode) {
+	if (sceCtrlIsMultiControllerSupported() && (platTarget != 0)) {
 		int num_controllers = 0;
 		SceCtrlPortInfo ctrl_state;
 		sceCtrlGetControllerPortInfo(&ctrl_state);
@@ -337,7 +348,7 @@ int GamePadCheck(int startup) {
 		}
 		return num_controllers;
 	} else {
-		yoyo_gamepads[forceWinMode ? 0 : 1].is_available = 1;
+		yoyo_gamepads[platTarget != 0 ? 0 : 1].is_available = 1;
 		return 1;
 	}
 }
@@ -373,7 +384,7 @@ void GamePadUpdate() {
 			continue;
 
 		SceCtrlData pad;
-		int port = (num_controllers == 1 && i == (forceWinMode ? 0 : 1)) ? 0 : (i + 1);
+		int port = (num_controllers == 1 && i == (platTarget != 0 ? 0 : 1)) ? 0 : (i + 1);
 		sceCtrlPeekBufferPositiveExt2(port, &pad, 1);
 	
 		uint8_t new_states[NUM_BUTTONS] = {

@@ -10,7 +10,7 @@ char lang_strings[LANG_STRINGS_NUM][LANG_STR_SIZE] = {
 	"No", // STR_NO
 	"Enforces GLES1 as rendering backend mode. May improve performances or make a game go further when crashing.", // STR_GLES1_DESC
 	"Enforces bilinear filtering on textures.", // STR_BILINEAR_DESC
-	"Fakes the reported target mode to the Runner as Windows. Some games require it to properly handle inputs.", // STR_FAKE_WIN_DESC
+	"Sets the reported target mode to the Runner as the specified platform. Some games require a specific target platform to properly handle inputs.", // STR_PLAT_TARGET_DESC
 	"Enables dumping of attempted shader translations by the built-in GLSL to CG shader translator in ux0:data/gms/shared/glsl.", // STR_DEBUG_SHADERS_DESC
 	"Enables debug logging in ux0:data/gms/shared/yyl.log.", // STR_DEBUG_MODE_DESC
 	"Disables splashscreen rendering at game boot.",  // STR_SPLASH_SKIP_DESC
@@ -28,7 +28,7 @@ char lang_strings[LANG_STRINGS_NUM][LANG_STR_SIZE] = {
 	"Settings", // STR_SETTINGS
 	"Downloading banners", // STR_BANNERS
 	"Force GLES1 Mode", // STR_GLES1
-	"Fake Windows as Platform", // STR_FAKE_WIN
+	"Platform Mode", // STR_PLAT_TARGET
 	"Run with Extended Mem Mode", // STR_EXTRA_MEM
 	"Run with Extended Runner Pool", // STR_EXTRA_POOL
 	"Run with Mem Squeezing", // STR_SQUEEZE

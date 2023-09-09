@@ -109,7 +109,7 @@ struct GameSelection {
 	bool bilinear;
 	bool gles1;
 	bool skip_splash;
-	bool fake_win_mode;
+	int plat_target;
 	bool debug_mode;
 	bool debug_shaders;
 	bool mem_extended;
@@ -347,7 +347,8 @@ void loadConfig(GameSelection *g) {
 		while (EOF != fscanf(config, "%[^=]=%d\n", buffer, &value)) {
 			if (strcmp("forceGLES1", buffer) == 0) g->gles1 = (bool)value;
 			else if (strcmp("forceBilinear", buffer) == 0) g->bilinear = (bool)value;
-			else if (strcmp("winMode", buffer) == 0) g->fake_win_mode = (bool)value;
+			else if (strcmp("winMode", buffer) == 0) g->plat_target = 1; // Retro compatibility
+			else if (strcmp("platTarget", buffer) == 0) g->plat_target = value;
 			else if (strcmp("debugShaders", buffer) == 0) g->debug_shaders = (bool)value;
 			else if (strcmp("debugMode", buffer) == 0) g->debug_mode = (bool)value;
 			else if (strcmp("noSplash", buffer) == 0) g->skip_splash = (bool)value;
@@ -1490,6 +1491,13 @@ void setImguiTheme() {
 	ImGui::GetIO().MouseDrawCursor = false;
 }
 
+#define PLATFORM_NUM 3
+const char *PlatformName[PLATFORM_NUM] = {
+	"Android",
+	"Windows",
+	"PS4"
+};
+
 int main(int argc, char *argv[]) {
 	gl_mutex = sceKernelCreateSema("GL Mutex", 0, 1, 1, NULL);
 	
@@ -1868,9 +1876,20 @@ int main(int argc, char *argv[]) {
 			ImGui::Checkbox(lang_strings[STR_GLES1], &hovered->gles1);
 			if (ImGui::IsItemHovered())
 				desc = lang_strings[STR_GLES1_DESC];
-			ImGui::Checkbox(lang_strings[STR_FAKE_WIN], &hovered->fake_win_mode);
-			if (ImGui::IsItemHovered())
-				desc = lang_strings[STR_FAKE_WIN_DESC];
+			ImGui::PushItemWidth(100.0f);
+			if (ImGui::BeginCombo(lang_strings[STR_PLAT_TARGET], PlatformName[hovered->plat_target])) {
+				for (int n = 0; n < PLATFORM_NUM; n++) {
+					bool is_selected = hovered->plat_target == n;
+					if (ImGui::Selectable(PlatformName[n], is_selected))
+						hovered->plat_target = n;
+					if (ImGui::IsItemHovered())
+						desc = lang_strings[STR_PLAT_TARGET_DESC];
+					if (is_selected)
+						ImGui::SetItemDefaultFocus();
+				}
+				ImGui::EndCombo();
+			}
+			ImGui::PopItemWidth();
 			ImGui::Checkbox(lang_strings[STR_UNCACHED_MEM], &hovered->uncached_mem);
 			if (ImGui::IsItemHovered())
 				desc = lang_strings[STR_UNCACHED_MEM_DESC];
@@ -2011,7 +2030,7 @@ int main(int argc, char *argv[]) {
 			}
 			ImGui::Separator();
 			ImGui::Text("%s: %s", lang_strings[STR_GLES1], hovered->gles1 ? lang_strings[STR_YES] : lang_strings[STR_NO]);
-			ImGui::Text("%s: %s", lang_strings[STR_FAKE_WIN], hovered->fake_win_mode ? lang_strings[STR_YES] : lang_strings[STR_NO]);
+			ImGui::Text("%s: %s", lang_strings[STR_PLAT_TARGET], PlatformName[hovered->plat_target]);
 			ImGui::Text("%s: %s", lang_strings[STR_UNCACHED_MEM], hovered->uncached_mem ? lang_strings[STR_YES] : lang_strings[STR_NO]);
 			ImGui::Text("%s: %s", lang_strings[STR_EXTRA_MEM], hovered->mem_extended ? lang_strings[STR_YES] : lang_strings[STR_NO]);
 			ImGui::Text("%s: %s", lang_strings[STR_EXTRA_POOL], hovered->newlib_extended ? lang_strings[STR_YES] : lang_strings[STR_NO]);
@@ -2053,7 +2072,7 @@ int main(int argc, char *argv[]) {
 	fprintf(f, "%s=%d\n", "forceGLES1", (int)hovered->gles1);
 	fprintf(f, "%s=%d\n", "noSplash", (int)hovered->skip_splash);
 	fprintf(f, "%s=%d\n", "forceBilinear", (int)hovered->bilinear);
-	fprintf(f, "%s=%d\n", "winMode", (int)hovered->fake_win_mode);
+	fprintf(f, "%s=%d\n", "platTarget", hovered->plat_target);
 	fprintf(f, "%s=%d\n", "debugMode", (int)hovered->debug_mode);
 	fprintf(f, "%s=%d\n", "debugShaders", (int)hovered->debug_shaders);
 	fprintf(f, "%s=%d\n", "maximizeMem", (int)hovered->mem_extended);

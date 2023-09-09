@@ -153,3 +153,19 @@ void fatal_error(const char *fmt, ...) {
 	sceKernelExitProcess(0);
 	while (1);
 }
+
+void warning(const char *msg) {
+  SceMsgDialogUserMessageParam msg_param;
+  sceClibMemset(&msg_param, 0, sizeof(SceMsgDialogUserMessageParam));
+  msg_param.buttonType = SCE_MSG_DIALOG_BUTTON_TYPE_OK;
+  msg_param.msg = (const SceChar8*)msg;
+  SceMsgDialogParam param;
+  sceMsgDialogParamInit(&param);
+  param.mode = SCE_MSG_DIALOG_MODE_USER_MSG;
+  param.userMsgParam = &msg_param;
+  sceMsgDialogInit(&param);
+  while (sceMsgDialogGetStatus() != SCE_COMMON_DIALOG_STATUS_FINISHED) {
+    vglSwapBuffers(GL_TRUE);
+  }
+  sceMsgDialogTerm();
+}
