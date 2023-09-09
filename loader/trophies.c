@@ -174,6 +174,14 @@ void achievements_available(retval_t *ret, void *self, void *other, int argc, re
 	ret->rvalue.val = trophies_available ? 1.0f : 0.0f;
 }
 
+void steam_stats_ready(retval_t *ret, void *self, void *other, int argc, retval_t *args) {
+	ret->rvalue.val = trophies_available ? 1.0f : 0.0f;
+}
+
+void steam_initialised(retval_t *ret, void *self, void *other, int argc, retval_t *args) {
+	ret->rvalue.val = trophies_available ? 1.0f : 0.0f;
+}
+
 void achievements_post(retval_t *ret, void *self, void *other, int argc, retval_t *args) {
 	float progress = YYGetFloat(args, 1);
 	if (progress == 100.0f) {
@@ -194,6 +202,8 @@ void patch_trophies() {
 	
 	Function_Add("steam_set_achievement", steam_set_achievement, 1, 0);
 	Function_Add("steam_get_achievement", steam_get_achievement, 1, 0);
+	Function_Add("steam_stats_ready", steam_stats_ready, 0, 0);
+	Function_Add("steam_initialised", steam_initialised, 0, 0);
 	Function_Add("achievement_available", achievements_available, 0, 0);
 	Function_Add("YoYo_AchievementsAvailable", achievements_available, 0, 0);
 	Function_Add("achievement_post", achievements_post, 2, 0);
