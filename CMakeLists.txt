@@ -66,7 +66,7 @@ target_link_libraries(YoYoLoader
   mathneon
   mpg123
   curl
-  -Wl,--whole-archive ssl -Wl,--no-whole-archive
+  ssl
   crypto
   taihen_stub
   kubridge_stub
@@ -122,7 +122,7 @@ target_link_libraries(YoYoLoader
   SceShaccCgExt
   mathneon
   curl
-  -Wl,--whole-archive ssl -Wl,--no-whole-archive
+  ssl
   crypto
   taihen_stub
   kubridge_stub
