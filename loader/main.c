@@ -1596,6 +1596,8 @@ static so_default_dynlib default_dynlib[] = {
 	{ "fgets", (uintptr_t)&fgets },
 	{ "floor", (uintptr_t)&floor },
 	{ "floorf", (uintptr_t)&floorf },
+	{ "fmax", (uintptr_t)&fmax },
+	{ "fmaxf", (uintptr_t)&fmaxf },
 	{ "fmod", (uintptr_t)&fmod },
 	{ "fmodf", (uintptr_t)&fmodf },
 	{ "fopen", (uintptr_t)&fopen_hook },
