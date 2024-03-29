@@ -32,6 +32,7 @@
 #include <pthread.h>
 #include <wchar.h>
 #include <wctype.h>
+#include <locale.h>
 
 #include <math.h>
 #include <math_neon.h>
@@ -1034,6 +1035,10 @@ extern const char *BIONIC_ctype_;
 extern const short *BIONIC_tolower_tab_;
 extern const short *BIONIC_toupper_tab_;
 
+size_t __ctype_get_mb_cur_max() {
+	return 1;
+}
+
 static FILE __sF_fake[0x100][3];
 
 int stat_hook(const char *pathname, void *statbuf) {
@@ -1476,6 +1481,7 @@ static so_default_dynlib default_dynlib[] = {
 	{ "__aeabi_atexit", (uintptr_t)&__aeabi_atexit },
 	{ "__android_log_print", (uintptr_t)&__android_log_print },
 	{ "__android_log_vprint", (uintptr_t)&__android_log_vprint },
+	{ "__ctype_get_mb_cur_max", (uintptr_t)&__ctype_get_mb_cur_max },
 	{ "__cxa_allocate_exception", (uintptr_t)&__cxa_allocate_exception },
 	{ "__cxa_atexit", (uintptr_t)&__cxa_atexit },
 	{ "__cxa_finalize", (uintptr_t)&__cxa_finalize },
@@ -1552,6 +1558,7 @@ static so_default_dynlib default_dynlib[] = {
 	{ "alcSuspendContext", (uintptr_t)&alcSuspendContext },
 	{ "asin", (uintptr_t)&asin },
 	{ "asinf", (uintptr_t)&asinf },
+	{ "asinh", (uintptr_t)&asinh },
 	{ "atan", (uintptr_t)&atan },
 	{ "atan2", (uintptr_t)&atan2 },
 	{ "atan2f", (uintptr_t)&atan2f },
@@ -1598,6 +1605,8 @@ static so_default_dynlib default_dynlib[] = {
 	{ "floorf", (uintptr_t)&floorf },
 	{ "fmax", (uintptr_t)&fmax },
 	{ "fmaxf", (uintptr_t)&fmaxf },
+	{ "fmin", (uintptr_t)&fmin },
+	{ "fminf", (uintptr_t)&fminf },
 	{ "fmod", (uintptr_t)&fmod },
 	{ "fmodf", (uintptr_t)&fmodf },
 	{ "fopen", (uintptr_t)&fopen_hook },
@@ -1606,6 +1615,7 @@ static so_default_dynlib default_dynlib[] = {
 	{ "fputs", (uintptr_t)&fputs },
 	{ "fread", (uintptr_t)&fread },
 	{ "free", (uintptr_t)&vglFree },
+	{ "freelocale", (uintptr_t)&freelocale },
 	//{ "freeaddrinfo", (uintptr_t)&freeaddrinfo },
 	{ "frexp", (uintptr_t)&frexp },
 	{ "frexpf", (uintptr_t)&frexpf },
@@ -1716,14 +1726,22 @@ static so_default_dynlib default_dynlib[] = {
 	{ "localtime_r", (uintptr_t)&localtime_r },
 	{ "localtime64", (uintptr_t)&localtime64 },
 	{ "log", (uintptr_t)&log },
+	{ "logf", (uintptr_t)&logf },
+	{ "log2", (uintptr_t)&log2 },
 	{ "log10", (uintptr_t)&log10 },
+	{ "log10f", (uintptr_t)&log10f },
 	{ "longjmp", (uintptr_t)&longjmp },
 	{ "lrand48", (uintptr_t)&lrand48 },
 	{ "lrint", (uintptr_t)&lrint },
 	{ "lrintf", (uintptr_t)&lrintf },
+	{ "lround", (uintptr_t)&lround },
+	{ "lroundf", (uintptr_t)&lroundf },
 	{ "lseek", (uintptr_t)&lseek },
 	{ "malloc", (uintptr_t)&vglMalloc },
+	{ "mbtowc", (uintptr_t)&mbtowc },
+	{ "mbrlen", (uintptr_t)&mbrlen },
 	{ "mbrtowc", (uintptr_t)&mbrtowc },
+	{ "mbsrtowcs", (uintptr_t)&mbsrtowcs },
 	{ "memalign", (uintptr_t)&vglMemalign },
 	{ "memchr", (uintptr_t)&sceClibMemchr },
 	{ "memcmp", (uintptr_t)&memcmp },
@@ -1738,6 +1756,7 @@ static so_default_dynlib default_dynlib[] = {
 	{ "modff", (uintptr_t)&modff },
 	{ "munmap", (uintptr_t)&munmap },
 	{ "nanosleep", (uintptr_t)&nanosleep_hook },
+	{ "newlocale", (uintptr_t)&newlocale },
 	{ "open", (uintptr_t)&open },
 	{ "pow", (uintptr_t)&pow },
 	{ "powf", (uintptr_t)&powf },
@@ -1773,6 +1792,8 @@ static so_default_dynlib default_dynlib[] = {
 	{ "remove", (uintptr_t)&sceIoRemove },
 	{ "rename", (uintptr_t)&sceIoRename },
 	{ "rint", (uintptr_t)&rint },
+	{ "round", (uintptr_t)&round },
+	{ "roundf", (uintptr_t)&roundf },
 	{ "scandir", (uintptr_t)&scandir_hook },
 	//{ "send", (uintptr_t)&send },
 	//{ "sendto", (uintptr_t)&sendto },
@@ -1812,6 +1833,7 @@ static so_default_dynlib default_dynlib[] = {
 	{ "strpbrk", (uintptr_t)&strpbrk },
 	{ "strrchr", (uintptr_t)&sceClibStrrchr },
 	{ "strstr", (uintptr_t)&sceClibStrstr },
+	{ "strtof", (uintptr_t)&strtof },
 	{ "strtod", (uintptr_t)&strtod },
 	{ "strtoimax", (uintptr_t)&strtoimax },
 	{ "strtok", (uintptr_t)&strtok },
@@ -1833,6 +1855,7 @@ static so_default_dynlib default_dynlib[] = {
 	{ "towupper", (uintptr_t)&towupper },
 	{ "ungetc", (uintptr_t)&ungetc },
 	{ "ungetwc", (uintptr_t)&ungetwc },
+	{ "uselocale", (uintptr_t)&uselocale },
 	{ "usleep", (uintptr_t)&usleep },
 	{ "vasprintf", (uintptr_t)&vasprintf },
 	{ "vfprintf", (uintptr_t)&vfprintf },
@@ -1844,9 +1867,12 @@ static so_default_dynlib default_dynlib[] = {
 	{ "wcscoll", (uintptr_t)&wcscoll },
 	{ "wcscmp", (uintptr_t)&wcscmp },
 	{ "wcsncpy", (uintptr_t)&wcsncpy },
+	{ "wcsnrtombs", (uintptr_t)&wcsnrtombs },
 	{ "wcsftime", (uintptr_t)&wcsftime },
 	{ "wcslen", (uintptr_t)&wcslen },
 	{ "wcsxfrm", (uintptr_t)&wcsxfrm },
+	{ "wcstoll", (uintptr_t)&wcstoll },
+	{ "wcstoul", (uintptr_t)&wcstoul },
 	{ "wctob", (uintptr_t)&wctob },
 	{ "wctype", (uintptr_t)&wctype },
 	{ "wmemchr", (uintptr_t)&wmemchr },
