@@ -1602,8 +1602,17 @@ int main(int argc, char *argv[]) {
 	setImguiTheme();
 	FILE *f;
 	
-	// Check if YoYo Loader has been launched with a custom bubble
+	// Check if user wants to skip updates
 	bool skip_updates_check = strstr(stringify(GIT_VERSION), "dirty") != nullptr;
+	bool skip_compat_update = false;
+	SceCtrlData pad;
+	sceCtrlPeekBufferPositive(0, &pad, 1);
+	if ((pad.buttons & SCE_CTRL_LTRIGGER) && (pad.buttons & SCE_CTRL_RTRIGGER)) {
+		skip_updates_check = true;
+		skip_compat_update = true;
+	}
+	
+	// Check if YoYo Loader has been launched with a custom bubble
 	char boot_params[1024];
 	sceAppMgrGetAppParam(boot_params);
 	if (strstr(boot_params,"psgm:play") && strstr(boot_params, "&param=")) {
@@ -1647,7 +1656,6 @@ int main(int argc, char *argv[]) {
 	}
 	
 	// Downloading compatibility list
-	bool skip_compat_update = false;
 	if  (!skip_compat_update) {
 		SceUID thd = sceKernelCreateThread("Compat List Updater", &compatListThread, 0x10000100, 0x100000, 0, 0, NULL);
 		sceKernelStartThread(thd, 0, NULL);
@@ -1812,7 +1820,6 @@ int main(int argc, char *argv[]) {
 		fast_increment = false;
 		ImGui::End();
 		
-		SceCtrlData pad;
 		sceCtrlPeekBufferPositive(0, &pad, 1);
 		if (pad.buttons & SCE_CTRL_TRIANGLE && !(oldpad & SCE_CTRL_TRIANGLE) && hovered && !extracting && !is_downloading_banners && !is_downloading_anim_banner) {
 			is_config_invoked = !is_config_invoked;
