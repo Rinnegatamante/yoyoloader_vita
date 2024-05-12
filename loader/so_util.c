@@ -140,8 +140,12 @@ int _so_load(so_module *mod, SceUID so_blockid, void *so_data, uintptr_t load_ad
 				opt.attr = 0x1;
 				opt.field_C = (SceUInt32)load_addr - mod->patch_size;
 				res = mod->patch_blockid = kuKernelAllocMemBlock("rx_block", SCE_KERNEL_MEMBLOCK_TYPE_USER_RX, mod->patch_size, &opt);
-				if (res < 0)
+				if (res < 0) {
+					debugPrintf("Failed at allocating a patch block of %d bytes on address 0x%08X\n", mod->patch_size, opt.field_C);
 					goto err_free_so;
+				} else {
+					debugPrintf("Patch Block: Addr: 0x%08X Size: %d\n", opt.field_C, mod->patch_size);
+				}
 
 				sceKernelGetMemBlockBase(mod->patch_blockid, &mod->patch_base);
 				mod->patch_head = mod->patch_base;
@@ -152,8 +156,12 @@ int _so_load(so_module *mod, SceUID so_blockid, void *so_data, uintptr_t load_ad
 				opt.attr = 0x1;
 				opt.field_C = (SceUInt32)load_addr;
 				res = mod->text_blockid = kuKernelAllocMemBlock("rx_block", SCE_KERNEL_MEMBLOCK_TYPE_USER_RX, prog_size, &opt);
-				if (res < 0)
+				if (res < 0) {
+					debugPrintf("Failed at allocating a prog block of %d bytes on address 0x%08X\n", prog_size, opt.field_C);
 					goto err_free_so;
+				} else {
+					debugPrintf("Prog Block: Addr: 0x%08X Size: %d\n", opt.field_C, prog_size);
+				}
 
 				sceKernelGetMemBlockBase(mod->text_blockid, &prog_data);
 
@@ -186,8 +194,12 @@ int _so_load(so_module *mod, SceUID so_blockid, void *so_data, uintptr_t load_ad
 				opt.attr = 0x1;
 				opt.field_C = (SceUInt32)data_addr;
 				res = mod->data_blockid[mod->n_data] = kuKernelAllocMemBlock("rw_block", SCE_KERNEL_MEMBLOCK_TYPE_USER_RW, prog_size, &opt);
-				if (res < 0)
+				if (res < 0) {
+					debugPrintf("Failed at allocating a rw block of %d bytes on address 0x%08X\n", prog_size, opt.field_C);
 					goto err_free_text;
+				} else {
+					debugPrintf("RW Block: Addr: 0x%08X Size: %d\n", opt.field_C, prog_size);
+				}
 
 				sceKernelGetMemBlockBase(mod->data_blockid[mod->n_data], &prog_data);
 				data_addr = (uintptr_t)prog_data + prog_size;
