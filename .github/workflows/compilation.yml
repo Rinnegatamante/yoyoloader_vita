@@ -34,6 +34,10 @@ jobs:
         make -C vitaShaRK -j$(nproc) install
         git clone https://github.com/Rinnegatamante/vitaGL.git
         make -C vitaGL SOFTFP_ABI=1 NO_DEBUG=1 SHARED_RENDERTARGETS=1 HAVE_GLSL_SUPPORT=1 -j$(nproc) install
+        git clone https://github.com/frangarcj/opensles.git
+        cd opensles/libopensles
+        make -j$(nproc) install
+        cd ../..
     - name: Compile project
       run: |
         git config --global --add safe.directory /__w/yoyoloader_vita/yoyoloader_vita
