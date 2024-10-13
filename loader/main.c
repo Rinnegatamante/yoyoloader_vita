@@ -1871,6 +1871,7 @@ static so_default_dynlib default_dynlib[] = {
 	{ "sprintf", (uintptr_t)&sprintf },
 	{ "sqrt", (uintptr_t)&sqrt },
 	{ "sqrtf", (uintptr_t)&sqrtf },
+	{ "srand", (uintptr_t)&srand },
 	{ "srand48", (uintptr_t)&srand48 },
 	{ "sscanf", (uintptr_t)&sscanf },
 	{ "stat", (uintptr_t)&stat_hook },
