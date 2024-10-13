@@ -53,7 +53,7 @@ add_executable(YoYoLoader
 
 target_link_libraries(YoYoLoader
   -Wl,--whole-archive pthread -Wl,--no-whole-archive
-  opensles
+  OpenSLES
   sndfile
   openal
   m
@@ -112,7 +112,7 @@ add_executable(YoYoLoader
 
 target_link_libraries(YoYoLoader
   -Wl,--whole-archive pthread -Wl,--no-whole-archive
-  opensles
+  OpenSLES
   sndfile
   FLAC
   vorbis
