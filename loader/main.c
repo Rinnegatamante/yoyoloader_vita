@@ -351,6 +351,61 @@ int ret1(void) {
 	return 1;
 }
 
+int pthread_rwlock_init_fake(pthread_rwlock_t **uid, const pthread_rwlockattr_t *attr) {
+	pthread_rwlock_t *l = vglCalloc(1, sizeof(pthread_rwlock_t));
+	if (!l)
+		return -1;
+	
+	int ret = pthread_rwlock_init(l, attr);
+	if (ret < 0) {
+		free(l);
+		return -1;
+	}
+
+	*uid = l;
+
+	return 0;
+}
+
+int pthread_rwlock_destroy_fake(pthread_rwlock_t **uid) {
+	if (uid && *uid) {
+		pthread_rwlock_destroy(*uid);
+		vglFree(*uid);
+		*uid = NULL;
+	}
+	return 0;
+}
+
+int pthread_rwlock_rdlock_fake(pthread_rwlock_t **uid) {
+	int ret = 0;
+	if (!*uid) {
+		ret = pthread_rwlock_init_fake(uid, NULL);
+	}
+	if (ret < 0)
+		return ret;
+	return pthread_rwlock_rdlock(*uid);
+}
+
+int pthread_rwlock_wrlock_fake(pthread_rwlock_t **uid) {
+	int ret = 0;
+	if (!*uid) {
+		ret = pthread_rwlock_init_fake(uid, NULL);
+	}
+	if (ret < 0)
+		return ret;
+	return pthread_rwlock_wrlock(*uid);
+}
+
+int pthread_rwlock_unlock_fake(pthread_rwlock_t **uid) {
+	int ret = 0;
+	if (!*uid) {
+		ret = pthread_rwlock_init_fake(uid, NULL);
+	}
+	if (ret < 0)
+		return ret;
+	return pthread_rwlock_unlock(*uid);
+}
+
 int pthread_mutex_init_fake(pthread_mutex_t **uid, const pthread_mutexattr_t *mutexattr) {
 	pthread_mutex_t *m = vglCalloc(1, sizeof(pthread_mutex_t));
 	if (!m)
@@ -1779,6 +1834,11 @@ static so_default_dynlib default_dynlib[] = {
 	{ "pthread_mutexattr_destroy", (uintptr_t)&pthread_mutexattr_destroy},
 	{ "pthread_mutexattr_init", (uintptr_t)&pthread_mutexattr_init},
 	{ "pthread_mutexattr_settype", (uintptr_t)&pthread_mutexattr_settype},
+	{ "pthread_rwlock_destroy", (uintptr_t)&pthread_rwlock_destroy_fake },
+	{ "pthread_rwlock_init", (uintptr_t)&pthread_rwlock_init_fake },
+	{ "pthread_rwlock_rdlock", (uintptr_t)&pthread_rwlock_rdlock_fake },
+	{ "pthread_rwlock_unlock", (uintptr_t)&pthread_rwlock_unlock_fake },
+	{ "pthread_rwlock_wrlock", (uintptr_t)&pthread_rwlock_wrlock_fake },
 	{ "pthread_once", (uintptr_t)&pthread_once_fake},
 	{ "pthread_setspecific", (uintptr_t)&pthread_setspecific},
 	{ "pthread_getspecific", (uintptr_t)&pthread_getspecific},
