@@ -17,6 +17,9 @@
 #include <AL/alext.h>
 #include <AL/efx.h>
 
+#include <SLES/OpenSLES.h>
+#include <SLES/OpenSLES_Android.h>
+
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netdb.h>
@@ -1255,19 +1258,7 @@ static so_default_dynlib gl_hook[] = {
 };
 static size_t gl_numhook = sizeof(gl_hook) / sizeof(*gl_hook);
 
-void *dlsym_hook( void *handle, const char *symbol) {
-	for (size_t i = 0; i < gl_numret; ++i) {
-		if (!strcmp(symbol, gl_ret0[i])) {
-			return ret0;
-		}
-	}
-	for (size_t i = 0; i < gl_numhook; ++i) {
-		if (!strcmp(symbol, gl_hook[i].symbol)) {
-			return (void *)gl_hook[i].func;
-		}
-	}
-	return vglGetProcAddress(symbol);
-}
+void *dlsym_hook( void *handle, const char *symbol);
 
 FILE *fopen_hook(char *file, char *mode) {
 	char *s = strstr(file, "/ux0:");
@@ -1481,6 +1472,56 @@ static so_default_dynlib net_dynlib[] = {
 };
 
 static so_default_dynlib default_dynlib[] = {
+	{ "SL_IID_ANDROIDSIMPLEBUFFERQUEUE", (uintptr_t)&SL_IID_ANDROIDSIMPLEBUFFERQUEUE},
+	{ "SL_IID_AUDIOIODEVICECAPABILITIES", (uintptr_t)&SL_IID_AUDIOIODEVICECAPABILITIES},
+	{ "SL_IID_BUFFERQUEUE", (uintptr_t)&SL_IID_BUFFERQUEUE},
+	{ "SL_IID_DYNAMICSOURCE", (uintptr_t)&SL_IID_DYNAMICSOURCE},
+	{ "SL_IID_ENGINE", (uintptr_t)&SL_IID_ENGINE},
+	{ "SL_IID_LED", (uintptr_t)&SL_IID_LED},
+	{ "SL_IID_NULL", (uintptr_t)&SL_IID_NULL},
+	{ "SL_IID_METADATAEXTRACTION", (uintptr_t)&SL_IID_METADATAEXTRACTION},
+	{ "SL_IID_METADATATRAVERSAL", (uintptr_t)&SL_IID_METADATATRAVERSAL},
+	{ "SL_IID_OBJECT", (uintptr_t)&SL_IID_OBJECT},
+	{ "SL_IID_OUTPUTMIX", (uintptr_t)&SL_IID_OUTPUTMIX},
+	{ "SL_IID_PLAY", (uintptr_t)&SL_IID_PLAY},
+	{ "SL_IID_VIBRA", (uintptr_t)&SL_IID_VIBRA},
+	{ "SL_IID_VOLUME", (uintptr_t)&SL_IID_VOLUME},
+	{ "SL_IID_PREFETCHSTATUS", (uintptr_t)&SL_IID_PREFETCHSTATUS},
+	{ "SL_IID_PLAYBACKRATE", (uintptr_t)&SL_IID_PLAYBACKRATE},
+	{ "SL_IID_SEEK", (uintptr_t)&SL_IID_SEEK},
+	{ "SL_IID_RECORD", (uintptr_t)&SL_IID_RECORD},
+	{ "SL_IID_EQUALIZER", (uintptr_t)&SL_IID_EQUALIZER},
+	{ "SL_IID_DEVICEVOLUME", (uintptr_t)&SL_IID_DEVICEVOLUME},
+	{ "SL_IID_PRESETREVERB", (uintptr_t)&SL_IID_PRESETREVERB},
+	{ "SL_IID_ENVIRONMENTALREVERB", (uintptr_t)&SL_IID_ENVIRONMENTALREVERB},
+	{ "SL_IID_EFFECTSEND", (uintptr_t)&SL_IID_EFFECTSEND},
+	{ "SL_IID_3DGROUPING", (uintptr_t)&SL_IID_3DGROUPING},
+	{ "SL_IID_3DCOMMIT", (uintptr_t)&SL_IID_3DCOMMIT},
+	{ "SL_IID_3DLOCATION", (uintptr_t)&SL_IID_3DLOCATION},
+	{ "SL_IID_3DDOPPLER", (uintptr_t)&SL_IID_3DDOPPLER},
+	{ "SL_IID_3DSOURCE", (uintptr_t)&SL_IID_3DSOURCE},
+	{ "SL_IID_3DMACROSCOPIC", (uintptr_t)&SL_IID_3DMACROSCOPIC},
+	{ "SL_IID_MUTESOLO", (uintptr_t)&SL_IID_MUTESOLO},
+	{ "SL_IID_DYNAMICINTERFACEMANAGEMENT", (uintptr_t)&SL_IID_DYNAMICINTERFACEMANAGEMENT},
+	{ "SL_IID_MIDIMESSAGE", (uintptr_t)&SL_IID_MIDIMESSAGE},
+	{ "SL_IID_MIDIMUTESOLO", (uintptr_t)&SL_IID_MIDIMUTESOLO},
+	{ "SL_IID_MIDITEMPO", (uintptr_t)&SL_IID_MIDITEMPO},
+	{ "SL_IID_MIDITIME", (uintptr_t)&SL_IID_MIDITIME},
+	{ "SL_IID_AUDIODECODERCAPABILITIES", (uintptr_t)&SL_IID_AUDIODECODERCAPABILITIES},
+	{ "SL_IID_AUDIOENCODERCAPABILITIES", (uintptr_t)&SL_IID_AUDIOENCODERCAPABILITIES},
+	{ "SL_IID_AUDIOENCODER", (uintptr_t)&SL_IID_AUDIOENCODER},
+	{ "SL_IID_BASSBOOST", (uintptr_t)&SL_IID_BASSBOOST},
+	{ "SL_IID_PITCH", (uintptr_t)&SL_IID_PITCH},
+	{ "SL_IID_RATEPITCH", (uintptr_t)&SL_IID_RATEPITCH},
+	{ "SL_IID_VIRTUALIZER", (uintptr_t)&SL_IID_VIRTUALIZER},
+	{ "SL_IID_VISUALIZATION", (uintptr_t)&SL_IID_VISUALIZATION},
+	{ "SL_IID_ENGINECAPABILITIES", (uintptr_t)&SL_IID_ENGINECAPABILITIES},
+	{ "SL_IID_THREADSYNC", (uintptr_t)&SL_IID_THREADSYNC},
+	{ "SL_IID_ANDROIDEFFECT", (uintptr_t)&SL_IID_ANDROIDEFFECT},
+	{ "SL_IID_ANDROIDEFFECTSEND", (uintptr_t)&SL_IID_ANDROIDEFFECTSEND},
+	{ "SL_IID_ANDROIDEFFECTCAPABILITIES", (uintptr_t)&SL_IID_ANDROIDEFFECTCAPABILITIES},
+	{ "SL_IID_ANDROIDCONFIGURATION", (uintptr_t)&SL_IID_ANDROIDCONFIGURATION},
+	{ "slCreateEngine", (uintptr_t)&slCreateEngine },
 	{ "AAssetManager_open", (uintptr_t)&AAssetManager_open},
 	{ "AAsset_close", (uintptr_t)&AAsset_close},
 	{ "AAssetManager_fromJava", (uintptr_t)&AAssetManager_fromJava},
@@ -1644,6 +1685,7 @@ static so_default_dynlib default_dynlib[] = {
 	{ "dlclose", (uintptr_t)&ret0 },
 	{ "dlopen", (uintptr_t)&dlopen_hook },
 	{ "dlsym", (uintptr_t)&dlsym_hook },
+	{ "dlerror", (uintptr_t)&ret0 },
 	{ "exit", (uintptr_t)&exit },
 	{ "exp", (uintptr_t)&exp },
 	{ "expf", (uintptr_t)&expf },
@@ -1943,6 +1985,31 @@ static so_default_dynlib default_dynlib[] = {
 	{ "wmemset", (uintptr_t)&wmemset },
 	{ "write", (uintptr_t)&write },
 };
+
+void *dlsym_hook( void *handle, const char *symbol) {
+	for (size_t i = 0; i < gl_numret; ++i) {
+		if (!strcmp(symbol, gl_ret0[i])) {
+			return ret0;
+		}
+	}
+	for (size_t i = 0; i < gl_numhook; ++i) {
+		if (!strcmp(symbol, gl_hook[i].symbol)) {
+			return (void *)gl_hook[i].func;
+		}
+	}
+	
+	void *func = vglGetProcAddress(symbol);
+	
+	if (!func) {
+		for (size_t i = 0; i < sizeof(default_dynlib) / sizeof(so_default_dynlib); i++) {
+			if (!strcmp(symbol, default_dynlib[i].symbol)) {
+				return default_dynlib[i].func;
+			}
+		}
+	}
+	
+	return func;
+}
 
 int check_kubridge(void) {
 	int search_unk[2];

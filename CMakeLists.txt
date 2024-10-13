@@ -53,12 +53,16 @@ add_executable(YoYoLoader
 
 target_link_libraries(YoYoLoader
   -Wl,--whole-archive pthread -Wl,--no-whole-archive
+  opensles
+  sndfile
   openal
   m
   z
   stdc++
+  FLAC
   vorbis
   vorbisfile
+  vorbisenc
   ogg
   vitaGL
   vitashark
@@ -108,6 +112,7 @@ add_executable(YoYoLoader
 
 target_link_libraries(YoYoLoader
   -Wl,--whole-archive pthread -Wl,--no-whole-archive
+  opensles
   sndfile
   FLAC
   vorbis
