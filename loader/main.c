@@ -1466,10 +1466,20 @@ int __vsnprintf_chk(char *s, size_t maxlen, int flag, size_t slen, const char *f
 	return vsnprintf(s, maxlen, format, args);
 }
 
+int posix_memalign(void **memptr, size_t alignment, size_t size) {
+	*memptr = memalign(alignment, size);
+	return 0;
+}
+
 static so_default_dynlib net_dynlib[] = {
 	{ "bind", (uintptr_t)&bind },
 	{ "socket", (uintptr_t)&socket },
 };
+
+void abort_hook() {
+	debugPrintf("abort called by %p %s\n", __builtin_return_address(0));
+	sceKernelExitProcess(0);
+}
 
 static so_default_dynlib default_dynlib[] = {
 	{ "SL_IID_ANDROIDSIMPLEBUFFERQUEUE", (uintptr_t)&SL_IID_ANDROIDSIMPLEBUFFERQUEUE},
@@ -1608,7 +1618,7 @@ static so_default_dynlib default_dynlib[] = {
 	{ "__vsprintf_chk", (uintptr_t)&__vsprintf_chk },
 	{ "__vsnprintf_chk", (uintptr_t)&__vsnprintf_chk },
 	{ "_ctype_", (uintptr_t)&BIONIC_ctype_},
-	{ "abort", (uintptr_t)&abort },
+	{ "abort", (uintptr_t)&abort_hook },
 	//{ "accept", (uintptr_t)&accept },
 	{ "acos", (uintptr_t)&acos },
 	{ "acosf", (uintptr_t)&acosf },
@@ -1855,6 +1865,7 @@ static so_default_dynlib default_dynlib[] = {
 	{ "nanosleep", (uintptr_t)&nanosleep_hook },
 	{ "newlocale", (uintptr_t)&newlocale },
 	{ "open", (uintptr_t)&open },
+	{ "posix_memalign", (uintptr_t)&posix_memalign },
 	{ "pow", (uintptr_t)&pow },
 	{ "powf", (uintptr_t)&powf },
 	{ "printf", (uintptr_t)&debugPrintf },
@@ -1905,6 +1916,7 @@ static so_default_dynlib default_dynlib[] = {
 	//{ "setsockopt", (uintptr_t)&setsockopt },
 	{ "setvbuf", (uintptr_t)&setvbuf },
 	{ "sin", (uintptr_t)&sin },
+	{ "sincos", (uintptr_t)&sincos },
 	{ "sincosf", (uintptr_t)&sincosf },
 	{ "sinf", (uintptr_t)&sinf },
 	{ "sinh", (uintptr_t)&sinh },
@@ -1927,6 +1939,7 @@ static so_default_dynlib default_dynlib[] = {
 	{ "strdup", (uintptr_t)&strdup },
 	{ "strndup", (uintptr_t)&strndup },
 	{ "strerror", (uintptr_t)&strerror },
+	{ "strerror_r", (uintptr_t)&strerror_r },
 	{ "strftime", (uintptr_t)&strftime },
 	{ "strlen", (uintptr_t)&strlen },
 	{ "strncasecmp", (uintptr_t)&sceClibStrncasecmp },
@@ -1941,11 +1954,13 @@ static so_default_dynlib default_dynlib[] = {
 	{ "strtoimax", (uintptr_t)&strtoimax },
 	{ "strtok", (uintptr_t)&strtok },
 	{ "strtol", (uintptr_t)&strtol },
+	{ "strtold", (uintptr_t)&strtold },
 	{ "strtoll", (uintptr_t)&strtoll },
 	{ "strtoul", (uintptr_t)&strtoul },
 	{ "strtoull", (uintptr_t)&strtoull },
 	{ "strtoumax", (uintptr_t)&strtoumax },
 	{ "strxfrm", (uintptr_t)&strxfrm },
+	{ "swprintf", (uintptr_t)&swprintf },
 	{ "sysconf", (uintptr_t)&ret0 },
 	{ "tan", (uintptr_t)&tan },
 	{ "tanf", (uintptr_t)&tanf },
@@ -1965,6 +1980,7 @@ static so_default_dynlib default_dynlib[] = {
 	{ "vprintf", (uintptr_t)&vprintf },
 	{ "vsnprintf", (uintptr_t)&vsnprintf },
 	{ "vsprintf", (uintptr_t)&vsprintf },
+	{ "vsscanf", (uintptr_t)&vsscanf },
 	{ "vswprintf", (uintptr_t)&vswprintf },
 	{ "wcrtomb", (uintptr_t)&wcrtomb },
 	{ "wcscoll", (uintptr_t)&wcscoll },
@@ -1974,8 +1990,13 @@ static so_default_dynlib default_dynlib[] = {
 	{ "wcsftime", (uintptr_t)&wcsftime },
 	{ "wcslen", (uintptr_t)&wcslen },
 	{ "wcsxfrm", (uintptr_t)&wcsxfrm },
+	{ "wcstod", (uintptr_t)&wcstod },
+	{ "wcstof", (uintptr_t)&wcstof },
+	{ "wcstol", (uintptr_t)&wcstol },
+	{ "wcstold", (uintptr_t)&wcstold },
 	{ "wcstoll", (uintptr_t)&wcstoll },
 	{ "wcstoul", (uintptr_t)&wcstoul },
+	{ "wcstoull", (uintptr_t)&wcstoull },
 	{ "wctob", (uintptr_t)&wctob },
 	{ "wctype", (uintptr_t)&wctype },
 	{ "wmemchr", (uintptr_t)&wmemchr },

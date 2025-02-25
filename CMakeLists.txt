@@ -58,13 +58,13 @@ target_link_libraries(YoYoLoader
   openal
   m
   z
-  stdc++
   FLAC
   vorbis
   vorbisfile
   vorbisenc
   ogg
   vitaGL
+  stdc++
   vitashark
   SceShaccCgExt
   mathneon
