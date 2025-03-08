@@ -994,6 +994,9 @@ void patch_runner(void) {
 			break;
 		}
 	}
+
+	hook_addr(so_symbol(&yoyoloader_mod, "_ZN9DbgServer4InitEv"), (uintptr_t)&ret0);
+	hook_addr(so_symbol(&yoyoloader_mod, "_ZN9DbgServerC2Eb"), (uintptr_t)&ret0);
 	
 	hook_addr(so_symbol(&yoyoloader_mod, "_Z30PackageManagerHasSystemFeaturePKc"), (uintptr_t)&ret0);
 	hook_addr(so_symbol(&yoyoloader_mod, "_Z17alBufferDebugNamejPKc"), (uintptr_t)&ret0);
@@ -2192,7 +2195,7 @@ void *NewGlobalRef(void *env, char *str) {
 }
 
 void *NewWeakGlobalRef(void *env, char *str) {
-	return (void *)0x42424242;
+	return (void *)0x45454545;
 }
 
 void DeleteGlobalRef(void *env, char *str) {
