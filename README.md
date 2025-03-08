@@ -23,7 +23,7 @@ For PC/Console exported games, you will need to perform an assets swap with a bl
 
 Note that patches to the bytecode may still be required in order to fix resolution, inputs or performances issues. Any game reported as <img src="./images/green.png"> `Native`, instead, will work with simple drag'n'drop of the apk.
 
-A comprehensive Compatibility List can be found here: https://yoyo.rinnegatamante.it. You can contribute to it by opening an Issue here: https://github.com/Rinnegatamante/YoYo-Loader-Vita-Compatibility/issues.
+A comprehensive Compatibility List can be found here: https://www.rinnegatamante.eu/yoyo/. You can contribute to it by opening an Issue here: https://github.com/Rinnegatamante/YoYo-Loader-Vita-Compatibility/issues.
 
 If a game seems to be running out of memory, you can try to fix this issue by externalizing its assets with the related built-in function in the Game Selector. It is also possible to squeeze even more available mem by manually compressing externalized textures in PVRTC2 format (A guide can be found here: https://gist.github.com/CatoTheYounger97/ddc2dd4ec459212466ea6f9887bc764b ).
 
