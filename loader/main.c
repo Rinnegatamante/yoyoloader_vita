@@ -2288,11 +2288,22 @@ void *CallStaticObjectMethodV(void *env, void *obj, int methodID, uintptr_t *arg
 					return f->object_array;
 				}
 			} else if (!strcmp(f->module_name, "NOTCH")) { // Used by Forager
-				jni_double = 0.0f;
+				jni_double = 0.0;
 				return &jni_double;
 			} else if (!strcmp(f->module_name, "OUYAExt")) { // Used by Angry Ranook
 				if (!strcmp(f->method_name, "ouyaIsOUYA")) {
-					jni_double = 1.0f;
+					jni_double = 1.0;
+					return &jni_double;
+				}
+			} else if (!strcmp(f->module_name, "myclass")) { // Used by IMSCARED
+				if (!strcmp(f->method_name, "vibrate_start")) {
+					return NULL;
+				} else if (!strcmp(f->method_name, "getScreenBrightness")) {
+					int val;
+					if (sceRegMgrGetKeyInt("/CONFIG/DISPLAY/", "brightness", &val) < 0)
+						jni_double = -1.0;
+					else
+						jni_double = ((double)val / 65536.0) * 128.0;
 					return &jni_double;
 				}
 			}
