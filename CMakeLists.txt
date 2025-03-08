@@ -86,6 +86,7 @@ target_link_libraries(YoYoLoader
   SceGxm_stub
   SceMotion_stub
   SceNet_stub
+  SceRegistryMgr_stub
   SceShaccCg_stub
   SceSysmodule_stub
   ScePower_stub

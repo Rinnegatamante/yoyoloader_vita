@@ -1113,8 +1113,8 @@ int stat_hook(const char *pathname, void *statbuf) {
 
 typedef struct {
 	uint8_t *buf;
-	size_t sz;
-	size_t offs;
+	off_t sz;
+	int offs;
 } AAssetHandle;
 
 AAssetHandle *AAssetManager_open(unzFile apk_file, const char *fname, int mode) {
@@ -1130,12 +1130,13 @@ AAssetHandle *AAssetManager_open(unzFile apk_file, const char *fname, int mode) 
 	ret->sz = file_info.uncompressed_size;
 	ret->buf = (uint8_t *)malloc(ret->sz);
 	ret->offs = 0;
+	unzOpenCurrentFile(apk_file);
 	unzReadCurrentFile(apk_file, ret->buf, ret->sz);
 	unzCloseCurrentFile(apk_file);
 	return ret;
 }
 
-int AAsset_close(AAssetHandle *f) {
+void AAsset_close(AAssetHandle *f) {
 	if (f) {
 		free(f->buf);
 		free(f);
@@ -1147,14 +1148,14 @@ unzFile AAssetManager_fromJava(void *env, void *obj) {
 	return unzOpen(apk_path);
 }
 
-size_t AAsset_read(AAssetHandle *f, void *buf, size_t count) {
-	size_t read_count = (f->offs + count) > f->sz ? (f->sz - f->offs) : count;
+int AAsset_read(AAssetHandle *f, void *buf, size_t count) {
+	int read_count = (f->offs + count) > f->sz ? (f->sz - f->offs) : count;
 	sceClibMemcpy(buf, &f->buf[f->offs], read_count);
 	f->offs += read_count;
 	return read_count;
 }
 
-size_t AAsset_seek(AAssetHandle *f, off_t offs, int whence) {
+off_t AAsset_seek(AAssetHandle *f, off_t offs, int whence) {
 	switch (whence) {
 	case SEEK_SET:
 		f->offs = offs;
@@ -1169,7 +1170,7 @@ size_t AAsset_seek(AAssetHandle *f, off_t offs, int whence) {
 	return f->offs;
 }
 
-size_t AAsset_getLength(AAssetHandle *f) {
+off_t AAsset_getLength(AAssetHandle *f) {
 	return f->sz;
 }
 
@@ -1236,7 +1237,7 @@ void glReadPixelsHook(GLint x, GLint y, GLsizei width, GLsizei height, GLenum fo
 	glReadPixels(x, y, width, height, format, type, data);
 }
 
-void glShaderSourceHook(GLuint shader, GLsizei count, const GLchar **string, const GLint *length) {
+void glShaderSourceHook(GLuint shader, GLsizei count, const GLchar **string, const GLint *length) {	
 	if (debugShaders) {
 		char glsl_path[256];
 		static int shader_idx = 0;
