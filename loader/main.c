@@ -2506,7 +2506,8 @@ int main(int argc, char **argv)
 		fatal_error("Error: libshacccg.suprx is not installed.");
 	
 	// Loading shared C++ executable, if present, from the apk
-	uint8_t has_cpp_so = GL_FALSE;
+	GLboolean has_cpp_so = GL_FALSE;
+	GLboolean cpp_warn = GL_FALSE;
 	unz_file_info file_info;
 	unzFile apk_file = unzOpen(apk_path);
 	if (!apk_file)
@@ -2520,8 +2521,11 @@ int main(int argc, char **argv)
 		unzReadCurrentFile(apk_file, so_buffer, so_size);
 		unzCloseCurrentFile(apk_file);
 		res = so_mem_load(&cpp_mod, so_buffer, so_size, LOAD_ADDRESS);
-		if (res >= 0)
+		if (res >= 0) {
 			has_cpp_so = GL_TRUE;
+		} else {
+			cpp_warn = GL_TRUE;
+		}
 		free(so_buffer);
 	}
 	
@@ -2565,6 +2569,10 @@ int main(int argc, char **argv)
 	debugPrintf("|Force Bilinear Filtering: %s                 |\n", forceBilinear ? "Y" : "N");
 	debugPrintf("|Has custom C++ shared lib: %s                |\n", has_cpp_so ? "Y" : "N");
 	debugPrintf("+--------------------------------------------+\n\n\n");
+	
+	if (cpp_warn) {
+		debugPrintf("WARNING: Found libc++_shared.so but failed to load.\n");
+	}
 	
 	if (has_net) {
 		// Init Net
