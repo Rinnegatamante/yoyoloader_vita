@@ -1107,28 +1107,66 @@ int stat_hook(const char *pathname, void *statbuf) {
 	return res;
 }
 
-void *AAssetManager_open(void *mgr, const char *filename, int mode) {
-	return NULL;
+typedef struct {
+	uint8_t *buf;
+	size_t sz;
+	size_t offs;
+} AAssetHandle;
+
+AAssetHandle *AAssetManager_open(unzFile apk_file, const char *fname, int mode) {
+	debugPrintf("AAssetManager_open %s\n", fname);
+	char path[256];
+	sprintf(path, "assets/%s", fname);
+	int res = unzLocateFile(apk_file, path, NULL);
+	if (res != UNZ_OK)
+		return NULL;
+	AAssetHandle *ret = (AAssetHandle *)malloc(sizeof(AAssetHandle));
+	unz_file_info file_info;
+	unzGetCurrentFileInfo(apk_file, &file_info, NULL, 0, NULL, 0, NULL, 0);
+	ret->sz = file_info.uncompressed_size;
+	ret->buf = (uint8_t *)malloc(ret->sz);
+	ret->offs = 0;
+	unzReadCurrentFile(apk_file, ret->buf, ret->sz);
+	unzCloseCurrentFile(apk_file);
+	return ret;
 }
 
-void *AAsset_close() {
-	return NULL;
+int AAsset_close(AAssetHandle *f) {
+	if (f) {
+		free(f->buf);
+		free(f);
+	}
+	return 0;
 }
 
-void *AAssetManager_fromJava() {
-	return NULL;
+unzFile AAssetManager_fromJava(void *env, void *obj) {
+	return unzOpen(apk_path);
 }
 
-void *AAsset_read() {
-	return NULL;
+size_t AAsset_read(AAssetHandle *f, void *buf, size_t count) {
+	size_t read_count = (f->offs + count) > f->sz ? (f->sz - f->offs) : count;
+	sceClibMemcpy(buf, &f->buf[f->offs], read_count);
+	f->offs += read_count;
+	return read_count;
 }
 
-void *AAsset_seek() {
-	return NULL;
+size_t AAsset_seek(AAssetHandle *f, off_t offs, int whence) {
+	switch (whence) {
+	case SEEK_SET:
+		f->offs = offs;
+		break;
+	case SEEK_END:
+		f->offs = f->sz + offs;
+		break;
+	case SEEK_CUR:
+		f->offs += offs;
+		break;
+	}
+	return f->offs;
 }
 
-void *AAsset_getLength() {
-	return NULL;
+size_t AAsset_getLength(AAssetHandle *f) {
+	return f->sz;
 }
 
 int fstat_hook(int fd, void *statbuf) {
