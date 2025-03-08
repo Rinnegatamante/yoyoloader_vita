@@ -1189,6 +1189,10 @@ void *dlopen_hook(const char *filename, int flags) {
 	debugPrintf("Opening %s\n", filename);
 	if (forceGL1 && strstr(filename, "v2"))
 		return NULL;
+#if 0	
+	if (!strcmp(filename, "libOpenSLES.so"))
+		return NULL;
+#endif
 	return (void *)0xDEADBEEF;
 }
 
@@ -2060,7 +2064,12 @@ enum MethodIDs {
 	SHOW_MESSAGE,
 	SHOW_MESSAGE_ASYNC,
 	STOP_MP3,
-	PLAYING_MP3	
+	PLAYING_MP3,
+	GET_MIN_BUFFER_SIZE,
+	PLAY,
+	STOP,
+	RELEASE,
+	WRITE
 } MethodIDs;
 
 typedef struct {
@@ -2087,6 +2096,11 @@ static NameToMethodID name_to_method_ids[] = {
 	{ "ShowMessage", SHOW_MESSAGE },
 	{ "ShowMessageAsync", SHOW_MESSAGE_ASYNC },
 	{ "StopMP3", STOP_MP3 },
+	{ "getMinBufferSize", GET_MIN_BUFFER_SIZE },
+	{ "play", PLAY },
+	{ "stop", STOP },
+	{ "release", RELEASE },
+	{ "write", WRITE },
 };
 
 int GetMethodID(void *env, void *class, const char *name, const char *sig) {
@@ -2185,12 +2199,16 @@ uint64_t CallLongMethodV(void *env, void *obj, int methodID, uintptr_t *args) {
 }
 
 enum ClassIDs {
-	STRING
+	STRING,
+	AUDIO_TRACK
 };
 
 int FindClass(void *env, const char *name) {
+	debugPrintf("FindClass %s\n", name);
 	if (!strcmp(name, "java/lang/String")) {
 		return STRING;
+	} else if (!strcmp(name, "android/media/AudioTrack")) {
+		return AUDIO_TRACK;
 	}
 	return 0x41414141;
 }
@@ -2291,7 +2309,7 @@ void *CallStaticObjectMethodV(void *env, void *obj, int methodID, uintptr_t *arg
 			ext_func *f = (ext_func *)args;
 			if (!strcmp(f->module_name, "PickMe")) { // Used by Super Mario Maker: World Engine
 				if (!strcmp(f->method_name, "getDire1")) {
-					sprintf(r, "%s%s/", data_path, f->object_array);
+					sprintf(r, "%s%s/", data_path, (char *)f->object_array);
 					recursive_mkdir(r);
 					return f->object_array;
 				}
@@ -2325,10 +2343,20 @@ void *CallStaticObjectMethodV(void *env, void *obj, int methodID, uintptr_t *arg
 	}
 }
 
+int audio_samplerate;
+int audio_channels;
+SceUID audio_port;
+
 int CallStaticIntMethodV(void *env, void *obj, int methodID, uintptr_t *args) {
 	switch (methodID) {
 	case GET_DEFAULT_FRAMEBUFFER:
 		return 0;
+	case GET_MIN_BUFFER_SIZE:
+		audio_samplerate = args[0];
+		audio_channels = args[1] == 0x03 ? 2 : 1;
+		audio_port = sceAudioOutOpenPort(SCE_AUDIO_OUT_PORT_TYPE_VOICE, 4096 / (2 * audio_channels), audio_samplerate, (SceAudioOutMode)(audio_channels - 1));
+		debugPrintf("Asking for %s audio at %dhz samplerate. (Opened port %d)\n", audio_channels == 2 ? "stereo" : "mono", audio_samplerate, audio_port);
+		return 4096;
 	case OS_GET_INFO:
 		return Java_com_yoyogames_runner_RunnerJNILib_CreateVersionDSMap(fake_env, 0, 7, "v1.0", "PSVita", "PSVita", "Sony Computer Entertainment", "armeabi", "armeabi-v7a", "YoYo Loader", "ARM Cortex A9", "v1.0", "Global", "v1.0", 0);
 	default:
@@ -2371,6 +2399,30 @@ double CallDoubleMethodV(void *env, void *obj, int methodID, uintptr_t *args) {
 	return 0.0;
 }
 
+int CallNonVirtualIntMethod(void *env, void *obj, int classID, int methodID, uintptr_t *args) {
+	switch (methodID) {
+	case WRITE:
+		{
+			sceAudioOutOutput(audio_port, (void *)args[0]);
+			return (int)args[2];
+		}
+	default:
+		if (methodID != UNKNOWN)
+			debugPrintf("CallNonVirtualIntMethod(0x%x, %d)\n", classID, methodID);
+		break;
+	}
+	return 0;
+}
+
+void CallNonVirtualVoidMethod(void *env, void *obj, int classID, int methodID, uintptr_t *args) {
+	switch (methodID) {
+	default:
+		if (methodID != UNKNOWN)
+			debugPrintf("CallNonVirtualVoidMethod(0x%x, %d)\n", classID, methodID);
+		break;
+	}
+}
+
 void CallVoidMethodV(void *env, void *obj, int methodID, uintptr_t *args) {
 	switch (methodID) {
 	default:
@@ -2382,6 +2434,10 @@ void CallVoidMethodV(void *env, void *obj, int methodID, uintptr_t *args) {
 
 void *NewIntArray(void *env, int size) {
 	return malloc(sizeof(int) * size);	
+}
+
+void *NewCharArray(void *env, int size) {
+	return malloc(sizeof(char) * size);
 }
 
 void *NewObjectArray(void *env, int size, int clazz, void *elements) {
@@ -2410,16 +2466,34 @@ void SetDoubleArrayRegion(void *env, double *array, int start, int len, double *
 	sceClibMemcpy(&array[start], buf, sizeof(double) * len);
 }
 
-void SetObjectArrayElement(void *env, void *array, int index, void *val) {
+void SetObjectArrayElement(void *env, uint8_t *array, int index, void *val) {
 	if (array)
 		strcpy(&array[index], val);
 }
 
-void GetByteArrayRegion(void *env, void *array, int start, int len, void *buf) {
+void GetByteArrayRegion(void *env, uint8_t *array, int start, int len, void *buf) {
 	sceClibMemcpy(buf, &array[start], len);
 }
 
 int GetIntField(void *env, void *obj, int fieldID) { return 0; }
+
+int PushLocalFrame(void *env, int capacity) {
+    return 0;
+}
+
+void *PopLocalFrame(void *env, void *obj) {
+    return NULL;
+}
+
+void *GetPrimitiveArrayCritical(void *env, void *arr, int *isCopy) {
+	if (isCopy)
+		*isCopy = 0;
+
+    return arr;
+}
+
+void ReleasePrimitiveArrayCritical(void *env, void *arr, void *carray, int mode) {
+}
 
 static void game_end()
 {
@@ -2701,6 +2775,8 @@ void *pthread_main(void *arg) {
 	memset(fake_env, 'A', sizeof(fake_env));
 	*(uintptr_t *)(fake_env + 0x00) = (uintptr_t)fake_env; // just point to itself...
 	*(uintptr_t *)(fake_env + 0x18) = (uintptr_t)FindClass;
+	*(uintptr_t *)(fake_env + 0x4C) = (uintptr_t)PushLocalFrame;
+	*(uintptr_t *)(fake_env + 0x50) = (uintptr_t)PopLocalFrame;
 	*(uintptr_t *)(fake_env + 0x54) = (uintptr_t)NewGlobalRef;
 	*(uintptr_t *)(fake_env + 0x58) = (uintptr_t)DeleteGlobalRef;
 	*(uintptr_t *)(fake_env + 0x5C) = (uintptr_t)ret0; // DeleteLocalRef
@@ -2714,6 +2790,8 @@ void *pthread_main(void *arg) {
 	*(uintptr_t *)(fake_env + 0xD4) = (uintptr_t)CallLongMethodV;
 	*(uintptr_t *)(fake_env + 0xEC) = (uintptr_t)CallDoubleMethodV;
 	*(uintptr_t *)(fake_env + 0xF8) = (uintptr_t)CallVoidMethodV;
+	*(uintptr_t *)(fake_env + 0x140) = (uintptr_t)CallNonVirtualIntMethod;
+	*(uintptr_t *)(fake_env + 0x170) = (uintptr_t)CallNonVirtualVoidMethod;
 	*(uintptr_t *)(fake_env + 0x178) = (uintptr_t)GetFieldID;
 	*(uintptr_t *)(fake_env + 0x17C) = (uintptr_t)GetBooleanField;
 	*(uintptr_t *)(fake_env + 0x190) = (uintptr_t)GetIntField;
@@ -2733,12 +2811,15 @@ void *pthread_main(void *arg) {
 	*(uintptr_t *)(fake_env + 0x2AC) = (uintptr_t)GetArrayLength;
 	*(uintptr_t *)(fake_env + 0x2B0) = (uintptr_t)NewObjectArray;
 	*(uintptr_t *)(fake_env + 0x2B8) = (uintptr_t)SetObjectArrayElement;
+	*(uintptr_t *)(fake_env + 0x2C0) = (uintptr_t)NewCharArray;
 	*(uintptr_t *)(fake_env + 0x2CC) = (uintptr_t)NewIntArray;
 	*(uintptr_t *)(fake_env + 0x2D8) = (uintptr_t)NewDoubleArray;
 	*(uintptr_t *)(fake_env + 0x320) = (uintptr_t)GetByteArrayRegion;
 	*(uintptr_t *)(fake_env + 0x34C) = (uintptr_t)SetIntArrayRegion;
 	*(uintptr_t *)(fake_env + 0x358) = (uintptr_t)SetDoubleArrayRegion;
 	*(uintptr_t *)(fake_env + 0x36C) = (uintptr_t)GetJavaVM;
+	*(uintptr_t *)(fake_env + 0x378) = (uintptr_t)GetPrimitiveArrayCritical;
+	*(uintptr_t *)(fake_env + 0x37C) = (uintptr_t)ReleasePrimitiveArrayCritical;
 	*(uintptr_t *)(fake_env + 0x394) = (uintptr_t)NewWeakGlobalRef;
 	
 	void (*Java_com_yoyogames_runner_RunnerJNILib_Startup) (void *env, int a2, char *apk_path, char *save_dir, char *pkg_dir, int sleep_margin) = (void *)so_symbol(&yoyoloader_mod, "Java_com_yoyogames_runner_RunnerJNILib_Startup");
