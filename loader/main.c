@@ -1214,6 +1214,7 @@ const char *gl_ret0[] = {
 	"glDiscardFramebufferEXT",
 	"glFramebufferRenderbuffer",
 	"glGenRenderbuffers",
+	"glGetError",
 	"glBindRenderbuffer",
 	"glHint",
 	"glLightf",
