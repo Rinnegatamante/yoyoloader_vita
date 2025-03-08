@@ -1194,67 +1194,24 @@ void glReadPixelsHook(GLint x, GLint y, GLsizei width, GLsizei height, GLenum fo
 }
 
 void glShaderSourceHook(GLuint shader, GLsizei count, const GLchar **string, const GLint *length) {
-	uint32_t sha1[5];
-	SHA1_CTX ctx;
+	if (debugShaders) {
+		char glsl_path[256];
+		static int shader_idx = 0;
+		snprintf(glsl_path, sizeof(glsl_path), "%s/%d.glsl", GLSL_PATH, shader_idx++);
+		FILE *file = fopen(glsl_path, "w");
+		fprintf(file, "%s", *string);
+		fclose(file);
+	}
 	
-	int size = length ? *length : strlen(*string);
-	if (size == 0) {
-		debugPrintf("Attempt to load an empty shader, may be an unsupported platform target\n");
-		return;
-	}
-	sha1_init(&ctx);
-	sha1_update(&ctx, (uint8_t *)*string, size);
-	sha1_final(&ctx, (uint8_t *)sha1);
-
-	char sha_name[64];
-	snprintf(sha_name, sizeof(sha_name), "%08x%08x%08x%08x%08x", sha1[0], sha1[1], sha1[2], sha1[3], sha1[4]);
-
-	char full_gxp_path[256], glsl_path[256];
-	snprintf(full_gxp_path, sizeof(full_gxp_path), "%s/%s.gxp", gxp_path, sha_name);
-
-	FILE *file = fopen(full_gxp_path, "rb");
-	if (!file) {
-		debugPrintf("Could not find cached shader: %s\n", full_gxp_path);
-		if (debugShaders) {
-			snprintf(glsl_path, sizeof(glsl_path), "%s/%s.glsl", GLSL_PATH, sha_name);
-			file = fopen(glsl_path, "w");
-			fprintf(file, "%s", *string);
-			fclose(file);
-		}
-		glShaderSource(shader, count, string, length);
-		glCompileShader(shader);
-		void *bin = vglMalloc(32 * 1024);
-		GLsizei len;
-		vglGetShaderBinary(shader, 32 * 1024, &len, bin);
-		FILE *file = fopen(full_gxp_path, "wb");
-		fwrite(bin, 1, len, file);
-		fclose(file);
-		vglFree(bin);
-	} else {
-		size_t shaderSize;
-		void *shaderBuf;
-
-		fseek(file, 0, SEEK_END);
-		shaderSize = ftell(file);
-		fseek(file, 0, SEEK_SET);
-
-		shaderBuf = vglMalloc(shaderSize);
-		fread(shaderBuf, 1, shaderSize, file);
-		fclose(file);
-
-		glShaderBinary(1, &shader, 0, shaderBuf, shaderSize);
-
-		vglFree(shaderBuf);
-	}
+	glShaderSource(shader, count, string, length);
 }
 
 static so_default_dynlib gl_hook[] = {
-	{"glCompileShader", (uintptr_t)&ret0},
-	{"glShaderSource", (uintptr_t)&glShaderSourceHook},
 	{"glTexParameterf", (uintptr_t)&glTexParameterfHook},
 	{"glTexParameteri", (uintptr_t)&glTexParameteriHook},
 	{"glBindFramebuffer", (uintptr_t)&glBindFramebufferHook},
 	{"glReadPixels", (uintptr_t)&glReadPixelsHook},
+	{"glShaderSource", (uintptr_t)&glShaderSourceHook},
 };
 static size_t gl_numhook = sizeof(gl_hook) / sizeof(*gl_hook);
 
@@ -2629,7 +2586,7 @@ int main(int argc, char **argv)
 	so_initialize(&yoyoloader_mod);
 	
 	// Initializing vitaGL
-	vglSetSemanticBindingMode(VGL_MODE_GLOBAL);
+	vglSetSemanticBindingMode(VGL_MODE_POSTPONED);
 	if (debugMode)
 		vglSetDisplayCallback(mem_profiler);
 	vglSetupGarbageCollector(127, 0x20000);
