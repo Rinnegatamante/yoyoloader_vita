@@ -997,6 +997,7 @@ void patch_runner(void) {
 
 	hook_addr(so_symbol(&yoyoloader_mod, "_ZN9DbgServer4InitEv"), (uintptr_t)&ret0);
 	hook_addr(so_symbol(&yoyoloader_mod, "_ZN9DbgServerC2Eb"), (uintptr_t)&ret0);
+	hook_addr(so_symbol(&yoyoloader_mod, "_ZN9DbgServerD2Ev"), (uintptr_t)&ret0);
 	
 	hook_addr(so_symbol(&yoyoloader_mod, "_Z30PackageManagerHasSystemFeaturePKc"), (uintptr_t)&ret0);
 	hook_addr(so_symbol(&yoyoloader_mod, "_Z17alBufferDebugNamejPKc"), (uintptr_t)&ret0);
