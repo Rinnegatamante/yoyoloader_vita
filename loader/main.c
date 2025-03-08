@@ -541,7 +541,11 @@ int pthread_cond_timedwait_fake(pthread_cond_t **cnd, pthread_mutex_t **mtx, con
 }
 
 int pthread_create_fake(pthread_t *thread, const void *unused, void *entry, void *arg) {
-	return pthread_create(thread, NULL, entry, arg);
+	pthread_t t;
+	pthread_attr_t attr;
+	pthread_attr_init(&attr);
+	pthread_attr_setstacksize(&attr, 1024 * 1024);
+	return pthread_create(thread, &attr, entry, arg);
 }
 
 int pthread_once_fake(volatile int *once_control, void (*init_routine)(void)) {
@@ -1141,7 +1145,6 @@ void AAsset_close(AAssetHandle *f) {
 		free(f->buf);
 		free(f);
 	}
-	return 0;
 }
 
 unzFile AAssetManager_fromJava(void *env, void *obj) {

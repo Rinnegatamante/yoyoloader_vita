@@ -7,7 +7,7 @@
 
 extern so_module yoyoloader_mod;
 
-#if 0
+#if 1
 #define debugPrintf sceClibPrintf
 #else
 int debugPrintf(char *text, ...);
