@@ -2437,8 +2437,19 @@ static void audio_sound_get_track_position(retval_t *ret, void *self, void *othe
 	last_track_pos = ret->rvalue.val;
 }
 
-int main(int argc, char **argv)
-{
+void *pthread_main(void *arg);
+
+int main(int argc, char *argv[]) {
+	pthread_t t;
+	pthread_attr_t attr;
+	pthread_attr_init(&attr);
+	pthread_attr_setstacksize(&attr, 2 * 1024 * 1024);
+	pthread_create(&t, &attr, pthread_main, NULL);
+
+	return sceKernelExitDeleteThread(0);
+}
+
+void *pthread_main(void *arg) {
 #if 0
 	// Debug
 	sceSysmoduleLoadModule(SCE_SYSMODULE_RAZOR_CAPTURE);
