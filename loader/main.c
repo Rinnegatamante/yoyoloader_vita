@@ -1475,7 +1475,7 @@ int __vsnprintf_chk(char *s, size_t maxlen, int flag, size_t slen, const char *f
 }
 
 int posix_memalign(void **memptr, size_t alignment, size_t size) {
-	*memptr = memalign(alignment, size);
+	*memptr = vglMemalign(alignment, size);
 	return 0;
 }
 
