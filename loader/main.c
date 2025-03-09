@@ -260,7 +260,7 @@ int scandir_hook(const char *dir, struct android_dirent ***namelist,
 		android_current->d_type = SCE_S_ISDIR(current->d_stat.st_mode) ? 4 : 8;
 
 		if (! use_it) {	
-			use_it = (*selector) (android_current);
+			use_it = (*selector)(android_current);
 			/* The selector function might have changed errno.
 			* It was zero before and it need to be again to make
 			* the latter tests work.  */
@@ -281,18 +281,18 @@ int scandir_hook(const char *dir, struct android_dirent ***namelist,
 					names_size = 10;
 				else
 					names_size *= 2;
-				new = (struct android_dirent **) vglRealloc (names, names_size * sizeof (struct android_dirent *));
+				new = (struct android_dirent **)vglRealloc(names, names_size * sizeof(struct android_dirent*));
 				if (new == NULL)
 					break;
 				names = new;
 			}
 
 			dsize = &android_current->d_name[256+1] - (char*)android_current;
-			vnew = (struct android_dirent *) vglMalloc (dsize);
+			vnew = (struct android_dirent*)vglMalloc(dsize);
 			if (vnew == NULL)
 				break;
 
-			names[pos++] = (struct android_dirent *) sceClibMemcpy (vnew, android_current, dsize);
+			names[pos++] = (struct android_dirent*)sceClibMemcpy(vnew, android_current, dsize);
 		}
 	}
 
@@ -300,8 +300,8 @@ int scandir_hook(const char *dir, struct android_dirent ***namelist,
 		//save = errno;
 		closedir (dp);
 		while (pos > 0)
-			vglFree (names[--pos]);
-		vglFree (names);
+			vglFree(names[--pos]);
+		vglFree(names);
 		//__set_errno (save);
 		return -1;
 	}
@@ -311,7 +311,7 @@ int scandir_hook(const char *dir, struct android_dirent ***namelist,
 
 	/* Sort the list if we have a comparison function to sort with.  */
 	if (compar != NULL)
-		qsort (names, pos, sizeof (struct android_dirent *), (__compar_fn_t) compar);
+		qsort (names, pos, sizeof(struct android_dirent*), (__compar_fn_t) compar);
 	*namelist = names;
 	return pos;
 }
@@ -361,7 +361,7 @@ int pthread_rwlock_init_fake(pthread_rwlock_t **uid, const pthread_rwlockattr_t 
 	
 	int ret = pthread_rwlock_init(l, attr);
 	if (ret < 0) {
-		free(l);
+		vglFree(l);
 		return -1;
 	}
 
@@ -419,7 +419,7 @@ int pthread_mutex_init_fake(pthread_mutex_t **uid, const pthread_mutexattr_t *mu
 
 	int ret = pthread_mutex_init(m, mutexattr);
 	if (ret < 0) {
-		free(m);
+		vglFree(m);
 		return -1;
 	}
 
@@ -490,7 +490,7 @@ int pthread_cond_init_fake(pthread_cond_t **cnd, const int *condattr) {
 
 	int ret = pthread_cond_init(c, NULL);
 	if (ret < 0) {
-		free(c);
+		vglFree(c);
 		return -1;
 	}
 
@@ -1128,11 +1128,11 @@ AAssetHandle *AAssetManager_open(unzFile apk_file, const char *fname, int mode) 
 	int res = unzLocateFile(apk_file, path, NULL);
 	if (res != UNZ_OK)
 		return NULL;
-	AAssetHandle *ret = (AAssetHandle *)malloc(sizeof(AAssetHandle));
+	AAssetHandle *ret = (AAssetHandle *)vglMalloc(sizeof(AAssetHandle));
 	unz_file_info file_info;
 	unzGetCurrentFileInfo(apk_file, &file_info, NULL, 0, NULL, 0, NULL, 0);
 	ret->sz = file_info.uncompressed_size;
-	ret->buf = (uint8_t *)malloc(ret->sz);
+	ret->buf = (uint8_t *)vglMalloc(ret->sz);
 	ret->offs = 0;
 	unzOpenCurrentFile(apk_file);
 	unzReadCurrentFile(apk_file, ret->buf, ret->sz);
@@ -1142,8 +1142,8 @@ AAssetHandle *AAssetManager_open(unzFile apk_file, const char *fname, int mode) 
 
 void AAsset_close(AAssetHandle *f) {
 	if (f) {
-		free(f->buf);
-		free(f);
+		vglFree(f->buf);
+		vglFree(f);
 	}
 }
 
@@ -2433,17 +2433,17 @@ void CallVoidMethodV(void *env, void *obj, int methodID, uintptr_t *args) {
 }
 
 void *NewIntArray(void *env, int size) {
-	return malloc(sizeof(int) * size);	
+	return vglMalloc(sizeof(int) * size);	
 }
 
 void *NewCharArray(void *env, int size) {
-	return malloc(sizeof(char) * size);
+	return vglMalloc(sizeof(char) * size);
 }
 
 void *NewObjectArray(void *env, int size, int clazz, void *elements) {
 	if (disableObjectsArray)
 		return NULL;
-	void *r = malloc(size);
+	void *r = vglMalloc(size);
 	if (elements) {
 		sceClibMemcpy(r, elements, size);
 	}
@@ -2451,7 +2451,7 @@ void *NewObjectArray(void *env, int size, int clazz, void *elements) {
 }
 
 void *NewDoubleArray(void *env, int size) {
-	return malloc(sizeof(double) * size);	
+	return vglMalloc(sizeof(double) * size);	
 }
 
 int GetArrayLength(void *env, void *array) {
