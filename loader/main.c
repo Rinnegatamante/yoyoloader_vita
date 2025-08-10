@@ -1,7 +1,7 @@
 /* main.c -- YoYo Loader based on .so loader
  *
  * Copyright (C) 2021 Andy Nguyen
- * Copyright (C) 2022 Rinnegatamante
+ * Copyright (C) 2025 Rinnegatamante
  *
  * This software may be modified and distributed under the terms
  * of the MIT license.	See the LICENSE file for details.
@@ -184,8 +184,6 @@ static int __stack_chk_guard_fake = 0x42424242;
 static char fake_vm[0x1000];
 char fake_env[0x1000];
 
-unsigned int _pthread_stack_default_user = 1 * 1024 * 1024;
-
 so_module yoyoloader_mod, cpp_mod;
 
 void *__wrap_memcpy(void *dest, const void *src, size_t n) {
@@ -298,7 +296,7 @@ int scandir_hook(const char *dir, struct android_dirent ***namelist,
 
 	if (errno != 0) {
 		//save = errno;
-		closedir (dp);
+		closedir(dp);
 		while (pos > 0)
 			vglFree(names[--pos]);
 		vglFree(names);
@@ -354,206 +352,276 @@ int ret1(void) {
 	return 1;
 }
 
-int pthread_rwlock_init_fake(pthread_rwlock_t **uid, const pthread_rwlockattr_t *attr) {
-	pthread_rwlock_t *l = vglCalloc(1, sizeof(pthread_rwlock_t));
-	if (!l)
-		return -1;
-	
-	int ret = pthread_rwlock_init(l, attr);
-	if (ret < 0) {
-		vglFree(l);
-		return -1;
+#define  MUTEX_TYPE_NORMAL	 0x0000
+#define  MUTEX_TYPE_RECURSIVE  0x4000
+#define  MUTEX_TYPE_ERRORCHECK 0x8000
+
+static void init_static_mutex(pthread_mutex_t **mutex)
+{
+	pthread_mutex_t *mtxMem = NULL;
+
+	switch ((int)*mutex) {
+	case MUTEX_TYPE_NORMAL: {
+		pthread_mutex_t initTmpNormal = PTHREAD_MUTEX_INITIALIZER;
+		mtxMem = vglCalloc(1, sizeof(pthread_mutex_t));
+		sceClibMemcpy(mtxMem, &initTmpNormal, sizeof(pthread_mutex_t));
+		*mutex = mtxMem;
+		break;
+	}
+	case MUTEX_TYPE_RECURSIVE: {
+		pthread_mutex_t initTmpRec = PTHREAD_RECURSIVE_MUTEX_INITIALIZER;
+		mtxMem = vglCalloc(1, sizeof(pthread_mutex_t));
+		sceClibMemcpy(mtxMem, &initTmpRec, sizeof(pthread_mutex_t));
+		*mutex = mtxMem;
+		break;
+	}
+	case MUTEX_TYPE_ERRORCHECK: {
+		pthread_mutex_t initTmpErr = PTHREAD_ERRORCHECK_MUTEX_INITIALIZER;
+		mtxMem = vglCalloc(1, sizeof(pthread_mutex_t));
+		sceClibMemcpy(mtxMem, &initTmpErr, sizeof(pthread_mutex_t));
+		*mutex = mtxMem;
+		break;
+	}
+	default:
+		break;
+	}
+}
+
+static void init_static_cond(pthread_cond_t **cond)
+{
+	if (*cond == NULL) {
+		pthread_cond_t initTmp = PTHREAD_COND_INITIALIZER;
+		pthread_cond_t *condMem = vglCalloc(1, sizeof(pthread_cond_t));
+		sceClibMemcpy(condMem, &initTmp, sizeof(pthread_cond_t));
+		*cond = condMem;
+	}
+}
+
+int pthread_attr_destroy_soloader(pthread_attr_t **attr)
+{
+	int ret = pthread_attr_destroy(*attr);
+	free(*attr);
+	return ret;
+}
+
+int pthread_attr_getstack_soloader(const pthread_attr_t **attr,
+				   void **stackaddr,
+				   size_t *stacksize)
+{
+	return pthread_attr_getstack(*attr, stackaddr, stacksize);
+}
+
+__attribute__((unused)) int pthread_condattr_init_soloader(pthread_condattr_t **attr)
+{
+	*attr = vglCalloc(1, sizeof(pthread_condattr_t));
+
+	return pthread_condattr_init(*attr);
+}
+
+__attribute__((unused)) int pthread_condattr_destroy_soloader(pthread_condattr_t **attr)
+{
+	int ret = pthread_condattr_destroy(*attr);
+	free(*attr);
+	return ret;
+}
+
+int pthread_cond_init_soloader(pthread_cond_t **cond,
+				   const pthread_condattr_t **attr)
+{
+	*cond = vglCalloc(1, sizeof(pthread_cond_t));
+
+	if (attr != NULL)
+		return pthread_cond_init(*cond, *attr);
+	else
+		return pthread_cond_init(*cond, NULL);
+}
+
+int pthread_cond_destroy_soloader(pthread_cond_t **cond)
+{
+	int ret = pthread_cond_destroy(*cond);
+	free(*cond);
+	return ret;
+}
+
+int pthread_cond_signal_soloader(pthread_cond_t **cond)
+{
+	init_static_cond(cond);
+	return pthread_cond_signal(*cond);
+}
+
+int pthread_cond_timedwait_soloader(pthread_cond_t **cond,
+					pthread_mutex_t **mutex,
+					struct timespec *abstime)
+{
+	init_static_cond(cond);
+	init_static_mutex(mutex);
+	return pthread_cond_timedwait(*cond, *mutex, abstime);
+}
+
+int pthread_create_soloader(pthread_t **thread,
+				const pthread_attr_t **attr,
+				void *(*start)(void *),
+				void *param)
+{
+	*thread = vglCalloc(1, sizeof(pthread_t));
+
+	if (attr != NULL) {
+		pthread_attr_setstacksize(*attr, 512 * 1024);
+		return pthread_create(*thread, *attr, start, param);
+	} else {
+		pthread_attr_t attrr;
+		pthread_attr_init(&attrr);
+		pthread_attr_setstacksize(&attrr, 512 * 1024);
+		return pthread_create(*thread, &attrr, start, param);
 	}
 
-	*uid = l;
+}
 
+int pthread_mutexattr_init_soloader(pthread_mutexattr_t **attr)
+{
+	*attr = vglCalloc(1, sizeof(pthread_mutexattr_t));
+
+	return pthread_mutexattr_init(*attr);
+}
+
+int pthread_mutexattr_settype_soloader(pthread_mutexattr_t **attr, int type)
+{
+	return pthread_mutexattr_settype(*attr, type);
+}
+
+int pthread_mutexattr_setpshared_soloader(pthread_mutexattr_t **attr, int pshared)
+{
+	return pthread_mutexattr_setpshared(*attr, pshared);
+}
+
+int pthread_mutexattr_destroy_soloader(pthread_mutexattr_t **attr)
+{
+	int ret = pthread_mutexattr_destroy(*attr);
+	free(*attr);
+	return ret;
+}
+
+int pthread_mutex_destroy_soloader(pthread_mutex_t **mutex)
+{
+	int ret = pthread_mutex_destroy(*mutex);
+	free(*mutex);
+	return ret;
+}
+
+int pthread_mutex_init_soloader(pthread_mutex_t **mutex,
+				const pthread_mutexattr_t **attr)
+{
+	*mutex = vglCalloc(1, sizeof(pthread_mutex_t));
+
+	if (attr != NULL)
+		return pthread_mutex_init(*mutex, *attr);
+	else
+		return pthread_mutex_init(*mutex, NULL);
+}
+
+int pthread_mutex_lock_soloader(pthread_mutex_t **mutex)
+{
+	init_static_mutex(mutex);
+	return pthread_mutex_lock(*mutex);
+}
+
+int pthread_mutex_trylock_soloader(pthread_mutex_t **mutex)
+{
+	init_static_mutex(mutex);
+	return pthread_mutex_trylock(*mutex);
+}
+
+int pthread_mutex_unlock_soloader(pthread_mutex_t **mutex)
+{
+	return pthread_mutex_unlock(*mutex);
+}
+
+int pthread_join_soloader(const pthread_t *thread, void **value_ptr)
+{
+	return pthread_join(*thread, value_ptr);
+}
+
+int pthread_cond_wait_soloader(pthread_cond_t **cond, pthread_mutex_t **mutex)
+{
+	return pthread_cond_wait(*cond, *mutex);
+}
+
+int pthread_cond_broadcast_soloader(pthread_cond_t **cond)
+{
+	return pthread_cond_broadcast(*cond);
+}
+
+int pthread_attr_init_soloader(pthread_attr_t **attr)
+{
+	*attr = vglCalloc(1, sizeof(pthread_attr_t));
+
+	return pthread_attr_init(*attr);
+}
+
+int pthread_attr_setdetachstate_soloader(pthread_attr_t **attr, int state)
+{
+	// pthread-embedded has JOINABLE/DETACHED swapped compared to BIONIC...
+	return pthread_attr_setdetachstate(*attr, !state);
+}
+
+int pthread_attr_setstacksize_soloader(pthread_attr_t **attr, size_t stacksize)
+{
+	return pthread_attr_setstacksize(*attr, stacksize);
+}
+
+int pthread_attr_getstacksize_soloader(pthread_attr_t **attr, size_t *stacksize)
+{
+	return pthread_attr_getstacksize(*attr, stacksize);
+}
+
+int pthread_attr_setschedparam_soloader(pthread_attr_t **attr,
+					const struct sched_param *param)
+{
+	return pthread_attr_setschedparam(*attr, param);
+}
+
+int pthread_attr_getschedparam_soloader(pthread_attr_t **attr,
+					const struct sched_param *param)
+{
+	return pthread_attr_getschedparam(*attr, param);
+}
+
+int pthread_attr_setstack_soloader(pthread_attr_t **attr,
+				   void *stackaddr,
+				   size_t stacksize)
+{
+	return pthread_attr_setstack(*attr, stackaddr, stacksize);
+}
+
+int pthread_setschedparam_soloader(const pthread_t *thread, int policy,
+				   const struct sched_param *param)
+{
+	return pthread_setschedparam(*thread, policy, param);
+}
+
+int pthread_getschedparam_soloader(const pthread_t *thread, int *policy,
+				   struct sched_param *param)
+{
+	return pthread_getschedparam(*thread, policy, param);
+}
+
+int pthread_detach_soloader(const pthread_t *thread)
+{
+	return pthread_detach(*thread);
+}
+
+int pthread_getattr_np_soloader(pthread_t* thread, pthread_attr_t *attr) {
+	fprintf(stderr, "[WARNING!] Not implemented: pthread_getattr_np\n");
 	return 0;
 }
 
-int pthread_rwlock_destroy_fake(pthread_rwlock_t **uid) {
-	if (uid && *uid) {
-		pthread_rwlock_destroy(*uid);
-		vglFree(*uid);
-		*uid = NULL;
-	}
-	return 0;
-}
-
-int pthread_rwlock_rdlock_fake(pthread_rwlock_t **uid) {
-	int ret = 0;
-	if (!*uid) {
-		ret = pthread_rwlock_init_fake(uid, NULL);
-	}
-	if (ret < 0)
-		return ret;
-	return pthread_rwlock_rdlock(*uid);
-}
-
-int pthread_rwlock_wrlock_fake(pthread_rwlock_t **uid) {
-	int ret = 0;
-	if (!*uid) {
-		ret = pthread_rwlock_init_fake(uid, NULL);
-	}
-	if (ret < 0)
-		return ret;
-	return pthread_rwlock_wrlock(*uid);
-}
-
-int pthread_rwlock_unlock_fake(pthread_rwlock_t **uid) {
-	int ret = 0;
-	if (!*uid) {
-		ret = pthread_rwlock_init_fake(uid, NULL);
-	}
-	if (ret < 0)
-		return ret;
-	return pthread_rwlock_unlock(*uid);
-}
-
-int pthread_mutex_init_fake(pthread_mutex_t **uid, const pthread_mutexattr_t *mutexattr) {
-	pthread_mutex_t *m = vglCalloc(1, sizeof(pthread_mutex_t));
-	if (!m)
-		return -1;
-
-	const int recursive = (mutexattr && *(const int *)mutexattr == 1);
-	*m = recursive ? PTHREAD_RECURSIVE_MUTEX_INITIALIZER : PTHREAD_MUTEX_INITIALIZER;
-
-	int ret = pthread_mutex_init(m, mutexattr);
-	if (ret < 0) {
-		vglFree(m);
-		return -1;
-	}
-
-	*uid = m;
-
-	return 0;
-}
-
-int pthread_mutex_destroy_fake(pthread_mutex_t **uid) {
-	if (uid && *uid && (uintptr_t)*uid > 0x8000) {
-		pthread_mutex_destroy(*uid);
-		vglFree(*uid);
-		*uid = NULL;
-	}
-	return 0;
-}
-
-int pthread_mutex_lock_fake(pthread_mutex_t **uid) {
-	int ret = 0;
-	if (!*uid) {
-		ret = pthread_mutex_init_fake(uid, NULL);
-	} else if ((uintptr_t)*uid == 0x4000) {
-		pthread_mutexattr_t attr;
-		pthread_mutexattr_init(&attr);
-		pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_RECURSIVE);
-		ret = pthread_mutex_init_fake(uid, &attr);
-		pthread_mutexattr_destroy(&attr);
-	} else if ((uintptr_t)*uid == 0x8000) {
-		pthread_mutexattr_t attr;
-		pthread_mutexattr_init(&attr);
-		pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_ERRORCHECK);
-		ret = pthread_mutex_init_fake(uid, &attr);
-		pthread_mutexattr_destroy(&attr);
-	}
-	if (ret < 0)
-		return ret;
-	return pthread_mutex_lock(*uid);
-}
-
-int pthread_mutex_unlock_fake(pthread_mutex_t **uid) {
-	int ret = 0;
-	if (!*uid) {
-		ret = pthread_mutex_init_fake(uid, NULL);
-	} else if ((uintptr_t)*uid == 0x4000) {
-		pthread_mutexattr_t attr;
-		pthread_mutexattr_init(&attr);
-		pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_RECURSIVE);
-		ret = pthread_mutex_init_fake(uid, &attr);
-		pthread_mutexattr_destroy(&attr);
-	} else if ((uintptr_t)*uid == 0x8000) {
-		pthread_mutexattr_t attr;
-		pthread_mutexattr_init(&attr);
-		pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_ERRORCHECK);
-		ret = pthread_mutex_init_fake(uid, &attr);
-		pthread_mutexattr_destroy(&attr);
-	}
-	if (ret < 0)
-		return ret;
-	return pthread_mutex_unlock(*uid);
-}
-
-int pthread_cond_init_fake(pthread_cond_t **cnd, const int *condattr) {
-	pthread_cond_t *c = vglCalloc(1, sizeof(pthread_cond_t));
-	if (!c)
-		return -1;
-
-	*c = PTHREAD_COND_INITIALIZER;
-
-	int ret = pthread_cond_init(c, NULL);
-	if (ret < 0) {
-		vglFree(c);
-		return -1;
-	}
-
-	*cnd = c;
-
-	return 0;
-}
-
-int pthread_cond_broadcast_fake(pthread_cond_t **cnd) {
-	if (!*cnd) {
-		if (pthread_cond_init_fake(cnd, NULL) < 0)
-			return -1;
-	}
-	return pthread_cond_broadcast(*cnd);
-}
-
-int pthread_cond_signal_fake(pthread_cond_t **cnd) {
-	if (!*cnd) {
-		if (pthread_cond_init_fake(cnd, NULL) < 0)
-			return -1;
-	}
-	return pthread_cond_signal(*cnd);
-}
-
-int pthread_cond_destroy_fake(pthread_cond_t **cnd) {
-	if (cnd && *cnd) {
-		pthread_cond_destroy(*cnd);
-		vglFree(*cnd);
-		*cnd = NULL;
-	}
-	return 0;
-}
-
-int pthread_cond_wait_fake(pthread_cond_t **cnd, pthread_mutex_t **mtx) {
-	if (!*cnd) {
-		if (pthread_cond_init_fake(cnd, NULL) < 0)
-			return -1;
-	}
-	return pthread_cond_wait(*cnd, *mtx);
-}
-
-int pthread_cond_timedwait_fake(pthread_cond_t **cnd, pthread_mutex_t **mtx, const struct timespec *t) {
-	if (!*cnd) {
-		if (pthread_cond_init_fake(cnd, NULL) < 0)
-			return -1;
-	}
-	return pthread_cond_timedwait(*cnd, *mtx, t);
-}
-
-int pthread_create_fake(pthread_t *thread, const void *unused, void *entry, void *arg) {
-	pthread_t t;
-	pthread_attr_t attr;
-	pthread_attr_init(&attr);
-	pthread_attr_setstacksize(&attr, 1024 * 1024);
-	return pthread_create(thread, &attr, entry, arg);
-}
-
-int pthread_once_fake(volatile int *once_control, void (*init_routine)(void)) {
-	if (!once_control || !init_routine)
-		return -1;
-	if (__sync_lock_test_and_set(once_control, 1) == 0)
-		(*init_routine)();
-	return 0;
+int pthread_equal_soloader(const pthread_t *t1, const pthread_t *t2)
+{
+	if (t1 == t2)
+		return 1;
+	if (!t1 || !t2)
+		return 0;
+	return pthread_equal(*t1, *t2);
 }
 
 
@@ -1683,7 +1751,7 @@ static so_default_dynlib default_dynlib[] = {
 	{ "bind", (uintptr_t)&bind },
 	{ "bsearch", (uintptr_t)&bsearch },
 	{ "btowc", (uintptr_t)&btowc },
-	{ "calloc", (uintptr_t)&calloc },
+	{ "calloc", (uintptr_t)&vglCalloc },
 	{ "ceil", (uintptr_t)&ceil },
 	{ "ceilf", (uintptr_t)&ceilf },
 	{ "clearerr", (uintptr_t)&clearerr },
@@ -1877,32 +1945,45 @@ static so_default_dynlib default_dynlib[] = {
 	{ "pow", (uintptr_t)&pow },
 	{ "powf", (uintptr_t)&powf },
 	{ "printf", (uintptr_t)&debugPrintf },
-	{ "pthread_attr_destroy", (uintptr_t)&ret0 },
-	{ "pthread_attr_init", (uintptr_t)&ret0 },
-	{ "pthread_attr_setdetachstate", (uintptr_t)&ret0 },
-	{ "pthread_cond_broadcast", (uintptr_t)&pthread_cond_broadcast_fake},
-	{ "pthread_cond_destroy", (uintptr_t)&pthread_cond_destroy_fake},
-	{ "pthread_cond_init", (uintptr_t)&pthread_cond_init_fake},
-	{ "pthread_cond_wait", (uintptr_t)&pthread_cond_wait_fake},
-	{ "pthread_create", (uintptr_t)&pthread_create_fake},
-	{ "pthread_join", (uintptr_t)&pthread_join},
-	{ "pthread_key_create", (uintptr_t)&pthread_key_create},
-	{ "pthread_key_delete", (uintptr_t)&pthread_key_delete},
-	{ "pthread_mutex_destroy", (uintptr_t)&pthread_mutex_destroy_fake},
-	{ "pthread_mutex_init", (uintptr_t)&pthread_mutex_init_fake},
-	{ "pthread_mutex_lock", (uintptr_t)&pthread_mutex_lock_fake},
-	{ "pthread_mutex_unlock", (uintptr_t)&pthread_mutex_unlock_fake},
-	{ "pthread_mutexattr_destroy", (uintptr_t)&pthread_mutexattr_destroy},
-	{ "pthread_mutexattr_init", (uintptr_t)&pthread_mutexattr_init},
-	{ "pthread_mutexattr_settype", (uintptr_t)&pthread_mutexattr_settype},
-	{ "pthread_rwlock_destroy", (uintptr_t)&pthread_rwlock_destroy_fake },
-	{ "pthread_rwlock_init", (uintptr_t)&pthread_rwlock_init_fake },
-	{ "pthread_rwlock_rdlock", (uintptr_t)&pthread_rwlock_rdlock_fake },
-	{ "pthread_rwlock_unlock", (uintptr_t)&pthread_rwlock_unlock_fake },
-	{ "pthread_rwlock_wrlock", (uintptr_t)&pthread_rwlock_wrlock_fake },
-	{ "pthread_once", (uintptr_t)&pthread_once_fake},
-	{ "pthread_setspecific", (uintptr_t)&pthread_setspecific},
-	{ "pthread_getspecific", (uintptr_t)&pthread_getspecific},
+	{ "pthread_attr_destroy", (uintptr_t)&pthread_attr_destroy_soloader },
+	{ "pthread_attr_init", (uintptr_t)&pthread_attr_init_soloader },
+	{ "pthread_attr_setdetachstate", (uintptr_t)&pthread_attr_setdetachstate_soloader },
+	{ "pthread_attr_setschedparam", (uintptr_t)&pthread_attr_setschedparam_soloader },
+	{ "pthread_attr_getschedparam", (uintptr_t)&pthread_attr_getschedparam_soloader },
+	{ "pthread_attr_setschedpolicy", (uintptr_t)&ret0 },
+	{ "pthread_attr_setstack", (uintptr_t)&pthread_attr_setstack_soloader },
+	{ "pthread_attr_setstacksize", (uintptr_t) &pthread_attr_setstacksize_soloader },
+	{ "pthread_attr_getstacksize", (uintptr_t) &pthread_attr_getstacksize_soloader },
+	{ "pthread_cond_broadcast", (uintptr_t) &pthread_cond_broadcast_soloader },
+	{ "pthread_cond_destroy", (uintptr_t) &pthread_cond_destroy_soloader },
+	{ "pthread_cond_init", (uintptr_t) &pthread_cond_init_soloader },
+	{ "pthread_cond_signal", (uintptr_t) &pthread_cond_signal_soloader },
+	{ "pthread_cond_timedwait", (uintptr_t) &pthread_cond_timedwait_soloader },
+	{ "pthread_cond_wait", (uintptr_t) &pthread_cond_wait_soloader },
+	{ "pthread_condattr_init", (uintptr_t) &pthread_condattr_init_soloader },
+	{ "pthread_condattr_destroy", (uintptr_t) &pthread_condattr_destroy_soloader },
+	{ "pthread_create", (uintptr_t) &pthread_create_soloader },
+	{ "pthread_detach", (uintptr_t) &pthread_detach_soloader },
+	{ "pthread_equal", (uintptr_t) &pthread_equal_soloader },
+	{ "pthread_exit", (uintptr_t) &pthread_exit },
+	{ "pthread_getattr_np", (uintptr_t) &pthread_getattr_np_soloader },
+	{ "pthread_getschedparam", (uintptr_t) &pthread_getschedparam_soloader },
+	{ "pthread_getspecific", (uintptr_t)&pthread_getspecific },
+	{ "pthread_key_create", (uintptr_t)&pthread_key_create },
+	{ "pthread_key_delete", (uintptr_t)&pthread_key_delete },
+	{ "pthread_mutex_destroy", (uintptr_t) &pthread_mutex_destroy_soloader },
+	{ "pthread_mutex_init", (uintptr_t) &pthread_mutex_init_soloader },
+	{ "pthread_mutex_lock", (uintptr_t) &pthread_mutex_lock_soloader },
+	{ "pthread_mutex_trylock", (uintptr_t) &pthread_mutex_trylock_soloader},
+	{ "pthread_mutex_unlock", (uintptr_t) &pthread_mutex_unlock_soloader },
+	{ "pthread_mutexattr_destroy", (uintptr_t) &pthread_mutexattr_destroy_soloader},
+	{ "pthread_mutexattr_init", (uintptr_t) &pthread_mutexattr_init_soloader},
+	{ "pthread_mutexattr_setpshared", (uintptr_t) &pthread_mutexattr_setpshared_soloader},
+	{ "pthread_mutexattr_settype", (uintptr_t) &pthread_mutexattr_settype_soloader},
+	{ "pthread_once", (uintptr_t)&pthread_once },
+	{ "pthread_self", (uintptr_t) &pthread_self },
+	{ "pthread_setschedparam", (uintptr_t) &pthread_setschedparam_soloader },
+	{ "pthread_setspecific", (uintptr_t)&pthread_setspecific },
 	{ "putc", (uintptr_t)&putc },
 	{ "putwc", (uintptr_t)&putwc },
 	{ "qsort", (uintptr_t)&qsort },
