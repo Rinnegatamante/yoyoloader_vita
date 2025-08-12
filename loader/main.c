@@ -1535,7 +1535,7 @@ char *__strncat_chk(char *s1, const char *s2, size_t n, size_t s1len) {
 }
 
 void *__memcpy_chk(void *dest, const void *src, size_t len, size_t destlen) {
-	return memcpy(dest, src, len);
+	return sceClibMemcpy(dest, src, len);
 }
 
 int __vsnprintf_chk(char *s, size_t maxlen, int flag, size_t slen, const char *format, va_list args) {
