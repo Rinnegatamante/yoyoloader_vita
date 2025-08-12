@@ -1557,6 +1557,10 @@ void abort_hook() {
 	sceKernelExitProcess(0);
 }
 
+void __assert2(const char *file, int line, const char *func, const char *expr) {
+	debugPrintf("assertion failed:\n%s:%d (%s): %s\n", file, line, func, expr);
+}
+
 static so_default_dynlib default_dynlib[] = {
 	{ "SL_IID_ANDROIDSIMPLEBUFFERQUEUE", (uintptr_t)&SL_IID_ANDROIDSIMPLEBUFFERQUEUE},
 	{ "SL_IID_AUDIOIODEVICECAPABILITIES", (uintptr_t)&SL_IID_AUDIOIODEVICECAPABILITIES},
@@ -1663,6 +1667,7 @@ static so_default_dynlib default_dynlib[] = {
 	{ "__aeabi_atexit", (uintptr_t)&__aeabi_atexit },
 	{ "__android_log_print", (uintptr_t)&__android_log_print },
 	{ "__android_log_vprint", (uintptr_t)&__android_log_vprint },
+	{ "__assert2", (uintptr_t)&__assert2 },
 	{ "__ctype_get_mb_cur_max", (uintptr_t)&__ctype_get_mb_cur_max },
 	{ "__cxa_allocate_exception", (uintptr_t)&__cxa_allocate_exception },
 	{ "__cxa_atexit", (uintptr_t)&__cxa_atexit },
@@ -1883,6 +1888,7 @@ static so_default_dynlib default_dynlib[] = {
 	{ "ioctl", (uintptr_t)&ret0 },
 	{ "isalnum", (uintptr_t)&isalnum },
 	{ "isalpha", (uintptr_t)&isalpha },
+	{ "isblank", (uintptr_t)&isblank },
 	{ "iscntrl", (uintptr_t)&iscntrl },
 	{ "islower", (uintptr_t)&islower },
 	{ "isnan", (uintptr_t)&isnan },
