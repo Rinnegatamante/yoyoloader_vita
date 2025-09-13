@@ -1975,6 +1975,7 @@ static so_default_dynlib default_dynlib[] = {
 	{ "pthread_getattr_np", (uintptr_t) &pthread_getattr_np_soloader },
 	{ "pthread_getschedparam", (uintptr_t) &pthread_getschedparam_soloader },
 	{ "pthread_getspecific", (uintptr_t)&pthread_getspecific },
+	{ "pthread_join", (uintptr_t)&pthread_join_soloader },
 	{ "pthread_key_create", (uintptr_t)&pthread_key_create },
 	{ "pthread_key_delete", (uintptr_t)&pthread_key_delete },
 	{ "pthread_mutex_destroy", (uintptr_t) &pthread_mutex_destroy_soloader },
