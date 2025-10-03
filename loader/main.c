@@ -2977,7 +2977,7 @@ void *pthread_main(void *arg) {
 	if (!strcmp(game_id, "DELTARUNE")) {
 		debugPrintf("Enabling Deltarune specific gamehack!\n");
 		deltarune_hack = 1;
-	else if (!strcmp(game_id, "void_stranger")) {
+	} else if (!strcmp(game_id, "void_stranger")) {
 		debugPrintf("Enabling Void Stranger specific gamehack!\n");
 		voidstranger_hack = 1;
 	}
