@@ -107,6 +107,7 @@ int get_index = 0;
 int setup_ended = 0;
 
 int deltarune_hack = 0;
+int voidstranger_hack = 0;
 
 extern int (*YYGetInt32) (void *args, int idx);
 void (*Function_Add)(const char *name, intptr_t func, int argc, char ret);
@@ -2584,6 +2585,10 @@ void ReleasePrimitiveArrayCritical(void *env, void *arr, void *carray, int mode)
 
 static void game_end()
 {
+	if (voidstranger_hack) {
+		void (*Run_EndGame) () = (void *)so_symbol(&yoyoloader_mod, "_Z11Run_EndGamev");
+		Run_EndGame();
+	}
 #ifdef STANDALONE_MODE
 	sceKernelExitProcess(0);
 #else
@@ -2972,6 +2977,9 @@ void *pthread_main(void *arg) {
 	if (!strcmp(game_id, "DELTARUNE")) {
 		debugPrintf("Enabling Deltarune specific gamehack!\n");
 		deltarune_hack = 1;
+	else if (!strcmp(game_id, "void_stranger")) {
+		debugPrintf("Enabling Void Stranger specific gamehack!\n");
+		voidstranger_hack = 1;
 	}
 	
 	// Starting the Runner
