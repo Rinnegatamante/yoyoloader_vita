@@ -2,6 +2,7 @@
 #include <vitaGL.h>
 #include <stdio.h>
 #include <malloc.h>
+#include <string.h>
 
 #include "main.h"
 #include "so_util.h"

@@ -8,19 +8,21 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    container: vitasdk/vitasdk-softfp:latest
+    container: atamanenko/vitasdk-softfp:latest
     steps:
     - uses: actions/checkout@v2
       with:
         fetch-depth: '10'
     - name: Install dependencies
       run: |
-        cp stubs/libkubridge_stub.a /home/user/vitasdk/arm-vita-eabi/lib
-        cp stubs/libkubridge_stub_weak.a /home/user/vitasdk/arm-vita-eabi/lib
-        cp libs/libsndfile.a /home/user/vitasdk/arm-vita-eabi/lib
-        cp libs/libcurl.a /home/user/vitasdk/arm-vita-eabi/lib
-        cp libs/libssl.a /home/user/vitasdk/arm-vita-eabi/lib
-        cp libs/libcrypto.a /home/user/vitasdk/arm-vita-eabi/lib
+        apt-get update
+        apt-get install -y zip
+        cp stubs/libkubridge_stub.a /usr/local/vitasdk/arm-vita-eabi/lib
+        cp stubs/libkubridge_stub_weak.a /usr/local/vitasdk/arm-vita-eabi/lib
+        cp libs/libsndfile.a /usr/local/vitasdk/arm-vita-eabi/lib
+        cp libs/libcurl.a /usr/local/vitasdk/arm-vita-eabi/lib
+        cp libs/libssl.a /usr/local/vitasdk/arm-vita-eabi/lib
+        cp libs/libcrypto.a /usr/local/vitasdk/arm-vita-eabi/lib
         git clone -b vgl --single-branch https://github.com/Rinnegatamante/openal-soft.git
         cd openal-soft/build
         cmake -DCMAKE_TOOLCHAIN_FILE=${VITASDK}/share/vita.toolchain.cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_FLAGS=-mfloat-abi=softfp .. && make -j$(nproc) install
@@ -33,7 +35,7 @@ jobs:
         git clone https://github.com/Rinnegatamante/vitaShaRK.git
         make -C vitaShaRK -j$(nproc) install
         git clone https://github.com/Rinnegatamante/vitaGL.git
-        make -C vitaGL DEPTH_STENCIL_HACK=1 SOFTFP_ABI=1 NO_DEBUG=1 SHARED_RENDERTARGETS=1 HAVE_GLSL_SUPPORT=1 -j$(nproc) install
+        make -C vitaGL DEPTH_STENCIL_HACK=1 SOFTFP_ABI=1 NO_DEBUG=1 SHARED_RENDERTARGETS=1 NO_SPLASHSCREEN=1 -j$(nproc) install
         git clone https://github.com/frangarcj/opensles.git
         cd opensles/libopensles
         make -j$(nproc) install
@@ -55,8 +57,8 @@ jobs:
         cmake -DLOADER=1 -DSTANDALONE=1 ..
         make -j$(nproc)
         cd ..
-        make -C vitaGL DEPTH_STENCIL_HACK=1 SOFTFP_ABI=1 NO_DEBUG=1 PHYCONT_ON_DEMAND=1 SHARED_RENDERTARGETS=1 HAVE_GLSL_SUPPORT=1 -j$(nproc) clean
-        make -C vitaGL DEPTH_STENCIL_HACK=1 SOFTFP_ABI=1 NO_DEBUG=1 PHYCONT_ON_DEMAND=1 SHARED_RENDERTARGETS=1 HAVE_GLSL_SUPPORT=1 -j$(nproc) install
+        make -C vitaGL DEPTH_STENCIL_HACK=1 SOFTFP_ABI=1 NO_DEBUG=1 PHYCONT_ON_DEMAND=1 SHARED_RENDERTARGETS=1 NO_SPLASHSCREEN=1 -j$(nproc) clean
+        make -C vitaGL DEPTH_STENCIL_HACK=1 SOFTFP_ABI=1 NO_DEBUG=1 PHYCONT_ON_DEMAND=1 SHARED_RENDERTARGETS=1 NO_SPLASHSCREEN=1 -j$(nproc) install
         cd standalone_video
         cmake -DLOADER=1 -DVIDEO_SUPPORT=1 -DSTANDALONE=1 ..
         make -j$(nproc)

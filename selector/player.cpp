@@ -2,6 +2,7 @@
 #include <vitaGL.h>
 #include <stdio.h>
 #include <malloc.h>
+#include <string.h>
 
 #define FB_ALIGNMENT 0x40000
 #define ALIGN_MEM(x, align) (((x) + ((align) - 1)) & ~((align) - 1))
