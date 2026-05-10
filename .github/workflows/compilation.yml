@@ -35,7 +35,7 @@ jobs:
         git clone https://github.com/Rinnegatamante/vitaShaRK.git
         make -C vitaShaRK -j$(nproc) install
         git clone https://github.com/Rinnegatamante/vitaGL.git
-        make -C vitaGL DEPTH_STENCIL_HACK=1 SOFTFP_ABI=1 NO_DEBUG=1 SHARED_RENDERTARGETS=1 NO_SPLASHSCREEN=1 -j$(nproc) install
+        make -C vitaGL DEPTH_STENCIL_HACK=1 SOFTFP_ABI=1 NO_DEBUG=1 SHARED_RENDERTARGETS=1 NO_SPLASHSCREEN=1 ENABLE_LEGACY_PIPELINE=1 -j$(nproc) install
         git clone https://github.com/frangarcj/opensles.git
         cd opensles/libopensles
         make -j$(nproc) install
@@ -57,8 +57,8 @@ jobs:
         cmake -DLOADER=1 -DSTANDALONE=1 ..
         make -j$(nproc)
         cd ..
-        make -C vitaGL DEPTH_STENCIL_HACK=1 SOFTFP_ABI=1 NO_DEBUG=1 PHYCONT_ON_DEMAND=1 SHARED_RENDERTARGETS=1 NO_SPLASHSCREEN=1 -j$(nproc) clean
-        make -C vitaGL DEPTH_STENCIL_HACK=1 SOFTFP_ABI=1 NO_DEBUG=1 PHYCONT_ON_DEMAND=1 SHARED_RENDERTARGETS=1 NO_SPLASHSCREEN=1 -j$(nproc) install
+        make -C vitaGL DEPTH_STENCIL_HACK=1 SOFTFP_ABI=1 NO_DEBUG=1 PHYCONT_ON_DEMAND=1 SHARED_RENDERTARGETS=1 NO_SPLASHSCREEN=1 ENABLE_LEGACY_PIPELINE=1 -j$(nproc) clean
+        make -C vitaGL DEPTH_STENCIL_HACK=1 SOFTFP_ABI=1 NO_DEBUG=1 PHYCONT_ON_DEMAND=1 SHARED_RENDERTARGETS=1 NO_SPLASHSCREEN=1 ENABLE_LEGACY_PIPELINE=1 -j$(nproc) install
         cd standalone_video
         cmake -DLOADER=1 -DVIDEO_SUPPORT=1 -DSTANDALONE=1 ..
         make -j$(nproc)
