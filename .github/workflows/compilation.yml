@@ -1,5 +1,4 @@
 name: CI
-
 on:
   push:
   repository_dispatch:
@@ -9,10 +8,12 @@ jobs:
   build:
     runs-on: ubuntu-latest
     container: atamanenko/vitasdk-softfp:latest
+
     steps:
     - uses: actions/checkout@v2
       with:
         fetch-depth: '10'
+
     - name: Install dependencies
       run: |
         apt-get update
@@ -40,6 +41,7 @@ jobs:
         cd opensles/libopensles
         make -j$(nproc) install
         cd ../..
+
     - name: Compile project
       run: |
         git config --global --add safe.directory /__w/yoyoloader_vita/yoyoloader_vita
@@ -76,24 +78,36 @@ jobs:
         cp ../livearea/icon0.png builder/assets/icon0.png
         cp ../livearea/default_gate.png builder/assets/startup.png
         zip -9 -r builder.zip builder
+
     - uses: svenstaro/upload-release-action@v2
       with:
         repo_token: ${{ secrets.GITHUB_TOKEN }}
         file: build/YoYoLoader.vpk
         overwrite: true
         tag: Nightly
+
     - uses: svenstaro/upload-release-action@v2
       with:
         repo_token: ${{ secrets.GITHUB_TOKEN }}
         file: launcher/builder.zip
         overwrite: true
         tag: Nightly
+
     - uses: svenstaro/upload-release-action@v2
       with:
         repo_token: ${{ secrets.GITHUB_TOKEN }}
         file: banners.zip
         overwrite: true
         tag: Nightly
+
+    - name: Publish Nightly to VitaDB
+      run: |
+        curl --fail-with-body --show-error \
+          -X POST \
+          -F "secret=${{ secrets.VITADB_SECRET }}" \
+          -F "vpk_url=https://github.com/Rinnegatamante/yoyoloader_vita/releases/download/Nightly/YoYoLoader.vpk" \
+          https://www.rinnegatamante.eu/vitadb/publish_nightly.php
+
     - name: Restart workflow if an upload fails
       if: ${{ failure() }}
       uses: peter-evans/repository-dispatch@v2
@@ -101,12 +115,15 @@ jobs:
         token: ${{ secrets.REPO_ACCESS_TOKEN }}
         event-type: restart
         client-payload: '{"runid": "${{ github.run_id }}"}'
+
     - name: Get current date
       id: date
       run: echo "::set-output name=date::$(date +'%Y-%m-%d')"
+
     - name: Get changelog
       id: changelog
       uses: Rinnegatamante/get-git-log-action@master
+
     - name: Update release body
       id: update_release
       uses: Rinnegatamante/update_release@master
