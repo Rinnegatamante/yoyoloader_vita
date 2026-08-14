@@ -2822,6 +2822,7 @@ void *pthread_main(void *arg) {
 	so_initialize(&yoyoloader_mod);
 	
 	// Initializing vitaGL
+	vglSetCircularPoolSize(3 * 1024);
 	vglSetSemanticBindingMode(VGL_MODE_POSTPONED);
 	if (debugMode)
 		vglSetDisplayCallback(mem_profiler);

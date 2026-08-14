@@ -60,6 +60,6 @@ void mem_profiler(void *framebuf) {
 	dbg_y = 8;
 	vgl_debugger_draw_mem_usage("RAM Usage", VGL_MEM_RAM);
 	vgl_debugger_draw_mem_usage("VRAM Usage", VGL_MEM_VRAM);
-	vgl_debugger_draw_mem_usage("Phycont RAM Usage", VGL_MEM_SLOW);
+	vgl_debugger_draw_mem_usage("Phycont RAM Usage", VGL_MEM_PHYCONT);
 	vgl_debugger_draw_mem_usage("CDLG RAM Usage", VGL_MEM_BUDGET);
 }

@@ -1541,6 +1541,7 @@ int main(int argc, char *argv[]) {
 	}
 	
 	GameSelection *hovered = nullptr;
+	vglSetCircularPoolSize(3 * 1024);
 	vglInitExtended(0, 960, 544, 0x1800000, SCE_GXM_MULTISAMPLE_NONE);
 	
 	ImGui::CreateContext();
