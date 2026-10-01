@@ -10,6 +10,7 @@
 #include <vitasdk.h>
 #include <vitaGL.h>
 #include <stdio.h>
+#include <string.h>
 
 #include "main.h"
 
@@ -200,13 +201,13 @@ void patch_trophies() {
 	YYGetString = (void *)so_symbol(&yoyoloader_mod, "_Z11YYGetStringPK6RValuei");
 	YYGetFloat = (void *)so_symbol(&yoyoloader_mod, "_Z10YYGetFloatPK6RValuei");
 	
-	Function_Add("steam_set_achievement", steam_set_achievement, 1, 0);
-	Function_Add("steam_get_achievement", steam_get_achievement, 1, 0);
-	Function_Add("steam_stats_ready", steam_stats_ready, 0, 0);
-	Function_Add("steam_initialised", steam_initialised, 0, 0);
-	Function_Add("achievement_available", achievements_available, 0, 0);
-	Function_Add("YoYo_AchievementsAvailable", achievements_available, 0, 0);
-	Function_Add("achievement_post", achievements_post, 2, 0);
-	Function_Add("YoYo_PostAchievement", achievements_post, 2, 0);
-	Function_Add("psn_unlock_trophy", psn_unlock_trophy, 2, 0);
+	Function_Add("steam_set_achievement", (intptr_t)steam_set_achievement, 1, 0);
+	Function_Add("steam_get_achievement", (intptr_t)steam_get_achievement, 1, 0);
+	Function_Add("steam_stats_ready", (intptr_t)steam_stats_ready, 0, 0);
+	Function_Add("steam_initialised", (intptr_t)steam_initialised, 0, 0);
+	Function_Add("achievement_available", (intptr_t)achievements_available, 0, 0);
+	Function_Add("YoYo_AchievementsAvailable", (intptr_t)achievements_available, 0, 0);
+	Function_Add("achievement_post", (intptr_t)achievements_post, 2, 0);
+	Function_Add("YoYo_PostAchievement", (intptr_t)achievements_post, 2, 0);
+	Function_Add("psn_unlock_trophy", (intptr_t)psn_unlock_trophy, 2, 0);
 }

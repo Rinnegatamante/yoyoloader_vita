@@ -64,6 +64,9 @@
 
 extern int trophies_init();
 extern void patch_trophies();
+#ifdef HAS_VIDEO_PLAYBACK_SUPPORT
+extern void patch_video_player(void);
+#endif
 extern void audio_player_play(char *path, int loop);
 extern void audio_player_stop();
 extern void audio_player_pause();
@@ -71,6 +74,7 @@ extern void audio_player_resume();
 extern int audio_player_is_playing();
 extern int is_gamepad_connected(int id);
 extern void send_post_request(const char *url, const char *data);
+extern void send_get_request(const char *url);
 extern void mem_profiler(void *framebuf);
 extern SceUID post_thid;
 extern SceUID get_thid;
@@ -129,7 +133,7 @@ char data_path_root[256];
 char apk_path[256];
 char gxp_path[256];
 
-void patch_gamepad();
+void patch_gamepad(const char *game_name);
 void GamePadUpdate();
 
 char *translate_frag_shader(const char *string, int size);
@@ -234,7 +238,7 @@ struct android_dirent {
 
 // From https://github.com/kraj/uClibc/blob/master/libc/misc/dirent/scandir.c
 int scandir_hook(const char *dir, struct android_dirent ***namelist,
-	int (*selector) (const struct dirent *),
+	int (*selector) (const struct android_dirent *),
 	int (*compar) (const struct dirent **, const struct dirent **))
 {
 	DIR *dp = opendir (dir);
@@ -696,9 +700,9 @@ void main_loop() {
 		sceMotionGetSensorState(&sensor, 1);
 		SceMotionState state;
 		sceMotionGetState(&state);
-		float orientation[3];
-		sceMotionGetBasicOrientation(orientation);
-		is_portrait = (int)orientation[0];
+		SceFVector3 orientation;
+		sceMotionGetBasicOrientation(&orientation);
+		is_portrait = (int)orientation.x;
 		if (is_portrait) {
 			if (main_tex == 0xDEADBEEF) {
 				glGenTextures(1, &main_tex);
@@ -837,7 +841,7 @@ void (*InvalidateTextureState) ();
 
 void LoadTextureFromPNG_generic(uint32_t arg1, uint32_t arg2, uint32_t *flags, uint32_t *tex_id, uint32_t *texture) {
 	int width, height;
-	uint32_t *data = ReadPNGFile(arg1 , arg2, &width, &height, (*flags & 2) == 0);
+	uint32_t *data = ReadPNGFile((void *)(uintptr_t)arg1, arg2, &width, &height, (*flags & 2) == 0);
 	if (data) {
 		InvalidateTextureState();
 		glGenTextures(1, tex_id);
@@ -922,7 +926,7 @@ void LoadTextureFromPNG_generic(uint32_t arg1, uint32_t arg2, uint32_t *flags, u
 #else
 					sprintf(fname, "%s%u.png", data_path, idx);
 #endif
-					ext_data = stbi_load(fname, &width, &height, NULL, 4);
+					ext_data = (uint32_t *)stbi_load(fname, &width, &height, NULL, 4);
 					glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, ext_data);
 				}
 				vglFree(ext_data);
@@ -1023,9 +1027,9 @@ void SetWorkingDirectory() {
 }
 
 void patch_runner(void) {
-	FreePNGFile = so_symbol(&yoyoloader_mod, "_Z11FreePNGFilev");
-	ReadPNGFile = so_symbol(&yoyoloader_mod, "_Z11ReadPNGFilePviPiS0_b");
-	InvalidateTextureState = so_symbol(&yoyoloader_mod, "_Z23_InvalidateTextureStatev");
+	FreePNGFile = (void (*)(void))so_symbol(&yoyoloader_mod, "_Z11FreePNGFilev");
+	ReadPNGFile = (uint32_t *(*)(void *, int, int *, int *, int))so_symbol(&yoyoloader_mod, "_Z11ReadPNGFilePviPiS0_b");
+	InvalidateTextureState = (void (*)(void))so_symbol(&yoyoloader_mod, "_Z23_InvalidateTextureStatev");
 	
 	hook_addr(so_symbol(&yoyoloader_mod, "png_get_IHDR"), (uintptr_t)&png_get_IHDR_hook);
 	hook_addr(so_symbol(&yoyoloader_mod, "_Z19SetWorkingDirectoryv"), (uintptr_t)&SetWorkingDirectory);
@@ -1043,11 +1047,11 @@ void patch_runner(void) {
 		for (;;) {
 			if (*p == 0xE5900020) { // LDR R0, [R0,#0x20]
 				debugPrintf("Patching LoadTextureFromPNG to variant #4\n");
-				hook_addr(LoadTextureFromPNG, (uintptr_t)&LoadTextureFromPNG_4);
+				hook_addr((uintptr_t)LoadTextureFromPNG, (uintptr_t)&LoadTextureFromPNG_4);
 				break;
 			} else if (*p == 0xE5900024) { // LDR R0, [R0,#0x24]
 				debugPrintf("Patching LoadTextureFromPNG to variant #3\n");
-				hook_addr(LoadTextureFromPNG, (uintptr_t)&LoadTextureFromPNG_3);
+				hook_addr((uintptr_t)LoadTextureFromPNG, (uintptr_t)&LoadTextureFromPNG_3);
 				break;
 			}
 			p++;
@@ -1056,11 +1060,11 @@ void patch_runner(void) {
 		switch (*LoadTextureFromPNG >> 16) {
 		case 0xE92D:
 			debugPrintf("Patching LoadTextureFromPNG to variant #1\n");
-			hook_addr(LoadTextureFromPNG, (uintptr_t)&LoadTextureFromPNG_1);
+			hook_addr((uintptr_t)LoadTextureFromPNG, (uintptr_t)&LoadTextureFromPNG_1);
 			break;
 		case 0xE590:
 			debugPrintf("Patching LoadTextureFromPNG to variant #2\n");
-			hook_addr(LoadTextureFromPNG, (uintptr_t)&LoadTextureFromPNG_2);
+			hook_addr((uintptr_t)LoadTextureFromPNG, (uintptr_t)&LoadTextureFromPNG_2);
 			break;
 		default:
 			fatal_error("Error: Unrecognized LoadTextureFromPNG signature: 0x%08X.", *LoadTextureFromPNG);
@@ -1097,7 +1101,7 @@ void patch_runner(void) {
 
 void patch_runner_post_init(void) {
 	g_fNoAudio = (uint8_t *)so_symbol(&yoyoloader_mod, "g_fNoAudio");
-	g_pWorkingDirectory = (char *)so_symbol(&yoyoloader_mod, "g_pWorkingDirectory");
+	g_pWorkingDirectory = (char **)so_symbol(&yoyoloader_mod, "g_pWorkingDirectory");
 	g_TextureScale = (int *)so_symbol(&yoyoloader_mod, "g_TextureScale");
 	
 	int *dbg_csol = (int *)so_symbol(&yoyoloader_mod, "_dbg_csol");
@@ -1469,7 +1473,7 @@ int _ZNSt6__ndk112__next_primeEj(void *this, int n) {
 
 void __cxa_throw_hook(void *thrown_exception, void *tinfo, void (*dest)(void *)) {
 	if (tinfo == so_symbol(&yoyoloader_mod, "_ZTI14YYGMLException")) {
-		void (* YYCatchGMLException)(void *exception) = so_symbol(&yoyoloader_mod, "_Z19YYCatchGMLExceptionRK14YYGMLException");
+		void (* YYCatchGMLException)(void *exception) = (void (*)(void *))so_symbol(&yoyoloader_mod, "_Z19YYCatchGMLExceptionRK14YYGMLException");
 		YYCatchGMLException(thrown_exception);
 		if (dest)
 			dest(thrown_exception);
@@ -1630,7 +1634,7 @@ static so_default_dynlib default_dynlib[] = {
 	{ "_ZNSt12length_errorD1Ev", (uintptr_t)&_ZNSt12length_errorD1Ev},
 	{ "_ZNSt13runtime_errorD1Ev", (uintptr_t)&_ZNSt13runtime_errorD1Ev},
 	{ "_ZTVSt12length_error", (uintptr_t)&_ZTVSt12length_error},
-	{ "_ZNSt6__ndk112__next_primeEj", &_ZNSt6__ndk112__next_primeEj},
+	{ "_ZNSt6__ndk112__next_primeEj", (uintptr_t)&_ZNSt6__ndk112__next_primeEj},
 	{ "__aeabi_f2d", (uintptr_t)&__aeabi_f2d },
 	{ "__aeabi_l2d", (uintptr_t)&__aeabi_l2d },
 	{ "__aeabi_l2f", (uintptr_t)&__aeabi_l2f },
@@ -2121,7 +2125,7 @@ void *dlsym_hook( void *handle, const char *symbol) {
 	if (!func) {
 		for (size_t i = 0; i < sizeof(default_dynlib) / sizeof(so_default_dynlib); i++) {
 			if (!strcmp(symbol, default_dynlib[i].symbol)) {
-				return default_dynlib[i].func;
+				return (void *)default_dynlib[i].func;
 			}
 		}
 	}
@@ -2216,34 +2220,34 @@ int GetStaticMethodID(void *env, void *class, const char *name, const char *sig)
 void CallStaticVoidMethodV(void *env, void *obj, int methodID, uintptr_t *args) {
 	switch (methodID) {
 	case SHOW_MESSAGE:
-		debugPrintf(args[0]);
+		debugPrintf((char *)args[0]);
 		break;
 	case INPUT_STRING_ASYNC:
-		init_ime_dialog(args[0], args[1]);
+		init_ime_dialog((const char *)args[0], (const char *)args[1]);
 		ime_index = (int)args[2];
 		ime_active = 1;
 		break;
 	case SHOW_MESSAGE_ASYNC:
-		init_msg_dialog(args[0]);
+		init_msg_dialog((const char *)args[0]);
 		msg_index = (int)args[1];
 		msg_active = 1;
 		break;
 	case HTTP_POST:
 		if (has_net) {
-			send_post_request(args[0], args[1]);
+			send_post_request((const char *)args[0], (const char *)args[1]);
 			post_index = (int)args[2];
 			post_active = 1;
 		}
 		break;
 	case HTTP_GET:
 		if (has_net) {
-			send_get_request(args[0]);
+			send_get_request((const char *)args[0]);
 			get_index = (int)args[1];
 			get_active = 1;
 		}
 		break;
 	case PLAY_MP3:
-		audio_player_play(args[0], args[1]);
+		audio_player_play((char *)args[0], args[1]);
 		break;
 	case STOP_MP3:
 		audio_player_stop();

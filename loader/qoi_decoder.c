@@ -81,7 +81,7 @@ struct android_dirent {
 
 // From https://github.com/kraj/uClibc/blob/master/libc/misc/dirent/scandir.c
 int scandir_hook(const char *dir, struct android_dirent ***namelist,
-	int (*selector) (const struct dirent *),
+	int (*selector) (const struct android_dirent *),
 	int (*compar) (const struct dirent **, const struct dirent **))
 {
 	DIR *dp = opendir (dir);
@@ -536,7 +536,7 @@ int _ZNSt6__ndk112__next_primeEj(void *this, int n) {
 
 void __cxa_throw_hook(void *thrown_exception, void *tinfo, void (*dest)(void *)) {
 	if (tinfo == so_symbol(&yoyoloader_mod, "_ZTI14YYGMLException")) {
-		void (* YYCatchGMLException)(void *exception) = so_symbol(&yoyoloader_mod, "_Z19YYCatchGMLExceptionRK14YYGMLException");
+		void (* YYCatchGMLException)(void *exception) = (void (*)(void *))so_symbol(&yoyoloader_mod, "_Z19YYCatchGMLExceptionRK14YYGMLException");
 		YYCatchGMLException(thrown_exception);
 		if (dest)
 			dest(thrown_exception);
@@ -576,7 +576,7 @@ static so_default_dynlib default_dynlib[] = {
 	{ "_ZNSt12length_errorD1Ev", (uintptr_t)&_ZNSt12length_errorD1Ev},
 	{ "_ZNSt13runtime_errorD1Ev", (uintptr_t)&_ZNSt13runtime_errorD1Ev},
 	{ "_ZTVSt12length_error", (uintptr_t)&_ZTVSt12length_error},
-	{ "_ZNSt6__ndk112__next_primeEj", &_ZNSt6__ndk112__next_primeEj},
+	{ "_ZNSt6__ndk112__next_primeEj", (uintptr_t)&_ZNSt6__ndk112__next_primeEj},
 	{ "__aeabi_f2d", (uintptr_t)&__aeabi_f2d },
 	{ "__aeabi_l2d", (uintptr_t)&__aeabi_l2d },
 	{ "__aeabi_l2f", (uintptr_t)&__aeabi_l2f },
@@ -891,7 +891,7 @@ void YYFree(void *addr) {
 }
 
 void patch_runner(void) {
-	ReadQOIFFile = so_symbol(&yoyoloader_mod, "_Z12ReadQOIFFilePviPiS0_b");
+	ReadQOIFFile = (void *(*)(void *, int, int *, int *, int))so_symbol(&yoyoloader_mod, "_Z12ReadQOIFFilePviPiS0_b");
 	hook_addr(so_symbol(&yoyoloader_mod, "_ZN13MemoryManager5AllocEjPKcib"), (uintptr_t)&MemoryManagerAlloc);
 	hook_addr(so_symbol(&yoyoloader_mod, "_Z6YYFreePKv_0"), (uintptr_t)&YYFree);
 }

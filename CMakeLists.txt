@@ -9,7 +9,14 @@ if(NOT DEFINED CMAKE_TOOLCHAIN_FILE)
 endif()
 
 project(YoYoLoader C CXX)
+set(CMAKE_C_STANDARD 17)
+set(CMAKE_C_STANDARD_REQUIRED ON)
+set(CMAKE_C_EXTENSIONS ON)
 include("${VITASDK}/share/vita.cmake" REQUIRED)
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(sndfile REQUIRED IMPORTED_TARGET sndfile)
+pkg_check_modules(vorbisfile REQUIRED IMPORTED_TARGET vorbisfile)
+pkg_check_modules(libcurl REQUIRED IMPORTED_TARGET libcurl)
 set(VITA_APP_NAME "YoYo Loader")
 set(VITA_TITLEID  "YYOLOADER")
 set(VITA_VERSION  "01.00")
@@ -52,7 +59,11 @@ add_executable(YoYoLoader
 )
 
 target_link_libraries(YoYoLoader
-  -Wl,--whole-archive pthread -Wl,--no-whole-archive
+  -pthread
+  -Wl,--start-group
+  PkgConfig::sndfile
+  PkgConfig::vorbisfile
+  PkgConfig::libcurl
   OpenSLES
   sndfile
   openal
@@ -94,6 +105,7 @@ target_link_libraries(YoYoLoader
   SceVshBridge_stub
   SceAvPlayer_stub
   SceNpTrophy_stub
+  -Wl,--end-group
 )
 
 vita_create_self(loader2.bin YoYoLoader UNSAFE)
@@ -112,7 +124,11 @@ add_executable(YoYoLoader
 )
 
 target_link_libraries(YoYoLoader
-  -Wl,--whole-archive pthread -Wl,--no-whole-archive
+  -pthread
+  -Wl,--start-group
+  PkgConfig::sndfile
+  PkgConfig::vorbisfile
+  PkgConfig::libcurl
   OpenSLES
   sndfile
   FLAC
@@ -148,6 +164,7 @@ target_link_libraries(YoYoLoader
   SceTouch_stub
   SceVshBridge_stub
   SceAvPlayer_stub
+  -Wl,--end-group
 )
 
 vita_create_self(eboot.bin YoYoLoader UNSAFE)
@@ -175,3 +192,7 @@ vita_create_vpk(YoYoLoader.vpk ${VITA_TITLEID} eboot.bin
        ${CMAKE_SOURCE_DIR}/Roboto.ttf Roboto.ttf
 )
 endif()
+
+set_target_properties(YoYoLoader PROPERTIES LINKER_LANGUAGE CXX)
+
+set_property(SOURCE loader/so_util.c APPEND PROPERTY COMPILE_OPTIONS -Wno-error=return-mismatch -Wno-error=incompatible-pointer-types)
