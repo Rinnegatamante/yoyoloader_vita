@@ -1562,6 +1562,11 @@ void __assert2(const char *file, int line, const char *func, const char *expr) {
 	debugPrintf("assertion failed:\n%s:%d (%s): %s\n", file, line, func, expr);
 }
 
+long unsigned int *__gnu_Unwind_Find_exidx(long unsigned int *PC, int *pcount) {
+	*pcount = yoyoloader_mod.exidx_size / 8;
+	return yoyoloader_mod.exidx_base;
+}
+
 static so_default_dynlib default_dynlib[] = {
 	{ "SL_IID_ANDROIDSIMPLEBUFFERQUEUE", (uintptr_t)&SL_IID_ANDROIDSIMPLEBUFFERQUEUE},
 	{ "SL_IID_AUDIOIODEVICECAPABILITIES", (uintptr_t)&SL_IID_AUDIOIODEVICECAPABILITIES},
@@ -1680,7 +1685,7 @@ static so_default_dynlib default_dynlib[] = {
 	{ "__cxa_throw", (uintptr_t)&__cxa_throw_hook },
 	{ "__errno", (uintptr_t)&__errno },
 	{ "__gnu_unwind_frame", (uintptr_t)&__gnu_unwind_frame },
-	{ "__gnu_Unwind_Find_exidx", (uintptr_t)&ret0 },
+	{ "__gnu_Unwind_Find_exidx", (uintptr_t)&__gnu_Unwind_Find_exidx },
 	{ "__memcpy_chk", (uintptr_t)&__memcpy_chk },
 	{ "__memmove_chk", (uintptr_t)&__memmove_chk },
 	{ "__memset_chk", (uintptr_t)&__memset_chk },
