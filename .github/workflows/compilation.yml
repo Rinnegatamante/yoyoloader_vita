@@ -24,6 +24,10 @@ jobs:
         cp libs/libcurl.a /usr/local/vitasdk/arm-vita-eabi/lib
         cp libs/libssl.a /usr/local/vitasdk/arm-vita-eabi/lib
         cp libs/libcrypto.a /usr/local/vitasdk/arm-vita-eabi/lib
+        git clone https://github.com/bythos14/kubridge.git
+        cd kubridge
+        cmake -DCMAKE_TOOLCHAIN_FILE=${VITASDK}/share/vita.toolchain.cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_FLAGS=-mfloat-abi=softfp . && make -j$(nproc) install
+        cd ..
         git clone -b vgl --single-branch https://github.com/Rinnegatamante/openal-soft.git
         cd openal-soft/build
         cmake -DCMAKE_TOOLCHAIN_FILE=${VITASDK}/share/vita.toolchain.cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_FLAGS=-mfloat-abi=softfp .. && make -j$(nproc) install
