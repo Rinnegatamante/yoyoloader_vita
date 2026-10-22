@@ -14,6 +14,8 @@
 #ifdef HAS_VIDEO_PLAYBACK_SUPPORT
 #define FB_ALIGNMENT 0x40000
 
+#define ALIGN_MEM(x, align) (((x) + ((align) - 1)) & ~((align) - 1))
+
 extern char apk_path[256];
 extern so_module yoyoloader_mod;
 
